@@ -58,7 +58,7 @@ public class Delivery {
         try {
             slide  = linearOpMode.hardwareMap.get(DcMotor.class, "deliverySlide");
             claw = linearOpMode.hardwareMap.get(Servo.class, "claw");
-            limitSwitch = linearOpMode.hardwareMap.get(TouchSensor.class, "DSwitch");
+//            limitSwitch = linearOpMode.hardwareMap.get(TouchSensor.class, "DSwitch");
             
             claw.scaleRange(0.0, 0.25);
             slide.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
