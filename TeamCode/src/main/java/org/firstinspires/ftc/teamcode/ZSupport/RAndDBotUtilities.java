@@ -41,7 +41,7 @@ public class RAndDBotUtilities {
     DcMotor fr, fl, br, bl;
     double frPower, flPower, brPower, blPower;
 
-    GoBildaPinpointDriver odo;
+    public GoBildaPinpointDriver odo;
     final double MAX_POWER_DISTANCE = 500;
     final double MAX_POWER_HEADING_ERROR = 45;
 
@@ -77,7 +77,7 @@ public class RAndDBotUtilities {
         the tracking point the Y (strafe) odometry pod is. forward of center is a positive number,
         backwards is a negative number.
          */
-        odo.setOffsets(0.0, -0.0, DistanceUnit.MM); //these are tuned for 3110-0002-0001 Product Insight #1
+        odo.setOffsets(83.75736, -138.50000, DistanceUnit.MM); //these are tuned for 3110-0002-0001 Product Insight #1
 
         /*
         Set the kind of pods used by your robot. If you're using goBILDA odometry pods, select either
@@ -129,6 +129,8 @@ public class RAndDBotUtilities {
         blPower = x + y - r;
         brPower = x - y + r;
         frPower = x + y + r;
+
+        applyDrivePower();
     }
 
 
