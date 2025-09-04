@@ -205,11 +205,16 @@ public class RAndDBotUtilities {
         double errY = targetPos.getY(DistanceUnit.MM) - odo.getPosY(DistanceUnit.MM);
         double errH = targetPos.getHeading(AngleUnit.DEGREES) - odo.getHeading(AngleUnit.DEGREES);
 
-        double xPow = Math.copySign(Math.sqrt(Math.abs(errX) / MAX_POWER_DISTANCE), errX);
-        double yPow = Math.copySign(Math.sqrt(Math.abs(errY) / MAX_POWER_DISTANCE), errY);
-        double hPow = Math.copySign(Math.sqrt(Math.abs(errH) / MAX_POWER_HEADING_ERROR), errH);
+        double xPow = signedSqrt(errX / MAX_POWER_DISTANCE);
+        double yPow = signedSqrt(errY / MAX_POWER_DISTANCE);
+        double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR);
 
         move(xPow, yPow, hPow);
     }
 
+    private double signedSqrt(double val)
+    {
+        double temp = val;
+        return Math.copySign(Math.sqrt(Math.abs(temp)), val);
+    }
 }
