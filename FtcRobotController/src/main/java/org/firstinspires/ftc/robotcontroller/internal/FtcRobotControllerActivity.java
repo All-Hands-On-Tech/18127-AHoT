@@ -123,10 +123,6 @@ import org.firstinspires.ftc.robotcore.internal.system.ServiceController;
 import org.firstinspires.ftc.robotcore.internal.ui.ThemedActivity;
 import org.firstinspires.ftc.robotcore.internal.ui.UILocation;
 import org.firstinspires.ftc.robotcore.internal.webserver.RobotControllerWebInfo;
-import org.firstinspires.ftc.robotserver.internal.programmingmode.ProgrammingModeManager;
-import org.firstinspires.inspection.RcInspectionActivity;
-import org.threeten.bp.YearMonth;
-import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.FileNotFoundException;
 import java.util.List;
@@ -147,7 +143,7 @@ public class FtcRobotControllerActivity extends Activity
 
   private OnBotJavaHelper onBotJavaHelper;
 
-  protected ProgrammingModeManager programmingModeManager;
+  // protected ProgrammingModeManager programmingModeManager;
 
   protected UpdateUI.Callback callback;
   protected Context context;
@@ -376,9 +372,9 @@ public class FtcRobotControllerActivity extends Activity
     dimmer = new Dimmer(this);
     dimmer.longBright();
 
-    programmingModeManager = new ProgrammingModeManager();
-    programmingModeManager.register(new ProgrammingWebHandlers());
-    programmingModeManager.register(new OnBotJavaProgrammingMode());
+    // programmingModeManager = new ProgrammingModeManager();
+    // programmingModeManager.register(new ProgrammingWebHandlers());
+    // programmingModeManager.register(new OnBotJavaProgrammingMode());
 
     updateUI = createUpdateUI();
     callback = createUICallback(updateUI);
@@ -555,17 +551,17 @@ public class FtcRobotControllerActivity extends Activity
     if (id == R.id.action_program_and_manage) {
       if (isRobotRunning()) {
         Intent programmingModeIntent = new Intent(AppUtil.getDefContext(), ProgramAndManageActivity.class);
-        RobotControllerWebInfo webInfo = programmingModeManager.getWebServer().getConnectionInformation();
-        programmingModeIntent.putExtra(LaunchActivityConstantsList.RC_WEB_INFO, webInfo.toJson());
+        // RobotControllerWebInfo webInfo = programmingModeManager.getWebServer().getConnectionInformation();
+        // programmingModeIntent.putExtra(LaunchActivityConstantsList.RC_WEB_INFO, webInfo.toJson());
         startActivity(programmingModeIntent);
       } else {
         AppUtil.getInstance().showToast(UILocation.ONLY_LOCAL, context.getString(R.string.toastWifiUpBeforeProgrammingMode));
       }
-    } else if (id == R.id.action_inspection_mode) {
+    } /*else if (id == R.id.action_inspection_mode) {
       Intent inspectionModeIntent = new Intent(AppUtil.getDefContext(), RcInspectionActivity.class);
       startActivity(inspectionModeIntent);
       return true;
-    } else if (id == R.id.action_restart_robot) {
+    }*/ else if (id == R.id.action_restart_robot) {
       dimmer.handleDimTimer();
       AppUtil.getInstance().showToast(UILocation.BOTH, context.getString(R.string.toastRestartingRobot));
       requestRobotRestart();
@@ -672,24 +668,24 @@ public class FtcRobotControllerActivity extends Activity
     controllerService.setOnBotJavaHelper(onBotJavaHelper);
 
     updateUIAndRequestRobotSetup();
-    programmingModeManager.setState(new FtcRobotControllerServiceState() {
-      @NonNull
-      @Override
-      public WebServer getWebServer() {
-        return service.getWebServer();
-      }
+    // programmingModeManager.setState(new FtcRobotControllerServiceState() {
+    //   @NonNull
+    //   @Override
+    //   public WebServer getWebServer() {
+    //     return service.getWebServer();
+    //   }
 
-      @Nullable
-      @Override
-      public OnBotJavaHelper getOnBotJavaHelper() {
-        return service.getOnBotJavaHelper();
-      }
+    //   @Nullable
+    //   @Override
+    //   public OnBotJavaHelper getOnBotJavaHelper() {
+    //     return service.getOnBotJavaHelper();
+    //   }
 
-      @Override
-      public EventLoopManager getEventLoopManager() {
-        return service.getRobot().eventLoopManager;
-      }
-    });
+    //   @Override
+    //   public EventLoopManager getEventLoopManager() {
+    //     return service.getRobot().eventLoopManager;
+    //   }
+    // });
 
     AnnotatedHooksClassFilter.getInstance().callWebHandlerRegistrarMethods(this,
         service.getWebServer().getWebHandlerManager());
@@ -717,13 +713,13 @@ public class FtcRobotControllerActivity extends Activity
     HardwareFactory hardwareFactory = new HardwareFactory(context);
     try {
       hardwareFactory.setXmlPullParser(file.getXml());
-    } catch (FileNotFoundException | XmlPullParserException e) {
+    } catch (Exception e) {
       RobotLog.ww(TAG, e, "Unable to set configuration file %s. Falling back on noConfig.", file.getName());
       file = RobotConfigFile.noConfig(cfgFileMgr);
       try {
         hardwareFactory.setXmlPullParser(file.getXml());
         cfgFileMgr.setActiveConfigAndUpdateUI(false, file);
-      } catch (FileNotFoundException | XmlPullParserException e1) {
+      } catch (Exception e1) {
         RobotLog.ee(TAG, e1, "Failed to fall back on noConfig");
       }
     }
