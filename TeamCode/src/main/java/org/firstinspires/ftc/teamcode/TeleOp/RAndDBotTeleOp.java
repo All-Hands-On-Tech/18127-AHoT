@@ -1,3 +1,4 @@
+/*
 package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -27,6 +28,7 @@ public class RAndDBotTeleOp extends LinearOpMode {
     @Override
     public void runOpMode()
     {
+        bot = new RAndDBotUtilities(this);
         bot.initialize(this);
 
         if (isStopRequested()) return;
@@ -116,3 +118,4 @@ public class RAndDBotTeleOp extends LinearOpMode {
     }
 
 }
+*/

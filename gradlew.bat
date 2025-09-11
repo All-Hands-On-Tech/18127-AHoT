@@ -88,3 +88,5 @@ exit /b 1
 if "%OS%"=="Windows_NT" endlocal
 
 :omega
+set "JAVA_HOME=C:\Program Files\Java\jdk-17"
+set "JAVACMD=%JAVA_HOME%\bin\java.exe"

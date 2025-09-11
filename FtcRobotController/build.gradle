@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 // build.gradle in FtcRobotController
 //
 apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
 
 android {
 
@@ -18,13 +19,24 @@ android {
         buildConfig = true
     }
 
-    compileSdkVersion 30
+    compileSdkVersion 34
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
     namespace = 'com.qualcomm.ftcrobotcontroller'
 }
 
 apply from: '../build.dependencies.gradle'
+dependencies {
+    implementation 'org.firstinspires.ftc:RobotCore:10.3.0'
+    implementation 'org.firstinspires.ftc:Hardware:10.3.0'
+    api 'org.firstinspires.ftc:Vision:10.3.0'
+    implementation 'org.firstinspires.ftc:FtcCommon:10.3.0'
+    implementation 'org.firstinspires.ftc:Inspection:10.3.0'
+    implementation 'org.firstinspires.ftc:OnBotJava:10.3.0'
+    implementation 'org.firstinspires.ftc:Blocks:10.3.0'
+    implementation 'androidx.annotation:annotation:1.7.1'
+    implementation "com.bylazar:fullpanels"
+}
