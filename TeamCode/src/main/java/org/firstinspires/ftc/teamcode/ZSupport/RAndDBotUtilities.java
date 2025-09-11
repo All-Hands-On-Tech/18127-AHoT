@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.ZSupport;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -39,7 +40,7 @@ For support, contact tech@gobilda.com
 public class RAndDBotUtilities {
     final double TRACK_WIDTH = 0.0;
     DcMotor fr, fl, br, bl;
-    double frPower, flPower, brPower, blPower;
+    public double frPower, flPower, brPower, blPower;
 
     public GoBildaPinpointDriver odo;
     final double MAX_POWER_DISTANCE = 500;
@@ -62,6 +63,11 @@ public class RAndDBotUtilities {
         fl = l.hardwareMap.get(DcMotor.class, "fl");
         br = l.hardwareMap.get(DcMotor.class, "br");
         bl = l.hardwareMap.get(DcMotor.class, "bl");
+
+        fr.setDirection(DcMotorSimple.Direction.REVERSE);
+//        fl.setDirection(DcMotorSimple.Direction.REVERSE);
+        br.setDirection(DcMotorSimple.Direction.REVERSE);
+//        bl.setDirection(DcMotorSimple.Direction.REVERSE);
 
         configureOdo();
         resetPosAndIMU();
@@ -125,13 +131,45 @@ public class RAndDBotUtilities {
             y /= mag;
             r /= mag;
         }
-        flPower = x - y - r;
-        blPower = x + y - r;
-        brPower = x - y + r;
-        frPower = x + y + r;
+        flPower = x + y + r;
+        frPower = x - y - r;
+        blPower = x - y + r;
+        brPower = x + y - r;
+
 
         applyDrivePower();
     }
+
+    public void moveFieldOriented(double x, double y, double r)
+    {
+        double heading = odo.getHeading(AngleUnit.RADIANS);
+
+        double cos = Math.cos(heading);
+        double sin = Math.sin(heading);
+
+        // rotate field input into robot-relative coordinates
+        double xr =  x * cos + y * sin;
+        double yr = -x * sin + y * cos;
+
+        // calculate wheel powers
+        flPower = xr - yr + r;
+        frPower = xr + yr - r;
+        blPower = xr + yr + r;
+        brPower = xr - yr - r;
+
+        // normalize so no wheel exceeds magnitude 1
+        double max = Math.max(1.0, Math.max(Math.abs(flPower),
+                Math.max(Math.abs(frPower),
+                        Math.max(Math.abs(blPower), Math.abs(brPower)))));
+
+        flPower /= max;
+        frPower /= max;
+        blPower /= max;
+        brPower /= max;
+
+        applyDrivePower();
+    }
+
 
 
     public void zeroPower()
@@ -176,6 +214,7 @@ public class RAndDBotUtilities {
         odo.resetPosAndIMU();
     }
 
+
     public void logPinpointFrequency()
     {
         linearOpMode.telemetry.addData("Pinpoint Frequency", odo.getFrequency());
@@ -209,7 +248,15 @@ public class RAndDBotUtilities {
         double yPow = signedSqrt(errY / MAX_POWER_DISTANCE);
         double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR);
 
-        move(xPow, yPow, hPow);
+        moveFieldOriented(xPow, yPow, hPow);
+    }
+
+    public double squidToHeading(double targetHeading)
+    {
+        double errH = targetHeading - odo.getHeading(AngleUnit.DEGREES);
+
+        double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR / 5);
+        return hPow;
     }
 
     private double signedSqrt(double val)
