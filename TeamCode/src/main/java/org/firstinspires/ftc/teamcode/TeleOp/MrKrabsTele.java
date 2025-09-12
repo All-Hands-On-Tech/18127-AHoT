@@ -16,25 +16,25 @@ public class MrKrabsTele extends LinearOpMode {
     private DcMotor front_left, front_right, back_left, back_right;
 
     // Delivery slide
-//    private DcMotorEx deliverySlide;
+    private DcMotorEx deliverySlide;
 
     // Slide constants
-//    private static final int LIFT_MIN_POSITION = 0;        // Minimum safe position
-//    private static final int LIFT_MAX_POSITION = 2000;     // Maximum safe position
-//    private static final int LIFT_INCREMENT = 100;         // How much to move per button press
-//    private static final double LIFT_POWER = 0.8;          // Power for slide movement
+    private static final int LIFT_MIN_POSITION = 0;        // Minimum safe position
+    private static final int LIFT_MAX_POSITION = 2000;     // Maximum safe position
+    private static final int LIFT_INCREMENT = 100;         // How much to move per button press
+    private static final double LIFT_POWER = 0.8;          // Power for slide movement
 
     // Slide control variables
-//    private boolean aPressed = false;
-//    private boolean bPressed = false;
+    private boolean aPressed = false;
+    private boolean bPressed = false;
 
     // Telemetry tracking variables (to show previous values)
     private double lastY = 0, lastX = 0, lastRx = 0;
     private double lastFrontLeftPower = 0, lastFrontRightPower = 0;
     private double lastBackLeftPower = 0, lastBackRightPower = 0;
     private boolean lastSlowMode = false;
-//    private int lastSlideTarget = 0;
-//    private boolean lastAPressed = false, lastBPressed = false;
+    private int lastSlideTarget = 0;
+    private boolean lastAPressed = false, lastBPressed = false;
 
     @Override
     public void runOpMode() {
@@ -46,8 +46,8 @@ public class MrKrabsTele extends LinearOpMode {
         telemetry.addLine("LEFT STICK: Drive forward/back/strafe");
         telemetry.addLine("RIGHT STICK: Turn left/right");
         telemetry.addLine("LEFT BUMPER: Slow mode");
-//        telemetry.addLine("A BUTTON: Slide UP");
-//        telemetry.addLine("B BUTTON: Slide DOWN");
+        telemetry.addLine("A BUTTON: Slide UP");
+        telemetry.addLine("B BUTTON: Slide DOWN");
         telemetry.addLine("*** SINGLE CONTROLLER OPERATION ***");
         telemetry.update();
 
@@ -56,7 +56,7 @@ public class MrKrabsTele extends LinearOpMode {
         while (opModeIsActive()) {
             // Handle ALL controls on gamepad1
             handleDriveControls();
-//            handleSlideControls();
+            handleSlideControls();
             updateTelemetry();
         }
     }
@@ -91,22 +91,22 @@ public class MrKrabsTele extends LinearOpMode {
         back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // Initialize delivery slide - FIXED ORDER
-//        deliverySlide = hardwareMap.get(DcMotorEx.class, "deliverySlide");
-//        deliverySlide.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        deliverySlide.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-//
-//        // FIXED: Set slide direction to go UP instead of into floor
-//        deliverySlide.setDirection(DcMotor.Direction.REVERSE);  // Reverse slide direction
-//
-//        // FIXED: Set target position BEFORE switching to RUN_TO_POSITION mode
-//        deliverySlide.setTargetPosition(LIFT_MIN_POSITION);
-//        deliverySlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);  // Now set mode after target
-//        deliverySlide.setPower(LIFT_POWER);
+        deliverySlide = hardwareMap.get(DcMotorEx.class, "deliverySlide");
+        deliverySlide.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        deliverySlide.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        // FIXED: Set slide direction to go UP instead of into floor
+        deliverySlide.setDirection(DcMotor.Direction.REVERSE);  // Reverse slide direction
+
+        // FIXED: Set target position BEFORE switching to RUN_TO_POSITION mode
+        deliverySlide.setTargetPosition(LIFT_MIN_POSITION);
+        deliverySlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);  // Now set mode after target
+        deliverySlide.setPower(LIFT_POWER);
 
         telemetry.addLine("Hardware Initialized Successfully");
         telemetry.addLine("RIGHT motors REVERSED as requested");
-//        telemetry.addLine("Slide direction FIXED to go UP");
-//        telemetry.addLine("Slide initialization order FIXED");
+        telemetry.addLine("Slide direction FIXED to go UP");
+        telemetry.addLine("Slide initialization order FIXED");
         telemetry.addLine("Single controller mode ENABLED");
         telemetry.update();
     }
@@ -168,37 +168,29 @@ public class MrKrabsTele extends LinearOpMode {
         lastSlowMode = slowMode;
     }
 
-/*
     private void handleSlideControls() {
-        // A button - move slide UP (using gamepad1 now)
-        if (gamepad1.a && !aPressed) {
-            aPressed = true;
-            int newPosition = deliverySlide.getTargetPosition() + LIFT_INCREMENT;
-            newPosition = Math.min(newPosition, LIFT_MAX_POSITION);  // Clamp to max
+        // Move slide UP while holding A
+        if (gamepad1.a) {
+            int newPosition = deliverySlide.getCurrentPosition() + LIFT_INCREMENT;
+            newPosition = Math.min(newPosition, LIFT_MAX_POSITION);
             deliverySlide.setTargetPosition(newPosition);
             deliverySlide.setPower(LIFT_POWER);
             lastSlideTarget = newPosition;
-        } else if (!gamepad1.a) {
-            aPressed = false;
         }
-
-        // B button - move slide DOWN (using gamepad1 now)
-        if (gamepad1.b && !bPressed) {
-            bPressed = true;
-            int newPosition = deliverySlide.getTargetPosition() - LIFT_INCREMENT;
-            newPosition = Math.max(newPosition, LIFT_MIN_POSITION);  // Clamp to min
+        // Move slide DOWN while holding B
+        else if (gamepad1.b) {
+            int newPosition = deliverySlide.getCurrentPosition() - LIFT_INCREMENT;
+            newPosition = Math.max(newPosition, LIFT_MIN_POSITION);
             deliverySlide.setTargetPosition(newPosition);
             deliverySlide.setPower(LIFT_POWER);
             lastSlideTarget = newPosition;
-        } else if (!gamepad1.b) {
-            bPressed = false;
+        }
+        // Stop power if neither button is pressed
+        else {
+            deliverySlide.setPower(0);
         }
 
-        // Update button tracking
-        lastAPressed = gamepad1.a;
-        lastBPressed = gamepad1.b;
-
-        // Emergency stop - if both triggers are pressed, stop slide immediately
+        // Emergency stop
         if (gamepad1.left_trigger > 0.5 && gamepad1.right_trigger > 0.5) {
             deliverySlide.setPower(0);
             deliverySlide.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -206,7 +198,6 @@ public class MrKrabsTele extends LinearOpMode {
             deliverySlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         }
     }
-*/
 
     private void updateTelemetry() {
         // ===== CONTROLLER STATUS =====
@@ -221,8 +212,8 @@ public class MrKrabsTele extends LinearOpMode {
         telemetry.addData("Left Stick X (Raw)", "%.3f", gamepad1.left_stick_x);
         telemetry.addData("Right Stick X (Raw)", "%.3f", gamepad1.right_stick_x);
         telemetry.addData("Left Bumper", gamepad1.left_bumper ? "PRESSED" : "Released");
-//        telemetry.addData("A Button", gamepad1.a ? "PRESSED" : "Released");
-//        telemetry.addData("B Button", gamepad1.b ? "PRESSED" : "Released");
+        telemetry.addData("A Button", gamepad1.a ? "PRESSED" : "Released");
+        telemetry.addData("B Button", gamepad1.b ? "PRESSED" : "Released");
 
         // ===== PROCESSED DRIVE VALUES =====
         telemetry.addLine();
@@ -241,7 +232,6 @@ public class MrKrabsTele extends LinearOpMode {
         telemetry.addData("Back Right", "%.3f", lastBackRightPower);
 
         // ===== SLIDE STATUS =====
-        /*
         telemetry.addLine();
         telemetry.addLine("=== SLIDE STATUS ===");
         telemetry.addData("Current Position", deliverySlide.getCurrentPosition());
@@ -250,7 +240,6 @@ public class MrKrabsTele extends LinearOpMode {
         telemetry.addData("At Target", Math.abs(deliverySlide.getCurrentPosition() - deliverySlide.getTargetPosition()) < 10 ? "YES" : "NO");
         telemetry.addData("Power", "%.2f", deliverySlide.getPower());
         telemetry.addData("Direction", "REVERSED (UP is positive)");
-        */
 
         // ===== MOTOR MAPPING INFO =====
         telemetry.addLine();
@@ -267,9 +256,9 @@ public class MrKrabsTele extends LinearOpMode {
         telemetry.addLine("Left stick: Move forward/back/strafe");
         telemetry.addLine("Right stick: Turn left/right");
         telemetry.addLine("Left bumper: Slow mode");
-//        telemetry.addLine("A button: Slide UP");
-//        telemetry.addLine("B button: Slide DOWN");
-//        telemetry.addLine("Both triggers: Emergency slide stop");
+        telemetry.addLine("A button: Slide UP");
+        telemetry.addLine("B button: Slide DOWN");
+        telemetry.addLine("Both triggers: Emergency slide stop");
 
         telemetry.update();
     }
