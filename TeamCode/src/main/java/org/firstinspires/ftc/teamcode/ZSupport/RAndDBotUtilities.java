@@ -46,6 +46,8 @@ public class RAndDBotUtilities {
     final double MAX_POWER_DISTANCE = 500;
     final double MAX_POWER_HEADING_ERROR = 45;
 
+    private double targetHeading = 0.0;
+
     double oldTime = 0.0;
 
     LinearOpMode linearOpMode;
@@ -253,6 +255,13 @@ public class RAndDBotUtilities {
 
     public double squidToHeading(double targetHeading)
     {
+        double errH = targetHeading - odo.getHeading(UnnormalizedAngleUnit.DEGREES);
+
+        double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR / 5);
+        return hPow;
+    }
+    public double squidToHeadingCumulative(double targetHeading, double current)
+    {
         double errH = targetHeading - odo.getHeading(AngleUnit.DEGREES);
 
         double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR / 5);
@@ -263,5 +272,10 @@ public class RAndDBotUtilities {
     {
         double temp = val;
         return Math.copySign(Math.sqrt(Math.abs(temp)), val);
+    }
+
+    public void setTargetHeading(double h)
+    {
+        targetHeading = h;
     }
 }

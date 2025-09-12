@@ -4,6 +4,9 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit; // added
 
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.teamcode.ZSupport.RAndDBotUtilities;
 
 @TeleOp(name="RAndDBotTeleOp", group="Z")
@@ -12,15 +15,15 @@ public class RAndDBotTeleOp extends LinearOpMode {
 
     private double prevY = 0.0;
     private double prevX = 0.0;
-    private double prevRX = 0.0;
 
     private double prevElapsedTime = 0.0;
 
-    // === Added for heading hold via squidToHeading ===
     private double targetHeadingDeg = 0.0;
-    private boolean hadRotateInput = false;
+    private double prevHeading = 0.0;
+    private double currentCumulativeHeading = 0.0;
 
-    boolean traditionalDrivetrain = true;   // your flag
+
+    boolean traditionalDrivetrain = true;
     boolean prevBack = false;
 
 
@@ -42,9 +45,11 @@ public class RAndDBotTeleOp extends LinearOpMode {
 
             bot.updateLocalization();
             double headingDeg = bot.odo.getHeading(AngleUnit.DEGREES);
+            currentCumulativeHeading += headingDeg - prevHeading;
 
-            double y  = Math.abs(gamepad1.left_stick_y)  > 0.05 ? gamepad1.left_stick_y  : 0; // Forward/backward
-            double x  = Math.abs(gamepad1.left_stick_x)  > 0.05 ? -gamepad1.left_stick_x  : 0; // Left/right strafe
+
+            double y  = Math.abs(gamepad1.left_stick_y)  > 0.05 ? gamepad1.left_stick_y  : 0; // Forward/backward strafe
+            double x  = Math.abs(gamepad1.left_stick_x)  > 0.05 ? -gamepad1.left_stick_x  : 0; // Left/right
             double rx = Math.abs(gamepad1.right_stick_x) > 0.05 ? -gamepad1.right_stick_x : 0; // Rotation
 
             double speedMultiplier = gamepad1.left_bumper ? 0.5 : 1.0;
@@ -59,24 +64,25 @@ public class RAndDBotTeleOp extends LinearOpMode {
 
             if(traditionalDrivetrain) {
                 y *= 1.1;
-                bot.move(-x, y, rx);
+                bot.move(x, -y, -rx);
             }else {
 
                 // === Heading hold using squidToHeading when driver isn't rotating ===
 
                 final double rotateDeadband = 0.02;
-                if (Math.abs(rx) < rotateDeadband) { // no manual rotate → hold heading (NO slew limiting here)
-                    if (hadRotateInput) {
-                        targetHeadingDeg = headingDeg; // lock new hold when stick released
-                        hadRotateInput = false;
+                if(!gamepad1.a){
+
+                    final double maxDegPerSec  = 360.0;        // full-stick = 180°/s target change
+
+                    if (Math.abs(rx) > rotateDeadband) {
+                        targetHeadingDeg = targetHeadingDeg + rx * maxDegPerSec * deltaRuntime;
                     }
-                    rx = bot.squidToHeading(targetHeadingDeg); // controller returns yaw command (un-slewed)
-                } else {
-                    // manual rotate → apply slew limiting to rx only in this branch
-                    hadRotateInput = true;
-                    targetHeadingDeg = headingDeg; // track while driver is rotating
-                    rx = slew(rx, prevRX, 5 * deltaRuntime);  // keep your chosen rate here
-                    rx = Math.copySign(Math.min(Math.abs(rx), 0.5), rx);
+
+                    rx = bot.squidToHeading(targetHeadingDeg);
+
+
+                }else{
+                    rx = bot.squidToHeading(headingToPoint(32, 32));
                 }
 
                 // Slew limit translation AFTER all scaling/heading-hold logic (unchanged)
@@ -90,7 +96,6 @@ public class RAndDBotTeleOp extends LinearOpMode {
 
                 prevY = y;
                 prevX = x;
-                prevRX = rx;
                 prevElapsedTime = getRuntime();
 
                 bot.moveFieldOriented(x, y, rx);
@@ -103,6 +108,8 @@ public class RAndDBotTeleOp extends LinearOpMode {
             telemetry.addData("Joystick", "Y: %.2f X: %.2f RX: %.2f", y, x, rx);
             telemetry.addData("Heading Hold", "target=%.1f°, cur=%.1f°", targetHeadingDeg, headingDeg);
             telemetry.update();
+
+            prevHeading = headingDeg;
         }
     }
 
@@ -113,6 +120,28 @@ public class RAndDBotTeleOp extends LinearOpMode {
         if (delta > maxDelta)  return prev + maxDelta;
         if (delta < -maxDelta) return prev - maxDelta;
         return target;
+    }
+
+
+    private double headingToPoint(double x, double y)
+    {
+        Pose2D currentPose = bot.odo.getPosition();
+        double currentX = currentPose.getX(DistanceUnit.INCH);
+        double currentY = currentPose.getY(DistanceUnit.INCH);
+
+        double dX = x - currentX;
+        double dY = y - currentY;
+
+        double deg = Math.toDegrees(Math.atan2(dX, dY));
+        double band = Math.floor(bot.odo.getHeading(UnnormalizedAngleUnit.DEGREES) / 360.0) * 360.0;
+
+        return deg + band;
+    }
+
+    double wrap0to360(double a) {
+        double w = a % 360.0;
+        if (w < 0) w += 360.0;
+        return w;
     }
 
 }
