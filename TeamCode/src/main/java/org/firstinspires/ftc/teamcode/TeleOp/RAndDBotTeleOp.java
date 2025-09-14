@@ -19,12 +19,14 @@ public class RAndDBotTeleOp extends LinearOpMode {
     private double prevElapsedTime = 0.0;
 
     private double targetHeadingDeg = 0.0;
-    private double prevHeading = 0.0;
-    private double currentCumulativeHeading = 0.0;
 
 
     boolean traditionalDrivetrain = true;
     boolean prevBack = false;
+
+    private final Pose2D START_POSE = new Pose2D(DistanceUnit.INCH, 36, -63.667, AngleUnit.DEGREES,0);
+    private final Pose2D BLUE_BACKBOARD_POSE = new Pose2D(DistanceUnit.INCH, -65, 70, AngleUnit.DEGREES, 0);
+    private final Pose2D BLUE_PARKING_POSE = new Pose2D(DistanceUnit.INCH, 40, -40, AngleUnit.DEGREES, 0);
 
 
     @Override
@@ -32,11 +34,13 @@ public class RAndDBotTeleOp extends LinearOpMode {
     {
         bot.initialize(this);
 
+
         if (isStopRequested()) return;
         waitForStart();
 
         // initialize target heading to current at start
-        targetHeadingDeg = bot.odo.getHeading(AngleUnit.DEGREES);
+        bot.setPoseEstimate(START_POSE);
+        targetHeadingDeg = getHeading();
 
         while(opModeIsActive())
         {
@@ -44,12 +48,9 @@ public class RAndDBotTeleOp extends LinearOpMode {
             if (deltaRuntime <= 0) deltaRuntime = 0.02; // guard
 
             bot.updateLocalization();
-            double headingDeg = bot.odo.getHeading(AngleUnit.DEGREES);
-            currentCumulativeHeading += headingDeg - prevHeading;
 
-
-            double y  = Math.abs(gamepad1.left_stick_y)  > 0.05 ? gamepad1.left_stick_y  : 0; // Forward/backward strafe
-            double x  = Math.abs(gamepad1.left_stick_x)  > 0.05 ? -gamepad1.left_stick_x  : 0; // Left/right
+            double y  = Math.abs(gamepad1.left_stick_y)  > 0.05 ? -gamepad1.left_stick_y  : 0; // Forward/backward strafe
+            double x  = Math.abs(gamepad1.left_stick_x)  > 0.05 ? gamepad1.left_stick_x  : 0; // Left/right
             double rx = Math.abs(gamepad1.right_stick_x) > 0.05 ? -gamepad1.right_stick_x : 0; // Rotation
 
             double speedMultiplier = gamepad1.left_bumper ? 0.5 : 1.0;
@@ -59,6 +60,7 @@ public class RAndDBotTeleOp extends LinearOpMode {
 
             if (prevBack && !gamepad1.back) {
                 traditionalDrivetrain = !traditionalDrivetrain; // toggle
+                targetHeadingDeg = getHeading();
             }
             prevBack = gamepad1.back;
 
@@ -66,6 +68,8 @@ public class RAndDBotTeleOp extends LinearOpMode {
                 y *= 1.1;
                 bot.move(x, -y, -rx);
             }else {
+                double goalAngle = headingToPoint(BLUE_BACKBOARD_POSE.getX(DistanceUnit.INCH), BLUE_BACKBOARD_POSE.getY(DistanceUnit.INCH));
+                telemetry.addData("Goal Angle: ", goalAngle);
 
                 // === Heading hold using squidToHeading when driver isn't rotating ===
 
@@ -82,7 +86,7 @@ public class RAndDBotTeleOp extends LinearOpMode {
 
 
                 }else{
-                    rx = bot.squidToHeading(headingToPoint(32, 32));
+                    rx = bot.squidToHeading(goalAngle);
                 }
 
                 // Slew limit translation AFTER all scaling/heading-hold logic (unchanged)
@@ -106,10 +110,9 @@ public class RAndDBotTeleOp extends LinearOpMode {
             bot.logPinpointFrequency();
             bot.logREVHubFrequency();
             telemetry.addData("Joystick", "Y: %.2f X: %.2f RX: %.2f", y, x, rx);
-            telemetry.addData("Heading Hold", "target=%.1f°, cur=%.1f°", targetHeadingDeg, headingDeg);
+            telemetry.addData("Heading Hold", "target=%.1f°, cur=%.1f°", targetHeadingDeg, getHeading());
             telemetry.update();
 
-            prevHeading = headingDeg;
         }
     }
 
@@ -132,16 +135,26 @@ public class RAndDBotTeleOp extends LinearOpMode {
         double dX = x - currentX;
         double dY = y - currentY;
 
-        double deg = Math.toDegrees(Math.atan2(dX, dY));
-        double band = Math.floor(bot.odo.getHeading(UnnormalizedAngleUnit.DEGREES) / 360.0) * 360.0;
+        double deg = Math.toDegrees(customArctan(dY, dX));
+        double band = (Math.floor(getHeading() / 360.0)) * 360.0;
 
         return deg + band;
     }
 
-    double wrap0to360(double a) {
-        double w = a % 360.0;
-        if (w < 0) w += 360.0;
-        return w;
+    //same as atan2 but domain is (-90, 270)
+    private double customArctan(double y, double x)
+    {
+        double angle = Math.atan2(y,x);
+        if(angle < -90 && angle >= -180)
+        {
+            angle = 360+angle;
+        }
+        return angle;
+    }
+
+    private double getHeading()
+    {
+        return bot.odo.getHeading(UnnormalizedAngleUnit.DEGREES) + 90;
     }
 
 }

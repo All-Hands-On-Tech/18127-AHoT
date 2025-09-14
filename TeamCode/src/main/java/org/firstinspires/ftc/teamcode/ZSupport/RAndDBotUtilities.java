@@ -77,6 +77,7 @@ public class RAndDBotUtilities {
 
     void configureOdo()
     {
+
          /*
         Set the odometry pod positions relative to the point that the odometry computer tracks around.
         The X pod offset refers to how far sideways from the tracking point the
@@ -102,7 +103,7 @@ public class RAndDBotUtilities {
         increase when you move the robot forward. And the Y (strafe) pod should increase when
         you move the robot to the left.
          */
-        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD);
+        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED);
 
 
         /*
@@ -121,6 +122,13 @@ public class RAndDBotUtilities {
         linearOpMode.telemetry.addData("Y offset", odo.getYOffset(DistanceUnit.MM));
         linearOpMode.telemetry.addData("Device Version Number:", odo.getDeviceVersion());
         linearOpMode.telemetry.addData("Heading Scalar", odo.getYawScalar());
+    }
+
+    public void setPoseEstimate(Pose2D pose)
+    {
+        odo.setHeading(pose.getHeading(AngleUnit.DEGREES), AngleUnit.DEGREES);
+        odo.setPosX(pose.getX(DistanceUnit.INCH), DistanceUnit.INCH);
+        odo.setPosY(pose.getY(DistanceUnit.INCH), DistanceUnit.INCH);
     }
 
     public void move(double x, double y, double r)
@@ -144,7 +152,7 @@ public class RAndDBotUtilities {
 
     public void moveFieldOriented(double x, double y, double r)
     {
-        double heading = odo.getHeading(AngleUnit.RADIANS);
+        double heading = odo.getHeading(AngleUnit.RADIANS) +Math.PI/2;
 
         double cos = Math.cos(heading);
         double sin = Math.sin(heading);
@@ -233,10 +241,10 @@ public class RAndDBotUtilities {
 
     public void logDriveData(Pose2D pos)
     {
-        String data = String.format(Locale.US, "{X: %.3f, Y: %.3f, H: %.3f}", pos.getX(DistanceUnit.MM), pos.getY(DistanceUnit.MM), pos.getHeading(AngleUnit.DEGREES));
+        String data = String.format(Locale.US, "{X: %.3f, Y: %.3f, H: %.3f}", pos.getX(DistanceUnit.INCH), pos.getY(DistanceUnit.INCH), pos.getHeading(AngleUnit.DEGREES));
         linearOpMode.telemetry.addData("Position", data);
 
-        String velocity = String.format(Locale.US,"{XVel: %.3f, YVel: %.3f, HVel: %.3f}", odo.getVelX(DistanceUnit.MM), odo.getVelY(DistanceUnit.MM), odo.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
+        String velocity = String.format(Locale.US,"{XVel: %.3f, YVel: %.3f, HVel: %.3f}", odo.getVelX(DistanceUnit.INCH), odo.getVelY(DistanceUnit.INCH), odo.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
         linearOpMode.telemetry.addData("Velocity", velocity);
     }
 
@@ -244,18 +252,16 @@ public class RAndDBotUtilities {
     {
         double errX = targetPos.getX(DistanceUnit.MM) - odo.getPosX(DistanceUnit.MM);
         double errY = targetPos.getY(DistanceUnit.MM) - odo.getPosY(DistanceUnit.MM);
-        double errH = targetPos.getHeading(AngleUnit.DEGREES) - odo.getHeading(AngleUnit.DEGREES);
 
         double xPow = signedSqrt(errX / MAX_POWER_DISTANCE);
         double yPow = signedSqrt(errY / MAX_POWER_DISTANCE);
-        double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR);
 
-        moveFieldOriented(xPow, yPow, hPow);
+        moveFieldOriented(xPow, yPow, squidToHeading(targetPos.getHeading(AngleUnit.DEGREES)));
     }
 
     public double squidToHeading(double targetHeading)
     {
-        double errH = targetHeading - odo.getHeading(UnnormalizedAngleUnit.DEGREES);
+        double errH = targetHeading - odo.getHeading(UnnormalizedAngleUnit.DEGREES) -90;
 
         double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR / 5);
         return hPow;
