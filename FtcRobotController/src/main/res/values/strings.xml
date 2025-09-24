@@ -49,6 +49,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <string name="configure_robot_menu_item">Configure Robot</string>
   <string name="about_menu_item">About</string>
   <string name="exit_menu_item">Exit</string>
+  <string name="exit_app_menu_item">Exit</string>
+  <string name="test_hardware_menu_item">Test Hardware</string>
 
   <!-- Toast messages -->
   <string name="toastWifiConfigurationComplete">Configuration Complete</string>

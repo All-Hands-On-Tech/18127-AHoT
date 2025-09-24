@@ -47,7 +47,7 @@ import java.util.Arrays;
         name = "goBILDA® Pinpoint Odometry Computer",
         xmlTag = "goBILDAPinpoint",
         description ="goBILDA® Pinpoint Odometry Computer (IMU Sensor Fusion for 2 Wheel Odometry)"
-        )
+)
 
 public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSimple> {
 
@@ -85,6 +85,20 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
     protected synchronized boolean doInitialize() {
         ((LynxI2cDeviceSynch)(deviceClient)).setBusSpeed(LynxI2cDeviceSynch.BusSpeed.FAST_400K);
         return true;
+    }
+
+    /** Attempt to reduce bus speed to improve stability if bad reads persist. */
+    public void setStandardBusSpeed() {
+        try {
+            ((LynxI2cDeviceSynch)(deviceClient)).setBusSpeed(LynxI2cDeviceSynch.BusSpeed.STANDARD_100K);
+        } catch (Exception ignored) {}
+    }
+
+    /** Re-apply fast bus speed (default). */
+    public void setFastBusSpeed() {
+        try {
+            ((LynxI2cDeviceSynch)(deviceClient)).setBusSpeed(LynxI2cDeviceSynch.BusSpeed.FAST_400K);
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -157,7 +171,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
 
 
     /** Writes an int to the i2c device
-    @param reg the register to write the int to
+     @param reg the register to write the int to
      @param i the integer to write to the register
      */
     private void writeInt(final Register reg, int i){
@@ -367,6 +381,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @param yOffset how far forward from the center of the robot is the Y (Strafe) pod? forward increases
      * @deprecated The overflow for this function has a DistanceUnit, which can reduce the chance of unit confusion.
      */
+    @Deprecated
     public void setOffsets(double xOffset, double yOffset){
         writeFloat(Register.X_POD_OFFSET, (float) xOffset);
         writeFloat(Register.Y_POD_OFFSET, (float) yOffset);
@@ -440,6 +455,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @param ticks_per_mm should be somewhere between 10 ticks/mm and 100 ticks/mm a goBILDA Swingarm pod is ~13.26291192
      * @deprecated The overflow for this function has a DistanceUnit, which can reduce the chance of unit confusion.
      */
+    @Deprecated
     public void setEncoderResolution(double ticks_per_mm){
         writeByteArray(Register.MM_PER_TICK,(floatToByteArray((float) ticks_per_mm,ByteOrder.LITTLE_ENDIAN)));
     }
@@ -596,6 +612,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated X (forward) position of the robot in mm
      * @deprecated The overflow for this function has a DistanceUnit, which can reduce the chance of unit confusion.
      */
+    @Deprecated
     public double getPosX(){
         return xPosition;
     }
@@ -612,6 +629,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated Y (Strafe) position of the robot in mm
      * @deprecated The overflow for this function has a DistanceUnit, which can reduce the chance of unit confusion.
      */
+    @Deprecated
     public double getPosY(){
         return yPosition;
     }
@@ -629,6 +647,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * unnormalized heading is not constrained from -180° to 180°. It will continue counting multiple rotations.
      * @deprecated two overflows for this function exist with AngleUnit parameter. These minimize the possibility of unit confusion.
      */
+    @Deprecated
     public double getHeading(){
         return hOrientation;
     }
@@ -654,6 +673,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated X (forward) velocity of the robot in mm/sec
      * @deprecated The overflow for this function has a DistanceUnit, which can reduce the chance of unit confusion.
      */
+    @Deprecated
     public double getVelX(){
         return xVelocity;
     }
@@ -669,6 +689,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated Y (strafe) velocity of the robot in mm/sec
      * @deprecated The overflow for this function has a DistanceUnit, which can reduce the chance of unit confusion.
      */
+    @Deprecated
     public double getVelY(){
         return yVelocity;
     }
@@ -684,6 +705,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated H (heading) velocity of the robot in radians/sec
      * @deprecated The overflow for this function has an AngleUnit, which can reduce the chance of unit confusion.
      */
+    @Deprecated
     public double getHeadingVelocity() {
         return hVelocity;
     }
@@ -728,6 +750,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * instead use individual getters.
      * @return a Pose2D containing the estimated velocity of the robot, velocity is unit per second
      */
+    @Deprecated
     public Pose2D getVelocity(){
         return new Pose2D(DistanceUnit.MM,
                 xVelocity,
@@ -736,8 +759,3 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
                 ((hVelocity + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
     }
 }
-
-
-
-
-

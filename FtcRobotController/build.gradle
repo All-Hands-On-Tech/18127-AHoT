@@ -26,6 +26,9 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     namespace = 'com.qualcomm.ftcrobotcontroller'
+    lint {
+        baseline file("lint-baseline.xml")
+    }
 }
 
 apply from: '../build.dependencies.gradle'
@@ -38,5 +41,4 @@ dependencies {
     implementation 'org.firstinspires.ftc:OnBotJava:10.3.0'
     implementation 'org.firstinspires.ftc:Blocks:10.3.0'
     implementation 'androidx.annotation:annotation:1.7.1'
-    implementation "com.bylazar:fullpanels"
 }

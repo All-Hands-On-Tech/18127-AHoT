@@ -4,11 +4,8 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.Servo;
 
-/**
- * Consolidated MrKrabs TeleOp - All functionality in one file for easier development
- * Fixed drivetrain directions, slider direction, and single controller operation
- */
 @TeleOp(name="MrKrabsTele", group="MrKrabs")
 public class MrKrabsTele extends LinearOpMode {
 
@@ -18,15 +15,20 @@ public class MrKrabsTele extends LinearOpMode {
     // Delivery slide
     private DcMotorEx deliverySlide;
 
+    // Claw servo
+    private Servo clawServo;
+    private static final double CLAW_OPEN_POS = 0.7;
+    private static final double CLAW_CLOSED_POS = 0.3;
+    private static final double CLAW_STEP = 0.01; // Amount to move per loop for smoothness
+    private double clawPosition;
+
     // Slide constants
-    private static final int LIFT_MIN_POSITION = 0;        // Minimum safe position
+    private static final int LIFT_MIN_POSITION = -500;        // Minimum safe position
     private static final int LIFT_MAX_POSITION = 2000;     // Maximum safe position
     private static final int LIFT_INCREMENT = 100;         // How much to move per button press
     private static final double LIFT_POWER = 0.8;          // Power for slide movement
 
     // Slide control variables
-    private boolean aPressed = false;
-    private boolean bPressed = false;
 
     // Telemetry tracking variables (to show previous values)
     private double lastY = 0, lastX = 0, lastRx = 0;
@@ -34,7 +36,6 @@ public class MrKrabsTele extends LinearOpMode {
     private double lastBackLeftPower = 0, lastBackRightPower = 0;
     private boolean lastSlowMode = false;
     private int lastSlideTarget = 0;
-    private boolean lastAPressed = false, lastBPressed = false;
 
     @Override
     public void runOpMode() {
@@ -54,9 +55,20 @@ public class MrKrabsTele extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
+            // Telemetry: Check gamepad connection and raw stick values
+            telemetry.addData("Gamepad1 Connected", gamepad1.id >= 0 ? "YES" : "NO");
+            telemetry.addData("Raw Left Stick Y", gamepad1.left_stick_y);
+            telemetry.addData("Raw Left Stick X", gamepad1.left_stick_x);
+            telemetry.addData("Raw Right Stick X", gamepad1.right_stick_x);
+            if (gamepad1.id < 0) {
+                telemetry.addLine("WARNING: Gamepad1 not detected! Check connection.");
+            }
+            telemetry.update();
+
             // Handle ALL controls on gamepad1
             handleDriveControls();
             handleSlideControls();
+            handleClawControls();
             updateTelemetry();
         }
     }
@@ -68,17 +80,6 @@ public class MrKrabsTele extends LinearOpMode {
         back_left = hardwareMap.get(DcMotor.class, "RFBE");    // Back Left
         back_right = hardwareMap.get(DcMotor.class, "LBLE");   // Back Right
 
-        // To fix the movement, you may need to change the direction of some motors.
-        // If a motor is spinning the wrong way, change its direction from FORWARD to REVERSE or vice-versa.
-        //
-        // Example: If the front-left wheel is spinning backward when it should go forward,
-        // change front_left.setDirection(DcMotor.Direction.FORWARD) to front_left.setDirection(DcMotor.Direction.REVERSE).
-        //
-        // Test one movement at a time (e.g., only push the left stick forward).
-        //
-        // - FORWARD movement: All wheels should spin to push the robot forward.
-        // - STRAFE LEFT movement: Front-left and back-right wheels should spin backward.
-        //                         Front-right and back-left wheels should spin forward.
         front_left.setDirection(DcMotor.Direction.REVERSE);
         front_right.setDirection(DcMotor.Direction.REVERSE);
         back_left.setDirection(DcMotor.Direction.REVERSE);
@@ -103,6 +104,11 @@ public class MrKrabsTele extends LinearOpMode {
         deliverySlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);  // Now set mode after target
         deliverySlide.setPower(LIFT_POWER);
 
+        // Initialize claw servo
+        clawServo = hardwareMap.get(Servo.class, "clawServo");
+        clawPosition = CLAW_OPEN_POS;
+        clawServo.setPosition(clawPosition); // Start open
+
         telemetry.addLine("Hardware Initialized Successfully");
         telemetry.addLine("RIGHT motors REVERSED as requested");
         telemetry.addLine("Slide direction FIXED to go UP");
@@ -114,7 +120,7 @@ public class MrKrabsTele extends LinearOpMode {
     private void handleDriveControls() {
         // Get raw joystick inputs from GAMEPAD1 ONLY
         double rawY = -gamepad1.left_stick_y;   // Forward/backward (negated for correct direction)
-        double rawX = gamepad1.left_stick_x;    // Left/right strafe
+        double rawX = -gamepad1.left_stick_x;   // Left/right strafe (NEGATED to swap directions)
         double rawRx = gamepad1.right_stick_x;  // Rotation
 
         // Apply deadzone
@@ -129,11 +135,6 @@ public class MrKrabsTele extends LinearOpMode {
         x *= speedMultiplier;
         rx *= speedMultiplier;
 
-        // Calculate mecanum wheel powers
-        // The user wants to swap turning and strafing.
-        // 'x' (left_stick_x) is currently causing turning.
-        // 'rx' (right_stick_x) is currently causing strafing.
-        // We will swap 'x' and 'rx' in the power calculation.
         double frontLeftPower = rx + y + x;
         double frontRightPower = rx - y - x;
         double backLeftPower = rx - y + x;
@@ -196,6 +197,23 @@ public class MrKrabsTele extends LinearOpMode {
             deliverySlide.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             sleep(100);
             deliverySlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        }
+    }
+
+    private void handleClawControls() {
+        // Debug: manual override for servo position
+
+        if (gamepad1.x) {
+            clawPosition = 0.0;
+        } else if (gamepad1.y) {
+            clawPosition = 0.5;
+        }
+        clawServo.setPosition(clawPosition);
+        telemetry.addData("Claw Position", clawPosition);
+        try {
+            telemetry.addData("Servo getPosition()", clawServo.getPosition());
+        } catch (Exception e) {
+            telemetry.addLine("Servo getPosition() not supported");
         }
     }
 

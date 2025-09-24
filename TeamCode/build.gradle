@@ -18,17 +18,20 @@ apply plugin: 'kotlin-android'
 android {
     namespace = 'org.firstinspires.ftc.teamcode'
 
-    compileSdk 34
+    compileSdk 35
     defaultConfig {
         minSdk 24
     }
     packagingOptions {
         jniLibs {
             pickFirsts += ['**/*.so']
+            useLegacyPackaging true
         }
     }
 }
 
 dependencies {
     implementation project(':FtcRobotController')
+    // Panels (FTControl) full preset; adjust version as needed
+    implementation 'com.bylazar:fullpanels:0.1.0'
 }

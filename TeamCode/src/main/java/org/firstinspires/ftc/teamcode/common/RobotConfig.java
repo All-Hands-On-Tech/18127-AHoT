@@ -7,22 +7,19 @@ public class RobotConfig {
     public String backLeftName = "backLeft";
     public String backRightName = "backRight";
 
-    // Odometry wheel names
-    public String odoParallelName = "odoParallel";
-    public String odoPerpendicularName = "odoPerpendicular";
 
-    // IMU name
-    public String imuName = "imu";
+    // Metadata only: logical identifiers for pods stored in Pinpoint firmware/config docs
+    public String forwardPodLogicalName = "forwardPod"; // forward (X) pod label
+    public String strafePodLogicalName = "strafePod";   // strafe (Y) pod label
 
-    // Claw motor names
-    public String clawLowerLeftName = "clawLowerLeft";
-    public String clawLowerRightName = "clawLowerRight";
-    public String clawGripLeftName = "clawGripLeft";
-    public String clawGripRightName = "clawGripRight";
+    // Device names
+    public String intakeName = "intake";
+    public String pinpointName = "odo"; // Pinpoint device name
+    public String imuName = "imu"; // re-added for RobotHardware
 
-    // Motor configuration
+    // Legacy odometry geometry (kept for compatibility)
     public double ticksPerRev = 8192;
     public double wheelDiameterMM = 35.0;
-
-    // Add other configuration values as needed
+    public double odoPerpendicularOffsetMM = 0.0;
+    public double odoParallelOffsetMM = 0.0;
 }
