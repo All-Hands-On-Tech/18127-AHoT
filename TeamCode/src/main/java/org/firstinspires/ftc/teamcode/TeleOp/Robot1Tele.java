@@ -38,7 +38,7 @@ public class Robot1Tele extends LinearOpMode {
             hw.updatePinpoint();
             odometry.update();
             Odometry.Position pos = odometry.getPosition();
-
+            // Here lies the remnants of the meme code I almost commited to branch
             double y = Math.abs(gamepad1.left_stick_y) > 0.05 ? gamepad1.left_stick_y : 0;
             double x = Math.abs(gamepad1.left_stick_x) > 0.05 ? -gamepad1.left_stick_x : 0;
             double r = Math.abs(gamepad1.right_stick_x) > 0.05 ? -gamepad1.right_stick_x : 0;
