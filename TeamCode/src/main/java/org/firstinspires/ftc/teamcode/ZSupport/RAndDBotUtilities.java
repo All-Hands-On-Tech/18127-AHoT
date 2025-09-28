@@ -149,7 +149,9 @@ public class RAndDBotUtilities {
 
         applyDrivePower();
     }
-
+    /**
+    @implNote BE AWARE OF THE ORIENTATION
+    **/
     public void moveFieldOriented(double x, double y, double r)
     {
         double heading = odo.getHeading(AngleUnit.RADIANS) +Math.PI/2;
@@ -250,14 +252,26 @@ public class RAndDBotUtilities {
 
     public void squidToPose(Pose2D targetPos)
     {
-        double errX = targetPos.getX(DistanceUnit.MM) - odo.getPosX(DistanceUnit.MM);
-        double errY = targetPos.getY(DistanceUnit.MM) - odo.getPosY(DistanceUnit.MM);
 
+        moveFieldOriented(squidToY(targetPos.getX(DistanceUnit.MM)), -squidToX(targetPos.getX(DistanceUnit.MM)), squidToHeading(targetPos.getHeading(AngleUnit.DEGREES)));
+    }
+
+    public double squidToX(double x)
+    {
+        double errX = x - odo.getPosX(DistanceUnit.MM);
         double xPow = signedSqrt(errX / MAX_POWER_DISTANCE);
+
+        return xPow;
+    }
+
+    public double squidToY(double y)
+    {
+        double errY = y - odo.getPosY(DistanceUnit.MM);
         double yPow = signedSqrt(errY / MAX_POWER_DISTANCE);
 
-        moveFieldOriented(xPow, yPow, squidToHeading(targetPos.getHeading(AngleUnit.DEGREES)));
+        return yPow;
     }
+
 
     public double squidToHeading(double targetHeading)
     {
