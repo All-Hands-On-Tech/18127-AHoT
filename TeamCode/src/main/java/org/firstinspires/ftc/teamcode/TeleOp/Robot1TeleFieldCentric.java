@@ -57,7 +57,7 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
             double denom = Math.max(Math.abs(y)+Math.abs(x)+Math.abs(r),1);
             double fl=(y+x+r)/denom, bl=(y - x + r)/denom, fr=(y - x - r)/denom, br=(y + x - r)/denom;
             hw.setDrivePowers(fl,fr,bl,br);
-    
+
             if (gamepad1.a && gamepad1.x) hw.pinpoint.resetPosAndIMU();
             if (gamepad1.b && hw.pinpoint!=null) hw.pinpoint.recalibrateIMU();
             boolean resetPressed = gamepad2.start;
@@ -70,6 +70,15 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
             double intakePower=0;
             if (gamepad1.right_trigger>0.1) intakePower=0.8; else if (gamepad1.left_trigger>0.1) intakePower=-0.8;
             if (hw.intakeMotor!=null) hw.intakeMotor.setPower(intakePower);
+
+            // Launcher motors (DepositMotorL and R) - RB to launch
+            double launcherPower = gamepad1.right_bumper ? 1.0 : 0.0;
+            // Spin motors in opposite directions
+            if (hw.depositMotorL != null) hw.depositMotorL.setPower(launcherPower);
+            if (hw.depositMotorR != null) hw.depositMotorR.setPower(-launcherPower);
+
+            // Cam servo - LB to activate
+            if (hw.cam != null) hw.cam.setPosition(gamepad1.left_bumper ? 1.0 : 0.0);
 
             telemetry.addLine("=== DRIVE ===");
             telemetry.addData("Joy","Y%.2f X%.2f R%.2f",y,x,r);
@@ -94,4 +103,3 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
         }
     }
 }
-

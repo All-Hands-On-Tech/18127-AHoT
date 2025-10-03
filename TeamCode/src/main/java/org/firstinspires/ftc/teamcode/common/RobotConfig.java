@@ -16,6 +16,10 @@ public class RobotConfig {
     public String intakeName = "intake";
     public String pinpointName = "odo"; // Pinpoint device name
     public String imuName = "imu"; // re-added for RobotHardware
+    public String depositMotorLName = "DepositMotorL";
+    public String depositMotorRName = "DepositMotorR";
+    public String camServoName = "Cam";
+    public String transferServoName = "transferServo";
 
     // Legacy odometry geometry (kept for compatibility)
     public double ticksPerRev = 8192;

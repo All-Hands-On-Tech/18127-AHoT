@@ -23,6 +23,11 @@ public class RobotHardware {
     public String pinpointRecoveryAction = "";
     private boolean pinpointInitialized = false;
 
+    // Deposit motors
+    public DcMotor depositMotorL, depositMotorR;
+    // Servos
+    public com.qualcomm.robotcore.hardware.Servo cam, transferServo;
+
     private final RobotConfig config;
     private HardwareMap hwMap;
 
@@ -45,7 +50,7 @@ public class RobotHardware {
             if (frontRight != null) frontRight.setDirection(DcMotor.Direction.REVERSE);
             if (backLeft != null) backLeft.setDirection(DcMotor.Direction.FORWARD);
             if (backRight != null) backRight.setDirection(DcMotor.Direction.REVERSE);
-            if (intakeMotor != null) intakeMotor.setDirection(DcMotor.Direction.FORWARD);
+            if (intakeMotor != null) intakeMotor.setDirection(DcMotor.Direction.REVERSE);
 
             if (frontLeft != null) frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             if (frontRight != null) frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -66,6 +71,17 @@ public class RobotHardware {
                     imu.resetYaw();
                 }
             } catch (Exception ignored) {}
+
+            // Deposit motors
+            try { depositMotorL = hardwareMap.get(DcMotor.class, config.depositMotorLName); } catch (Exception ignored) {}
+            try { depositMotorR = hardwareMap.get(DcMotor.class, config.depositMotorRName); } catch (Exception ignored) {}
+            if (depositMotorL != null) depositMotorL.setDirection(DcMotor.Direction.REVERSE);
+            if (depositMotorR != null) depositMotorR.setDirection(DcMotor.Direction.FORWARD);
+            if (depositMotorL != null) depositMotorL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            if (depositMotorR != null) depositMotorR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            // Servos
+            try { cam = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.camServoName); } catch (Exception ignored) {}
+            try { transferServo = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.transferServoName); } catch (Exception ignored) {}
 
         } catch (Exception e) {
             System.err.println("RobotHardware init error: " + e.getMessage());
