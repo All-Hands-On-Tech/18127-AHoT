@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.common.RobotHardware;
 import org.firstinspires.ftc.teamcode.common.RobotConfig;
 import org.firstinspires.ftc.teamcode.common.Odometry;
@@ -11,88 +13,170 @@ import org.firstinspires.ftc.teamcode.common.PanelsPublisher;
 public class Robot1TeleFieldCentric extends LinearOpMode {
     private RobotHardware hw;
     private RobotConfig config;
-    private Odometry odometry;
-    private PanelsPublisher panels;
-    private boolean prevResetStart = false;
-    private double lastLoopTime = 0;
+    private Servo sweeperServo;
+    // Cam control (hold-based, step-per-loop)
+    private double camPosition = 0.4;
+    private static final double CAM_STEP = 0.003;
+    // Sweeper control
+    private double sweeperPosition = 0.5;
+    private static final double SWEEPER_STEP = 0.02;
+    // 2600 RPM = 2600/60 = 43.33 rev/s × 28 ticks/rev = 1213 ticks/s (for REV HD Hex motors)
+    private static final double MAX_LAUNCHER_VELOCITY = 2440.0; // ticks per second for ~2600 RPM
 
     @Override
     public void runOpMode() {
         hw = new RobotHardware(hardwareMap);
         config = new RobotConfig();
         hw.initPinpoint();
-        panels = new PanelsPublisher();
+        PanelsPublisher panels = new PanelsPublisher();
         panels.init();
+        sweeperServo = hardwareMap.get(Servo.class, "sweeperServo");
 
         telemetry.addLine("Init complete - waiting start");
+        telemetry.addLine("DRIVER 1: Chassis control");
+        telemetry.addLine("DRIVER 2: Mechanisms (intake, cam, sweeper, deposit)");
         telemetry.addData("Pinpoint", hw.pinpoint == null ? "NOT FOUND (expect name '"+config.pinpointName+"')" : hw.pinpoint.getDeviceStatus());
         telemetry.update();
 
         waitForStart();
         if (isStopRequested()) return;
-        lastLoopTime = getRuntime();
+        double lastLoopTime = getRuntime();
 
-        odometry = new Odometry(hw, hw.pinpoint);
+        Odometry odometry = new Odometry(hw, hw.pinpoint);
+
+        // Set initial servo positions
+        if (hw.cam != null) hw.cam.setPosition(camPosition);
+        if (sweeperServo != null) sweeperServo.setPosition(sweeperPosition);
+
+        boolean prevComboReset = false;
+        boolean prevComboRecal = false;
 
         while (opModeIsActive()) {
+            double now = getRuntime();
+            double dt = Math.max(0.0, Math.min(0.1, now - lastLoopTime));
+            lastLoopTime = now;
+
             hw.updatePinpoint();
             odometry.update();
             Odometry.Position pos = odometry.getPosition();
 
-            // Get joystick values
-            double y = Math.abs(gamepad1.left_stick_y) > 0.05 ? gamepad1.left_stick_y : 0;
-            double x = Math.abs(gamepad1.left_stick_x) > 0.05 ? -gamepad1.left_stick_x : 0;
+            // ===== DRIVER 1: CHASSIS CONTROL =====
+            // Get joystick values - REVERSED Y to make deposit the front
+            double y = Math.abs(gamepad1.left_stick_y) > 0.05 ? -gamepad1.left_stick_y : 0; // NEGATED for reversed front
+            double x = Math.abs(gamepad1.left_stick_x) > 0.05 ? gamepad1.left_stick_x : 0; // REMOVED negation to invert strafe
             double r = Math.abs(gamepad1.right_stick_x) > 0.05 ? -gamepad1.right_stick_x : 0;
             double speedMul = gamepad1.left_bumper ? 0.5 : 1.0;
             y*=speedMul; x*=speedMul; r*=speedMul; x*=1.1;
             y=Math.copySign(y*y*y,y); x=Math.copySign(x*x*x,x); r=Math.copySign(r*r*r,r);
 
             // Field-centric transformation
-            double headingRad = pos.getHeadingRad(); // Heading in radians
+            double headingRad = pos.getHeadingRad();
             double tempX = x * Math.cos(-headingRad) - y * Math.sin(-headingRad);
             double tempY = x * Math.sin(-headingRad) + y * Math.cos(-headingRad);
             x = tempX;
             y = tempY;
 
-            double denom = Math.max(Math.abs(y)+Math.abs(x)+Math.abs(r),1);
-            double fl=(y+x+r)/denom, bl=(y - x + r)/denom, fr=(y - x - r)/denom, br=(y + x - r)/denom;
+            double denominator = Math.max(Math.abs(y)+Math.abs(x)+Math.abs(r),1); // Fix typo: denom -> denominator
+            double fl=(y+x+r)/denominator, bl=(y - x + r)/denominator, fr=(y - x - r)/denominator, br=(y + x - r)/denominator;
             hw.setDrivePowers(fl,fr,bl,br);
 
-            if (gamepad1.a && gamepad1.x) hw.pinpoint.resetPosAndIMU();
-            if (gamepad1.b && hw.pinpoint!=null) hw.pinpoint.recalibrateIMU();
-            boolean resetPressed = gamepad2.start;
-            if (resetPressed && !prevResetStart) {
-                if (hw.pinpoint!=null) hw.pinpoint.resetPosAndIMU();
-                else if (hw.imu!=null) hw.imu.resetYaw();
+            // Driver 1: Safe combos (pinpoint reset / recalibrate)
+            boolean comboReset = gamepad1.start && gamepad1.back;
+            if (comboReset && !prevComboReset) {
+                if (hw.pinpoint != null) hw.pinpoint.resetPosAndIMU();
+                else if (hw.imu != null) hw.imu.resetYaw();
             }
-            prevResetStart = resetPressed;
+            prevComboReset = comboReset;
 
-            double intakePower=0;
-            if (gamepad1.right_trigger>0.1) intakePower=0.8; else if (gamepad1.left_trigger>0.1) intakePower=-0.8;
-            if (hw.intakeMotor!=null) hw.intakeMotor.setPower(intakePower);
+            boolean comboRecal = gamepad1.x && gamepad1.y;
+            if (comboRecal && !prevComboRecal && hw.pinpoint != null) hw.pinpoint.recalibrateIMU();
+            prevComboRecal = comboRecal;
 
-            // Launcher motors (DepositMotorL and R) - RB to launch
-            double launcherPower = gamepad1.right_bumper ? 1.0 : 0.0;
-            // Spin motors in opposite directions
-            if (hw.depositMotorL != null) hw.depositMotorL.setPower(launcherPower);
-            if (hw.depositMotorR != null) hw.depositMotorR.setPower(-launcherPower);
+            // ===== DRIVER 2: MECHANISM CONTROL =====
+            // Intake (triggers, both => stop)
+            boolean rt = gamepad2.right_trigger > 0.1;
+            boolean lt = gamepad2.left_trigger > 0.1;
+            double intakePower = (rt && lt) ? 0.0 : rt ? 0.9 : lt ? -0.9 : 0.0;
+            if (hw.intakeMotor != null) hw.intakeMotor.setPower(intakePower);
 
-            // Cam servo - LB to activate
-            if (hw.cam != null) hw.cam.setPosition(gamepad1.left_bumper ? 1.0 : 0.0);
+            // Launcher (X) velocity control, opposite directions
+            // TEST: Set velocity to a very high value to check RPM calculation
+            double launcherVelocityTarget = gamepad2.x ? 10000.0 : 0.0;
+            if (hw.depositMotorL != null) hw.depositMotorL.setVelocity(launcherVelocityTarget);
+            if (hw.depositMotorR != null) hw.depositMotorR.setVelocity(-launcherVelocityTarget);
 
-            telemetry.addLine("=== DRIVE ===");
-            telemetry.addData("Joy","Y%.2f X%.2f R%.2f",y,x,r);
-            telemetry.addData("Pow","FL%.2f FR%.2f BL%.2f BR%.2f",fl,fr,bl,br);
-            telemetry.addData("Odo", pos.toString());
-            if (hw.pinpoint!=null) {
-                telemetry.addData("PP Stat", hw.pinpoint.getDeviceStatus());
+            // Cam (LB/RB) hold-based step
+            if (hw.cam != null) {
+                boolean camMoved = false;
+                if (gamepad2.left_bumper) {
+                    camPosition -= CAM_STEP;
+                    camMoved = true;
+                }
+                if (gamepad2.right_bumper) {
+                    camPosition += CAM_STEP;
+                    camMoved = true;
+                }
+                if (camMoved) {
+                    camPosition = Math.max(0.0, Math.min(1.0, camPosition));
+                    hw.cam.setPosition(camPosition);
+                }
+            }
+
+            // Sweeper (A/B) hold-based step
+            if (sweeperServo != null) {
+                boolean sweeperMoved = false;
+                if (gamepad2.a) {
+                    sweeperPosition -= SWEEPER_STEP;
+                    sweeperMoved = true;
+                }
+                if (gamepad2.b) {
+                    sweeperPosition += SWEEPER_STEP;
+                    sweeperMoved = true;
+                }
+                if (sweeperMoved) {
+                    sweeperPosition = Math.max(0.0, Math.min(1.0, sweeperPosition));
+                    sweeperServo.setPosition(sweeperPosition);
+                }
+            }
+
+            // Telemetry - each stat on its own line
+            telemetry.addData("Drive Y", y);
+            telemetry.addData("Drive X", x);
+            telemetry.addData("Drive R", r);
+            telemetry.addData("LB Slow Mode", gamepad1.left_bumper ? "ACTIVE" : "off");
+            telemetry.addData("Start+Back Reset", comboReset ? "PRESSED" : "");
+            telemetry.addData("X+Y Recalibrate", comboRecal ? "PRESSED" : ""); // Fix typo: Recal -> Recalibrate
+
+            telemetry.addData("Cam LB", gamepad2.left_bumper ? "IN" : "--");
+            telemetry.addData("Cam RB", gamepad2.right_bumper ? "OUT" : "--");
+            telemetry.addData("Cam Position", camPosition);
+            telemetry.addData("Sweeper A", gamepad2.a ? "IN" : "--");
+            telemetry.addData("Sweeper B", gamepad2.b ? "OUT" : "--");
+            telemetry.addData("Sweeper Position", sweeperPosition);
+            telemetry.addData("Launcher X", gamepad2.x ? "ACTIVE" : "off");
+            telemetry.addData("Intake RT", gamepad2.right_trigger);
+            telemetry.addData("Intake LT", gamepad2.left_trigger);
+            telemetry.addData("Intake Power", intakePower);
+
+            telemetry.addData("Cam Target", camPosition);
+            telemetry.addData("Cam Actual", hw.cam != null ? hw.cam.getPosition() : -1);
+            telemetry.addData("Sweeper Target", sweeperPosition);
+            telemetry.addData("Sweeper Actual", sweeperServo != null ? sweeperServo.getPosition() : -1);
+
+            if (hw.depositMotorL != null && hw.depositMotorR != null) {
+                double ticksPerRev = 28.0;
+                double velocityL = hw.depositMotorL.getVelocity();
+                double velocityR = hw.depositMotorR.getVelocity();
+                double rpmL = (velocityL / ticksPerRev) * 60.0;
+                double rpmR = (velocityR / ticksPerRev) * 60.0;
+                telemetry.addData("Launcher L RPM", rpmL);
+                telemetry.addData("Launcher R RPM", rpmR);
             } else {
-                telemetry.addLine("Pinpoint MISSING - name '"+config.pinpointName+"'");
+                telemetry.addData("Launcher", "NOT FOUND");
             }
-            telemetry.addData("IMU Yaw°", hw.imu!=null? Math.toDegrees(hw.imu.getRobotYawPitchRollAngles().getYaw()):"null");
-            telemetry.addData("Intake", intakePower);
-            double now = getRuntime(); double dt = now - lastLoopTime; lastLoopTime = now;
-            telemetry.addData("REV Hz", dt>0? String.format("%.1f",1.0/dt):"-");
+
+            telemetry.addData("Loop Hz", 1.0/dt);
+            telemetry.addData("Heading", pos.getHeadingDeg());
             telemetry.update();
 
             // Panels publishing (inches)

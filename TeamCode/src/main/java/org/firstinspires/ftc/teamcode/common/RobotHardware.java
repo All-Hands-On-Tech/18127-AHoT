@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.common;
 
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver;
@@ -23,8 +24,8 @@ public class RobotHardware {
     public String pinpointRecoveryAction = "";
     private boolean pinpointInitialized = false;
 
-    // Deposit motors
-    public DcMotor depositMotorL, depositMotorR;
+    // Deposit motors - changed to DcMotorEx for velocity control
+    public DcMotorEx depositMotorL, depositMotorR;
     // Servos
     public com.qualcomm.robotcore.hardware.Servo cam, transferServo;
 
@@ -73,12 +74,18 @@ public class RobotHardware {
             } catch (Exception ignored) {}
 
             // Deposit motors
-            try { depositMotorL = hardwareMap.get(DcMotor.class, config.depositMotorLName); } catch (Exception ignored) {}
-            try { depositMotorR = hardwareMap.get(DcMotor.class, config.depositMotorRName); } catch (Exception ignored) {}
-            if (depositMotorL != null) depositMotorL.setDirection(DcMotor.Direction.REVERSE);
-            if (depositMotorR != null) depositMotorR.setDirection(DcMotor.Direction.FORWARD);
-            if (depositMotorL != null) depositMotorL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            if (depositMotorR != null) depositMotorR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            try { depositMotorL = hardwareMap.get(DcMotorEx.class, config.depositMotorLName); } catch (Exception ignored) {}
+            try { depositMotorR = hardwareMap.get(DcMotorEx.class, config.depositMotorRName); } catch (Exception ignored) {}
+            if (depositMotorL != null) {
+                depositMotorL.setDirection(DcMotor.Direction.REVERSE);
+                depositMotorL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                depositMotorL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            }
+            if (depositMotorR != null) {
+                depositMotorR.setDirection(DcMotor.Direction.REVERSE);
+                depositMotorR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                depositMotorR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            }
             // Servos
             try { cam = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.camServoName); } catch (Exception ignored) {}
             try { transferServo = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.transferServoName); } catch (Exception ignored) {}
