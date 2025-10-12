@@ -27,7 +27,8 @@ public class RobotHardware {
     // Deposit motors - changed to DcMotorEx for velocity control
     public DcMotorEx depositMotorL, depositMotorR;
     // Servos
-    public com.qualcomm.robotcore.hardware.Servo cam, transferServo;
+    public com.qualcomm.robotcore.hardware.Servo cam;
+    public com.qualcomm.robotcore.hardware.CRServo transferServo;
 
     private final RobotConfig config;
     private HardwareMap hwMap;
@@ -88,7 +89,7 @@ public class RobotHardware {
             }
             // Servos
             try { cam = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.camServoName); } catch (Exception ignored) {}
-            try { transferServo = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.transferServoName); } catch (Exception ignored) {}
+            try { transferServo = hardwareMap.get(com.qualcomm.robotcore.hardware.CRServo.class, config.transferServoName); } catch (Exception ignored) {}
 
         } catch (Exception e) {
             System.err.println("RobotHardware init error: " + e.getMessage());

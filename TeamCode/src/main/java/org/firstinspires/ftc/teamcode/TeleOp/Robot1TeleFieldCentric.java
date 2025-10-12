@@ -2,8 +2,6 @@ package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.common.RobotHardware;
 import org.firstinspires.ftc.teamcode.common.RobotConfig;
 import org.firstinspires.ftc.teamcode.common.Odometry;
@@ -11,26 +9,13 @@ import org.firstinspires.ftc.teamcode.common.PanelsPublisher;
 
 @TeleOp(name = "Two Wheel Odometry TeleOp FieldCentric", group = "TeleOp")
 public class Robot1TeleFieldCentric extends LinearOpMode {
-    private RobotHardware hw;
-    private RobotConfig config;
-    private Servo sweeperServo;
-    // Cam control (hold-based, step-per-loop)
-    private double camPosition = 0.4;
-    private static final double CAM_STEP = 0.003;
-    // Sweeper control
-    private double sweeperPosition = 0.5;
-    private static final double SWEEPER_STEP = 0.02;
-    // 2600 RPM = 2600/60 = 43.33 rev/s × 28 ticks/rev = 1213 ticks/s (for REV HD Hex motors)
-    private static final double MAX_LAUNCHER_VELOCITY = 2440.0; // ticks per second for ~2600 RPM
-
     @Override
     public void runOpMode() {
-        hw = new RobotHardware(hardwareMap);
-        config = new RobotConfig();
+        RobotHardware hw = new RobotHardware(hardwareMap);
+        RobotConfig config = new RobotConfig();
         hw.initPinpoint();
         PanelsPublisher panels = new PanelsPublisher();
         panels.init();
-        sweeperServo = hardwareMap.get(Servo.class, "sweeperServo");
 
         telemetry.addLine("Init complete - waiting start");
         telemetry.addLine("DRIVER 1: Chassis control");
@@ -45,11 +30,11 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
         Odometry odometry = new Odometry(hw, hw.pinpoint);
 
         // Set initial servo positions
-        if (hw.cam != null) hw.cam.setPosition(camPosition);
-        if (sweeperServo != null) sweeperServo.setPosition(sweeperPosition);
+        if (hw.cam != null) hw.cam.setPosition(0.4);
+        if (hw.transferServo != null) hw.transferServo.setPower(0.0); // Start stopped
 
         boolean prevComboReset = false;
-        boolean prevComboRecal = false;
+        boolean prevComboRecalibrate = false;
 
         while (opModeIsActive()) {
             double now = getRuntime();
@@ -76,7 +61,7 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
             x = tempX;
             y = tempY;
 
-            double denominator = Math.max(Math.abs(y)+Math.abs(x)+Math.abs(r),1); // Fix typo: denom -> denominator
+            double denominator = Math.max(Math.abs(y)+Math.abs(x)+Math.abs(r),1);
             double fl=(y+x+r)/denominator, bl=(y - x + r)/denominator, fr=(y - x - r)/denominator, br=(y + x - r)/denominator;
             hw.setDrivePowers(fl,fr,bl,br);
 
@@ -88,9 +73,9 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
             }
             prevComboReset = comboReset;
 
-            boolean comboRecal = gamepad1.x && gamepad1.y;
-            if (comboRecal && !prevComboRecal && hw.pinpoint != null) hw.pinpoint.recalibrateIMU();
-            prevComboRecal = comboRecal;
+            boolean comboRecalibrate = gamepad1.x && gamepad1.y;
+            if (comboRecalibrate && !prevComboRecalibrate && hw.pinpoint != null) hw.pinpoint.recalibrateIMU();
+            prevComboRecalibrate = comboRecalibrate;
 
             // ===== DRIVER 2: MECHANISM CONTROL =====
             // Intake (triggers, both => stop)
@@ -109,33 +94,27 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
             if (hw.cam != null) {
                 boolean camMoved = false;
                 if (gamepad2.left_bumper) {
-                    camPosition -= CAM_STEP;
+                    hw.cam.setPosition(hw.cam.getPosition() - 0.003);
                     camMoved = true;
                 }
                 if (gamepad2.right_bumper) {
-                    camPosition += CAM_STEP;
+                    hw.cam.setPosition(hw.cam.getPosition() + 0.003);
                     camMoved = true;
                 }
                 if (camMoved) {
+                    // Clamp cam position
+                    double camPosition = hw.cam.getPosition();
                     camPosition = Math.max(0.0, Math.min(1.0, camPosition));
                     hw.cam.setPosition(camPosition);
                 }
             }
 
-            // Sweeper (A/B) hold-based step
-            if (sweeperServo != null) {
-                boolean sweeperMoved = false;
-                if (gamepad2.a) {
-                    sweeperPosition -= SWEEPER_STEP;
-                    sweeperMoved = true;
-                }
-                if (gamepad2.b) {
-                    sweeperPosition += SWEEPER_STEP;
-                    sweeperMoved = true;
-                }
-                if (sweeperMoved) {
-                    sweeperPosition = Math.max(0.0, Math.min(1.0, sweeperPosition));
-                    sweeperServo.setPosition(sweeperPosition);
+            // Transfer wheel servo (Y button: ON/OFF)
+            if (hw.transferServo != null) {
+                if (gamepad2.y) {
+                    hw.transferServo.setPower(-1.0); // Full speed forward
+                } else {
+                    hw.transferServo.setPower(0.0); // Stop
                 }
             }
 
@@ -145,23 +124,22 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
             telemetry.addData("Drive R", r);
             telemetry.addData("LB Slow Mode", gamepad1.left_bumper ? "ACTIVE" : "off");
             telemetry.addData("Start+Back Reset", comboReset ? "PRESSED" : "");
-            telemetry.addData("X+Y Recalibrate", comboRecal ? "PRESSED" : ""); // Fix typo: Recal -> Recalibrate
+            telemetry.addData("X+Y Recalibrate", comboRecalibrate ? "PRESSED" : "");
 
             telemetry.addData("Cam LB", gamepad2.left_bumper ? "IN" : "--");
             telemetry.addData("Cam RB", gamepad2.right_bumper ? "OUT" : "--");
-            telemetry.addData("Cam Position", camPosition);
-            telemetry.addData("Sweeper A", gamepad2.a ? "IN" : "--");
-            telemetry.addData("Sweeper B", gamepad2.b ? "OUT" : "--");
-            telemetry.addData("Sweeper Position", sweeperPosition);
+            telemetry.addData("Cam Position", hw.cam != null ? hw.cam.getPosition() : -1);
             telemetry.addData("Launcher X", gamepad2.x ? "ACTIVE" : "off");
             telemetry.addData("Intake RT", gamepad2.right_trigger);
             telemetry.addData("Intake LT", gamepad2.left_trigger);
             telemetry.addData("Intake Power", intakePower);
 
-            telemetry.addData("Cam Target", camPosition);
-            telemetry.addData("Cam Actual", hw.cam != null ? hw.cam.getPosition() : -1);
-            telemetry.addData("Sweeper Target", sweeperPosition);
-            telemetry.addData("Sweeper Actual", sweeperServo != null ? sweeperServo.getPosition() : -1);
+            // Transfer servo telemetry
+            telemetry.addData("Transfer Servo Status", hw.transferServo != null ? "FOUND" : "NOT FOUND");
+            if (hw.transferServo != null) {
+                telemetry.addData("Transfer Y Button", gamepad2.y ? "PRESSED" : "released");
+                telemetry.addData("Transfer Power", gamepad2.y ? "1.0" : "0.0");
+            }
 
             if (hw.depositMotorL != null && hw.depositMotorR != null) {
                 double ticksPerRev = 28.0;
@@ -177,6 +155,7 @@ public class Robot1TeleFieldCentric extends LinearOpMode {
 
             telemetry.addData("Loop Hz", 1.0/dt);
             telemetry.addData("Heading", pos.getHeadingDeg());
+            telemetry.addData("Transfer Wheel Servo", hw.transferServo != null ? (gamepad2.y ? "ON" : "OFF") : "NOT FOUND");
             telemetry.update();
 
             // Panels publishing (inches)
