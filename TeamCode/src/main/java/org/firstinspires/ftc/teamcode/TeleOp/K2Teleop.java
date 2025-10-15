@@ -7,11 +7,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit; // added
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
-import org.firstinspires.ftc.teamcode.ZSupport.RAndDBotUtilities;
+import org.firstinspires.ftc.teamcode.ZSupport.K2Utilities;
 
-@TeleOp(name="RAndDBotTeleOp", group="Z")
-public class RAndDBotTeleOp extends LinearOpMode {
-    RAndDBotUtilities bot = new RAndDBotUtilities(this);
+@TeleOp(name="K2 Teleop", group="A")
+public class K2Teleop extends LinearOpMode {
+    K2Utilities bot = new K2Utilities(this);
 
     private double prevY = 0.0;
     private double prevX = 0.0;
@@ -24,7 +24,7 @@ public class RAndDBotTeleOp extends LinearOpMode {
     boolean traditionalDrivetrain = true;
     boolean prevBack = false;
 
-    private final Pose2D START_POSE = new Pose2D(DistanceUnit.INCH, 36, -63.667, AngleUnit.DEGREES,0);
+    private final Pose2D START_POSE = new Pose2D(DistanceUnit.INCH, 36, -63.667, AngleUnit.DEGREES,90);
     private final Pose2D BLUE_BACKBOARD_POSE = new Pose2D(DistanceUnit.INCH, -65, 70, AngleUnit.DEGREES, 0);
     private final Pose2D BLUE_PARKING_POSE = new Pose2D(DistanceUnit.INCH, 40, -40, AngleUnit.DEGREES, 0);
 
@@ -66,9 +66,9 @@ public class RAndDBotTeleOp extends LinearOpMode {
 
             if(traditionalDrivetrain) {
                 y *= 1.1;
-                bot.move(x, -y, rx);
+                bot.move(y, x, rx);
             }else {
-                double goalAngle = headingToPoint(BLUE_BACKBOARD_POSE.getX(DistanceUnit.INCH), BLUE_BACKBOARD_POSE.getY(DistanceUnit.INCH));
+                double goalAngle = pointToHeading(BLUE_BACKBOARD_POSE.getX(DistanceUnit.INCH), BLUE_BACKBOARD_POSE.getY(DistanceUnit.INCH));
                 telemetry.addData("Goal Angle: ", goalAngle);
 
                 // === Heading hold using squidToHeading when driver isn't rotating ===
@@ -102,7 +102,7 @@ public class RAndDBotTeleOp extends LinearOpMode {
                 prevX = x;
                 prevElapsedTime = getRuntime();
 
-                bot.moveFieldOriented(x, y, rx);
+                bot.moveFieldOriented(y, x, rx);
             }
 
             bot.logDriveData(bot.odo.getPosition());
@@ -126,7 +126,7 @@ public class RAndDBotTeleOp extends LinearOpMode {
     }
 
 
-    private double headingToPoint(double x, double y)
+    private double pointToHeading(double x, double y)
     {
         Pose2D currentPose = bot.odo.getPosition();
         double currentX = currentPose.getX(DistanceUnit.INCH);
