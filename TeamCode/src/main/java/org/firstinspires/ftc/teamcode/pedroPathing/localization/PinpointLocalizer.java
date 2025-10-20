@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.pedroPathing.localization;
 import org.firstinspires.ftc.teamcode.pedroPathing.geometry.Pose;
 import org.firstinspires.ftc.teamcode.pedroPathing.math.Vector;
 import org.firstinspires.ftc.teamcode.common.RobotHardware;
-import org.firstinspires.ftc.teamcode.common.Odometry;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
@@ -12,7 +11,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
  */
 public class PinpointLocalizer implements Localizer {
     private final RobotHardware hw;
-    private Pose startPose = new Pose(0, 0, 0);
     private Pose currentPose = new Pose(0, 0, 0);
 
     public PinpointLocalizer(RobotHardware hw) {
@@ -22,9 +20,12 @@ public class PinpointLocalizer implements Localizer {
     @Override
     public Pose getPose() {
         if (hw.pinpoint != null) {
-            double x = hw.pinpoint.getPosX(DistanceUnit.INCH);
-            double y = hw.pinpoint.getPosY(DistanceUnit.INCH);
+            // Direct mapping - no axis swap
+            double x = hw.pinpoint.getPosX(DistanceUnit.MM);
+            double y = hw.pinpoint.getPosY(DistanceUnit.MM);
             double heading = hw.pinpoint.getHeading(AngleUnit.RADIANS);
+            // normalize heading to [-pi, pi] to avoid huge values like -450 deg
+            heading = normalizeRadians(heading);
             currentPose = new Pose(x, y, heading);
         }
         return currentPose;
@@ -33,9 +34,9 @@ public class PinpointLocalizer implements Localizer {
     @Override
     public Pose getVelocity() {
         if (hw.pinpoint != null) {
-            double vx = hw.pinpoint.getVelX(DistanceUnit.INCH);
-            double vy = hw.pinpoint.getVelY(DistanceUnit.INCH);
-            // Use getHeadingVelocity with AngleUnit (not UnnormalizedAngleUnit)
+            // Direct mapping - no axis swap
+            double vx = hw.pinpoint.getVelX(DistanceUnit.MM);
+            double vy = hw.pinpoint.getVelY(DistanceUnit.MM);
             double vHeading = 0; // Pinpoint doesn't provide heading velocity directly
             return new Pose(vx, vy, vHeading);
         }
@@ -50,30 +51,32 @@ public class PinpointLocalizer implements Localizer {
 
     @Override
     public void setStartPose(Pose setStart) {
-        this.startPose = setStart;
         if (hw.pinpoint != null) {
+            // Direct mapping - no axis swap
             hw.pinpoint.setPosition(new org.firstinspires.ftc.robotcore.external.navigation.Pose2D(
-                DistanceUnit.INCH,
+                DistanceUnit.MM,
                 setStart.getX(),
                 setStart.getY(),
                 AngleUnit.RADIANS,
                 setStart.getHeading()
             ));
         }
+        currentPose = setStart;
     }
 
     @Override
     public void setPose(Pose setPose) {
-        this.currentPose = setPose;
         if (hw.pinpoint != null) {
+            // Direct mapping - no axis swap
             hw.pinpoint.setPosition(new org.firstinspires.ftc.robotcore.external.navigation.Pose2D(
-                DistanceUnit.INCH,
+                DistanceUnit.MM,
                 setPose.getX(),
                 setPose.getY(),
                 AngleUnit.RADIANS,
                 setPose.getHeading()
             ));
         }
+        currentPose = setPose;
     }
 
     @Override
@@ -84,7 +87,7 @@ public class PinpointLocalizer implements Localizer {
     @Override
     public double getTotalHeading() {
         if (hw.pinpoint != null) {
-            return hw.pinpoint.getHeading(AngleUnit.RADIANS);
+            return normalizeRadians(hw.pinpoint.getHeading(AngleUnit.RADIANS));
         }
         return 0;
     }
@@ -121,8 +124,17 @@ public class PinpointLocalizer implements Localizer {
     @Override
     public double getIMUHeading() {
         if (hw.pinpoint != null) {
-            return hw.pinpoint.getHeading(AngleUnit.RADIANS);
+            return normalizeRadians(hw.pinpoint.getHeading(AngleUnit.RADIANS));
         }
         return 0;
+    }
+
+    private static double normalizeRadians(double angle) {
+        // Wrap to (-pi, pi]
+        double twoPi = 2 * Math.PI;
+        angle = angle % twoPi;
+        if (angle <= -Math.PI) angle += twoPi;
+        if (angle > Math.PI) angle -= twoPi;
+        return angle;
     }
 }

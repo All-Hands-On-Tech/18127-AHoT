@@ -49,7 +49,7 @@ public class SensorGoBildaPinpoint extends OpMode {
     @Override
     public void init() {
         // Get a reference to the sensor
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "odo");
 
         // Configure the sensor
         configurePinpoint();

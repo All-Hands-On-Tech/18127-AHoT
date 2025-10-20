@@ -28,7 +28,7 @@ public class RobotHardware {
     public DcMotorEx depositMotorL, depositMotorR;
     // Servos
     public com.qualcomm.robotcore.hardware.Servo cam;
-    public com.qualcomm.robotcore.hardware.CRServo transferServo;
+    public com.qualcomm.robotcore.hardware.Servo transferServo; // Changed from CRServo to Servo
 
     private final RobotConfig config;
     private HardwareMap hwMap;
@@ -89,7 +89,7 @@ public class RobotHardware {
             }
             // Servos
             try { cam = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.camServoName); } catch (Exception ignored) {}
-            try { transferServo = hardwareMap.get(com.qualcomm.robotcore.hardware.CRServo.class, config.transferServoName); } catch (Exception ignored) {}
+            try { transferServo = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.transferServoName); } catch (Exception ignored) {}
 
         } catch (Exception e) {
             System.err.println("RobotHardware init error: " + e.getMessage());
@@ -114,7 +114,7 @@ public class RobotHardware {
         }
         if (pinpoint != null) {
             pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-            pinpoint.setEncoderDirections(EncoderDirection.FORWARD, EncoderDirection.FORWARD);
+            pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.REVERSED);
             pinpoint.setOffsets(config.odoPerpendicularOffsetMM, config.odoParallelOffsetMM, DistanceUnit.MM);
             pinpoint.resetPosAndIMU();
         }
@@ -140,5 +140,41 @@ public class RobotHardware {
         if (frontRight != null) frontRight.setPower(fr);
         if (backLeft != null) backLeft.setPower(bl);
         if (backRight != null) backRight.setPower(br);
+    }
+
+    // Intake control
+    public void startIntake() {
+        if (intakeMotor != null) intakeMotor.setPower(1.0); // Adjust power as needed
+    }
+    public void stopIntake() {
+        if (intakeMotor != null) intakeMotor.setPower(0.0);
+    }
+
+    // Deposit control (simple example: run both motors forward for deposit)
+    public void runDeposit() {
+        if (depositMotorL != null) depositMotorL.setPower(1.0); // Adjust power/direction as needed
+        if (depositMotorR != null) depositMotorR.setPower(1.0);
+    }
+    public void stopDeposit() {
+        if (depositMotorL != null) depositMotorL.setPower(0.0);
+        if (depositMotorR != null) depositMotorR.setPower(0.0);
+    }
+
+    // Transfer servo control for deposit
+    public void runTransferServo() {
+        if (transferServo != null) transferServo.setPosition(1.0); // Move to active position
+    }
+    public void stopTransferServo() {
+        if (transferServo != null) transferServo.setPosition(0.5); // Return to neutral
+    }
+
+    // Deposit control (runs deposit motors and transfer servo)
+    public void runDepositFull() {
+        runDeposit();
+        runTransferServo();
+    }
+    public void stopDepositFull() {
+        stopDeposit();
+        stopTransferServo();
     }
 }

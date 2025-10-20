@@ -24,6 +24,11 @@ public class RobotConfig {
     // Legacy odometry geometry (kept for compatibility)
     public double ticksPerRev = 8192;
     public double wheelDiameterMM = 35.0;
-    public double odoPerpendicularOffsetMM = 0.0;
-    public double odoParallelOffsetMM = 0.0;
+
+    // Pinpoint odometry pod offsets in millimeters
+    // These are the physical distances from the center of rotation to each encoder wheel
+    // X offset is for the forward/backward encoder (parallel to forward motion)
+    // Y offset is for the left/right encoder (perpendicular to forward motion)
+    public double odoPerpendicularOffsetMM = 19.05;  // 0.75 inches = 19.05 mm (forward pod Y offset)
+    public double odoParallelOffsetMM = 107.95;      // 4.25 inches = 107.95 mm (strafe pod X offset)
 }
