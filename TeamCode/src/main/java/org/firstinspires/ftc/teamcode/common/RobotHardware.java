@@ -24,7 +24,7 @@ public class RobotHardware {
     public String pinpointRecoveryAction = "";
     private boolean pinpointInitialized = false;
 
-    // Deposit motors - changed to DcMotorEx for velocity control
+    // Deposit motors - changed to DcMotor for velocity control
     public DcMotorEx depositMotorL, depositMotorR;
     // Servos
     public com.qualcomm.robotcore.hardware.Servo cam;

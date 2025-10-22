@@ -22,7 +22,7 @@ public class RobotConfig {
     public String transferServoName = "transferServo";
 
     // Legacy odometry geometry (kept for compatibility)
-    public double ticksPerRev = 8192;
+    public double ticksPerRev = 4096.0;
     public double wheelDiameterMM = 35.0;
 
     // Pinpoint odometry pod offsets in millimeters

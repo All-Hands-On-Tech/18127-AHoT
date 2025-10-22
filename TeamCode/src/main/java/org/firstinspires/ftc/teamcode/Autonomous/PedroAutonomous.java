@@ -1,9 +1,9 @@
 package org.firstinspires.ftc.teamcode.Autonomous;
 
-import org.firstinspires.ftc.teamcode.pedroPathing.follower.Follower;
-import org.firstinspires.ftc.teamcode.pedroPathing.geometry.BezierLine;
-import org.firstinspires.ftc.teamcode.pedroPathing.geometry.Pose;
-import org.firstinspires.ftc.teamcode.pedroPathing.paths.PathChain;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;

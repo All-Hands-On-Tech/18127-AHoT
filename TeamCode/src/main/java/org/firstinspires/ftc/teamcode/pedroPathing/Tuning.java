@@ -36,7 +36,7 @@ import java.util.List;
 @Configurable
 @TeleOp(name = "Tuning", group = "Pedro Pathing")
 public class Tuning extends SelectableOpMode {
-    public static org.firstinspires.ftc.teamcode.pedroPathing.follower.Follower follower;
+    public static Follower follower;
 
     @IgnoreConfigurable
     static PoseHistory poseHistory;
@@ -1204,7 +1204,7 @@ class Drawing {
 
     /**
      * This draws everything that will be used in the Follower's telemetryDebug() method. This takes
-     * a Follower as an input, so an instance of the DashbaordDrawingHandler class is not needed.
+     * a Follower as an input, so an instance of the DashboardDrawingHandler class is not needed.
      *
      * @param follower Pedro Follower instance.
      */
@@ -1323,3 +1323,4 @@ class Drawing {
         panelsField.update();
     }
 }
+
