@@ -8,10 +8,11 @@ buildscript {
     repositories {
         mavenCentral()
         google()
+        maven {url = "https://mymaven.bylazar.com/releases"}
     }
     dependencies {
         // Note for FTC Teams: Do not modify this yourself.
-        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.android.tools.build:gradle:8.7.0'
     }
 }
 
