@@ -21,7 +21,7 @@ public class K2Teleop extends LinearOpMode {
     private double targetHeadingDeg = 0.0;
 
 
-    boolean traditionalDrivetrain = true;
+    boolean traditionalDrivetrain = false;
     boolean prevBack = false;
 
     private final Pose2D START_POSE = new Pose2D(DistanceUnit.INCH, 36, -63.667, AngleUnit.DEGREES,90);
@@ -58,6 +58,13 @@ public class K2Teleop extends LinearOpMode {
             x  *= speedMultiplier;
             rx *= speedMultiplier;
 
+            /*//////////////////////////
+
+
+            THIS IS DRIVETRAIN CODE
+
+
+             //////////////////////////*/
             if (prevBack && !gamepad1.back) {
                 traditionalDrivetrain = !traditionalDrivetrain; // toggle
                 targetHeadingDeg = getHeading();
@@ -76,27 +83,18 @@ public class K2Teleop extends LinearOpMode {
                 final double rotateDeadband = 0.02;
                 if(!gamepad1.a){
 
-                    final double maxDegPerSec  = 360.0;        // full-stick = 180°/s target change
-
-                    if (Math.abs(rx) > rotateDeadband) {
-                        targetHeadingDeg = targetHeadingDeg + rx * maxDegPerSec * deltaRuntime;
-                    }
-
-                    rx = bot.squidToHeading(targetHeadingDeg);
+//                    final double maxDegPerSec  = 720.0;        // full-stick = 180°/s target change
+//
+//                    if (Math.abs(rx) > rotateDeadband) {
+//                        targetHeadingDeg = targetHeadingDeg + rx * maxDegPerSec * deltaRuntime;
+//                    }
+//
+//                    rx = bot.squidToHeading(targetHeadingDeg);
 
 
                 }else{
                     rx = bot.squidToHeading(goalAngle);
                 }
-
-                // Slew limit translation AFTER all scaling/heading-hold logic (unchanged)
-                if (y < 0.8) {
-                    y = slew(y, prevY, 4 * deltaRuntime);
-                }
-                if (x < 0.8) {
-                    x = slew(x, prevX, 4 * deltaRuntime);
-                }
-                // rx slew already handled conditionally above
 
                 prevY = y;
                 prevX = x;
@@ -105,10 +103,38 @@ public class K2Teleop extends LinearOpMode {
                 bot.moveFieldOriented(y, x, rx);
             }
 
+
+
+            /*//////////////////////////
+
+
+            INTAKE CODE
+
+
+             //////////////////////////*/
+            bot.intakeRight(Math.abs(gamepad1.right_trigger) > 0.025 ? gamepad1.right_trigger : 0);
+//            bot.intakeLeft(Math.abs(gamepad1.left_trigger) > 0.025 ? gamepad1.left_trigger : 0);
+
+            /*//////////////////////////
+
+
+            DELIVER CODE
+
+
+             //////////////////////////*/
+            bot.powerDeliver(gamepad2.right_trigger);
+            if(gamepad2.a) {
+                bot.setDeliverVel();
+            }else{
+                bot.deliverL.setVelocity(0);
+            }
+
+
             bot.logDriveData(bot.odo.getPosition());
             telemetry.addLine();telemetry.addLine();telemetry.addLine();
             bot.logPinpointFrequency();
             bot.logREVHubFrequency();
+            telemetry.addData("DeliverL RPM", bot.getDeliverLVel());
             telemetry.addData("Joystick", "Y: %.2f X: %.2f RX: %.2f", y, x, rx);
             telemetry.addData("Heading Hold", "target=%.1f°, cur=%.1f°", targetHeadingDeg, getHeading());
             telemetry.update();

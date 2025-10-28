@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.ZSupport;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -40,6 +41,8 @@ For support, contact tech@gobilda.com
 public class K2Utilities {
     final double TRACK_WIDTH = 0.0;
     public DcMotor fr, fl, br, bl;
+    public DcMotor intakeL, intakeR;
+    public DcMotorEx deliverL, deliverR;
     public double frPower, flPower, brPower, blPower;
 
     public GoBildaPinpointDriver odo;
@@ -65,6 +68,12 @@ public class K2Utilities {
         fl = l.hardwareMap.get(DcMotor.class, "fl");
         br = l.hardwareMap.get(DcMotor.class, "br");
         bl = l.hardwareMap.get(DcMotor.class, "bl");
+
+//        intakeL = l.hardwareMap.get(DcMotor.class, "intakeL");
+        intakeR = l.hardwareMap.get(DcMotor.class, "intakeR");
+
+        deliverL = l.hardwareMap.get(DcMotorEx.class, "deliverL");
+//        deliverR = l.hardwareMap.get(DcMotorEx.class, "deliverR");
 
         fr.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -337,5 +346,22 @@ public class K2Utilities {
     public void setTargetHeading(double h)
     {
         targetHeading = h;
+    }
+
+//    public void intakeLeft (double pow){intakeL.setPower(pow);}
+    public void intakeRight (double pow){intakeR.setPower(pow);}
+
+    public void powerDeliver(double pow){
+        deliverL.setPower(pow);
+//        deliverR.setPower(pow);
+    }
+    public double getDeliverLVel(){
+        return deliverL.getVelocity(AngleUnit.DEGREES);
+        /*return deliverL.getVelocity(AngleUnit.RADIANS)/(2*Math.PI)/60;*/
+    }  //rpm
+
+    public void setDeliverVel(){
+        deliverL.setVelocity(3, AngleUnit.DEGREES); // 3000 RPM roughly
+//        deliverR.setVelocity(314, AngleUnit.RADIANS); // 3000 RPM roughly
     }
 }

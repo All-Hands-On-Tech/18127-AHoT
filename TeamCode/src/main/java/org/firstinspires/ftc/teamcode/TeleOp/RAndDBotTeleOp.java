@@ -58,6 +58,14 @@ public class RAndDBotTeleOp extends LinearOpMode {
             x  *= speedMultiplier;
             rx *= speedMultiplier;
 
+
+            /*//////////////////////////
+
+
+            THIS IS DRIVETRAIN CODE
+
+
+             //////////////////////////*/
             if (prevBack && !gamepad1.back) {
                 traditionalDrivetrain = !traditionalDrivetrain; // toggle
                 targetHeadingDeg = getHeading();
@@ -103,6 +111,11 @@ public class RAndDBotTeleOp extends LinearOpMode {
                 prevElapsedTime = getRuntime();
 
                 bot.moveFieldOriented(x, y, rx);
+
+
+
+
+
             }
 
             bot.logDriveData(bot.odo.getPosition());
