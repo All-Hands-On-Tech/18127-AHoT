@@ -6,6 +6,9 @@ import org.firstinspires.ftc.teamcode.common.RobotHardware;
 import org.firstinspires.ftc.teamcode.common.RobotConfig;
 import org.firstinspires.ftc.teamcode.common.Odometry;
 import org.firstinspires.ftc.teamcode.common.PanelsPublisher;
+import org.firstinspires.ftc.teamcode.common.PIDController;
+
+import java.util.Locale;
 
 @TeleOp(name = "Robot1 Robot Centric Drive", group = "TeleOp")
 public class Robot1RobotCentricDrive extends LinearOpMode {
@@ -31,10 +34,16 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
 
         // Set initial servo positions - cam starts at 0.46 (clamped between 0.4722 and 0.5122)
         if (hw.cam != null) hw.cam.setPosition(0.48);
-        if (hw.transferServo != null) hw.transferServo.setPosition(0.5); // Standard servo, neutral position
+        // Standard servo, neutral position
 
         boolean prevComboReset = false;
         boolean prevComboRecalibrate = false;
+
+        // PID for launcher/deposit motors
+        PIDController depositPid = new PIDController(0.0008, 0.0000015, 0.00005);
+        depositPid.setOutputLimits(-1.0, 1.0);
+        depositPid.setIntegratorLimits(-2000, 2000);
+        double prevTarget = 0.0;
 
         while (opModeIsActive()) {
             double now = getRuntime();
@@ -51,6 +60,8 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
             double forward = Math.abs(gamepad1.left_stick_y) > 0.05 ? -gamepad1.left_stick_y : 0;
             double strafe = Math.abs(gamepad1.left_stick_x) > 0.05 ? gamepad1.left_stick_x : 0;
             double rotate = Math.abs(gamepad1.right_stick_x) > 0.05 ? gamepad1.right_stick_x : 0;
+
+            rotate += -0.15 * forward;
 
             double speedMul = gamepad1.left_bumper ? 0.5 : 1.0;
             forward *= speedMul;
@@ -84,17 +95,36 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
             if (comboRecalibrate && !prevComboRecalibrate && hw.pinpoint != null) hw.pinpoint.recalibrateIMU();
             prevComboRecalibrate = comboRecalibrate;
 
-            // ===== DRIVER 2: MECHANISM CONTROL =====
             // Intake (triggers, both => stop)
             boolean rt = gamepad2.right_trigger > 0.1;
             boolean lt = gamepad2.left_trigger > 0.1;
             double intakePower = (rt && lt) ? 0.0 : rt ? 0.9 : lt ? -0.9 : 0.0;
             if (hw.intakeMotor != null) hw.intakeMotor.setPower(intakePower);
 
-            // Launcher (X) velocity control
-            double launcherVelocityTarget = gamepad2.x ? 10000.0 : 0.0;
-            if (hw.depositMotorL != null) hw.depositMotorL.setVelocity(launcherVelocityTarget);
-            if (hw.depositMotorR != null) hw.depositMotorR.setVelocity(-launcherVelocityTarget);
+            // Launcher (X) velocity control - use PID to avoid overshoot
+            double launcherVelocityTarget = gamepad2.x ? 1000.0 : 0.0;
+
+            double actual = 0.0;
+            if (hw.depositMotorL != null) actual = hw.depositMotorL.getVelocity();
+
+            // Reset PID if target changes
+            if (Math.abs(prevTarget - launcherVelocityTarget) > 1.0) depositPid.reset();
+            prevTarget = launcherVelocityTarget;
+
+            double power = 0.0;
+            if (Math.abs(launcherVelocityTarget) < 1.0) {
+                power = 0.0;
+                depositPid.reset();
+            } else {
+                power = depositPid.update(launcherVelocityTarget, actual, dt);
+                double ff = 0.00015 * Math.signum(launcherVelocityTarget);
+                power += ff;
+                if (power > 1.0) power = 1.0;
+                if (power < -1.0) power = -1.0;
+            }
+
+            if (hw.depositMotorL != null) hw.depositMotorL.setPower(power);
+            if (hw.depositMotorR != null) hw.depositMotorR.setPower(-power);
 
             // Cam (LB/RB) continuous hold-based control - only update when buttons pressed
             if (hw.cam != null) {
@@ -110,22 +140,17 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
                     }
 
                     // Clamp between 0.4722 and 0.5122
-                    camPosition = Math.max(0.4722, Math.min(0.5122, camPosition));
+                    camPosition = Math.max(0.4622, Math.min(0.5522, camPosition));
                     hw.cam.setPosition(camPosition);
                 }
             }
-
-            // Transfer servo - standard servo position control (not continuous)
-            // Y button removed, no transfer servo control for now
-            // (Add button mappings here if you want position-based control)
-
             // Telemetry - simplified
             telemetry.addData("Speed Mode", gamepad1.left_bumper ? "SLOW (50%)" : "Normal");
-            telemetry.addData("Heading", String.format("%.1f°", pos.getHeadingDeg()));
-            telemetry.addData("Position", String.format("X: %.1f, Y: %.1f in", pos.getXmm()/25.4, pos.getYmm()/25.4));
+            telemetry.addData("Heading", String.format(Locale.US, "%.1f°", pos.getHeadingDeg()));
+            telemetry.addData("Position", String.format(Locale.US, "X: %.1f, Y: %.1f in", pos.getXmm()/25.4, pos.getYmm()/25.4));
 
-            telemetry.addData("Cam Position", hw.cam != null ? String.format("%.4f", hw.cam.getPosition()) : "N/A");
-            telemetry.addData("Intake Power", String.format("%.1f", intakePower));
+            telemetry.addData("Cam Position", hw.cam != null ? String.format(Locale.US, "%.4f", hw.cam.getPosition()) : "N/A");
+            telemetry.addData("Intake Power", String.format(Locale.US, "%.1f", intakePower));
 
             if (hw.depositMotorL != null && hw.depositMotorR != null) {
                 double ticksPerRev = 28.0;
@@ -133,10 +158,10 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
                 double velocityR = hw.depositMotorR.getVelocity();
                 double rpmL = (velocityL / ticksPerRev) * 60.0;
                 double rpmR = (velocityR / ticksPerRev) * 60.0;
-                telemetry.addData("Launcher RPM", String.format("L: %.0f, R: %.0f", rpmL, rpmR));
+                telemetry.addData("Launcher RPM", String.format(Locale.US, "L: %.0f, R: %.0f", rpmL, rpmR));
             }
 
-            telemetry.addData("Loop Hz", String.format("%.1f", 1.0/dt));
+            telemetry.addData("Loop Hz", String.format(Locale.US, "%.1f", 1.0/dt));
             telemetry.update();
 
             // Panels publishing (inches)

@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.common;
 
+import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver;
+
 public class RobotConfig {
     // Drive motor names
     public String frontLeftName = "frontLeft";
@@ -31,4 +33,8 @@ public class RobotConfig {
     // Y offset is for the left/right encoder (perpendicular to forward motion)
     public double odoPerpendicularOffsetMM = 19.05;  // 0.75 inches = 19.05 mm (forward pod Y offset)
     public double odoParallelOffsetMM = 107.95;      // 4.25 inches = 107.95 mm (strafe pod X offset)
+
+    // Pinpoint encoder directions (make configurable so tuning can set correct polarity)
+    public GoBildaPinpointDriver.EncoderDirection pinpointForwardEncoderDirection = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+    public GoBildaPinpointDriver.EncoderDirection pinpointStrafeEncoderDirection = GoBildaPinpointDriver.EncoderDirection.FORWARD;
 }

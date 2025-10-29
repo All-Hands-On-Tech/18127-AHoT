@@ -18,8 +18,8 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    compileSdk 35
 
-    compileSdkVersion 34
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

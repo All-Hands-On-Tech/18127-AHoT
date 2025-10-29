@@ -136,10 +136,11 @@ public class RobotHardware {
     }
 
     public void setDrivePowers(double fl, double fr, double bl, double br) {
-        if (frontLeft != null) frontLeft.setPower(fl);
-        if (frontRight != null) frontRight.setPower(fr);
-        if (backLeft != null) backLeft.setPower(bl);
-        if (backRight != null) backRight.setPower(br);
+        // Apply motor power correction factors from Constants to compensate for speed differences
+        if (frontLeft != null) frontLeft.setPower(fl * org.firstinspires.ftc.teamcode.pedroPathing.Constants.LEFT_FRONT_POWER);
+        if (frontRight != null) frontRight.setPower(fr * org.firstinspires.ftc.teamcode.pedroPathing.Constants.RIGHT_FRONT_POWER);
+        if (backLeft != null) backLeft.setPower(bl * org.firstinspires.ftc.teamcode.pedroPathing.Constants.LEFT_REAR_POWER);
+        if (backRight != null) backRight.setPower(br * org.firstinspires.ftc.teamcode.pedroPathing.Constants.RIGHT_REAR_POWER);
     }
 
     // Intake control

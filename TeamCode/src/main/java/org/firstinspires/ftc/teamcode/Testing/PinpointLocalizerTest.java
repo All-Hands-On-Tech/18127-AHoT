@@ -9,6 +9,7 @@ import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver.EncoderDirection;
 
 @TeleOp(name = "Pinpoint Localizer Test", group = "Testing")
 public class PinpointLocalizerTest extends LinearOpMode {
@@ -47,6 +48,12 @@ public class PinpointLocalizerTest extends LinearOpMode {
         boolean prevB = false;
         boolean showRawEncoders = false;
         boolean showDetailedStats = true;
+        // Diagnostic toggles for encoder directions
+        boolean prevLB = false;
+        boolean prevRB = false;
+        boolean prevX = false;
+        EncoderDirection forwardDir = EncoderDirection.FORWARD;
+        EncoderDirection strafeDir = EncoderDirection.FORWARD;
 
         double lastLoopTime = getRuntime();
         int loopCount = 0;
@@ -65,6 +72,37 @@ public class PinpointLocalizerTest extends LinearOpMode {
             hw.updatePinpoint();
             odometry.update();
             Odometry.Position pos = odometry.getPosition();
+
+            // --- Diagnostic controls ---
+            // Left bumper: toggle forward encoder direction
+            if (gamepad1.left_bumper && !prevLB) {
+                if (hw.pinpoint != null) {
+                    forwardDir = (forwardDir == EncoderDirection.FORWARD) ? EncoderDirection.REVERSED : EncoderDirection.FORWARD;
+                    hw.pinpoint.setEncoderDirections(forwardDir, strafeDir);
+                    telemetry.speak("Toggled forward encoder direction to " + forwardDir.name());
+                }
+            }
+            prevLB = gamepad1.left_bumper;
+
+            // Right bumper: toggle strafe encoder direction
+            if (gamepad1.right_bumper && !prevRB) {
+                if (hw.pinpoint != null) {
+                    strafeDir = (strafeDir == EncoderDirection.FORWARD) ? EncoderDirection.REVERSED : EncoderDirection.FORWARD;
+                    hw.pinpoint.setEncoderDirections(forwardDir, strafeDir);
+                    telemetry.speak("Toggled strafe encoder direction to " + strafeDir.name());
+                }
+            }
+            prevRB = gamepad1.right_bumper;
+
+            // X: reinitialize Pinpoint (useful after changing directions)
+            if (gamepad1.x && !prevX) {
+                if (hw.pinpoint != null) {
+                    hw.pinpoint.initialize();
+                    hw.pinpoint.resetPosAndIMU();
+                    telemetry.speak("Reinitialized pinpoint");
+                }
+            }
+            prevX = gamepad1.x;
 
             // === CONTROLS ===
             // Reset position and IMU
@@ -120,6 +158,10 @@ public class PinpointLocalizerTest extends LinearOpMode {
                 if (hw.pinpointBusDowngraded) {
                     telemetry.addLine("⚠ I2C Bus Downgraded to 100kHz");
                 }
+
+                // Show configured encoder directions (local cached state)
+                telemetry.addData("Forward Dir (toggle LB)", forwardDir.name());
+                telemetry.addData("Strafe Dir (toggle RB)", strafeDir.name());
             } else {
                 telemetry.addLine("✗ PINPOINT NOT FOUND");
                 telemetry.addData("Expected Name", config.pinpointName);
@@ -141,6 +183,20 @@ public class PinpointLocalizerTest extends LinearOpMode {
             telemetry.addData("Heading (deg)", String.format("%.1f", pos.getHeadingDeg()));
             telemetry.addData("Heading (rad)", String.format("%.3f", pos.getHeadingRad()));
             telemetry.addLine();
+
+            // Pinpoint raw encoders and config
+            if (hw.pinpoint != null) {
+                telemetry.addLine("--- PINPOINT RAW ---");
+                try {
+                    telemetry.addData("Encoder X (counts)", hw.pinpoint.getEncoderX());
+                    telemetry.addData("Encoder Y (counts)", hw.pinpoint.getEncoderY());
+                } catch (Exception ignored) {}
+                try {
+                    telemetry.addData("Pod X Offset (mm)", String.format("%.1f", config.odoPerpendicularOffsetMM));
+                    telemetry.addData("Pod Y Offset (mm)", String.format("%.1f", config.odoParallelOffsetMM));
+                } catch (Exception ignored) {}
+                telemetry.addLine();
+            }
 
             // Velocity Data (if available)
             if (hw.pinpoint != null) {
@@ -182,4 +238,3 @@ public class PinpointLocalizerTest extends LinearOpMode {
         }
     }
 }
-

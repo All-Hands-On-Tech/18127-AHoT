@@ -24,6 +24,13 @@ import com.pedropathing.util.*;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+// Add Pinpoint/Hardware imports
+import org.firstinspires.ftc.teamcode.common.RobotHardware;
+import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,6 +53,10 @@ public class Tuning extends SelectableOpMode {
 
     @IgnoreConfigurable
     static ArrayList<String> changes = new ArrayList<>();
+
+    // RobotHardware to manage Pinpoint sensor for tuning
+    @IgnoreConfigurable
+    public static RobotHardware hw;
 
     public Tuning() {
         super("Select a Tuning OpMode", s -> {
@@ -91,6 +102,38 @@ public class Tuning extends SelectableOpMode {
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
         Drawing.init();
+
+        // Initialize RobotHardware and Pinpoint for tuning ops so Pinpoint data is available
+        try {
+            hw = new RobotHardware(hardwareMap);
+            hw.initPinpoint();
+            if (hw.pinpoint != null) {
+                telemetryM.debug("Pinpoint detected: " + hw.pinpoint.getDeviceStatus());
+
+                // If Pinpoint is ready, read a fresh position and set follower starting pose
+                try {
+                    if (hw.pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY) {
+                        hw.updatePinpoint();
+                        Pose2D p = hw.pinpoint.getPosition();
+                        if (p != null) {
+                            double xIn = p.getX(DistanceUnit.MM) / 25.4;
+                            double yIn = p.getY(DistanceUnit.MM) / 25.4;
+                            double hRad = p.getHeading(AngleUnit.RADIANS);
+                            follower.setStartingPose(new Pose(xIn, yIn, hRad));
+                            telemetryM.debug(String.format("Set follower starting pose from Pinpoint (in): X=%.2f Y=%.2f H=%.1fdeg", xIn, yIn, Math.toDegrees(hRad)));
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+            } else {
+                telemetryM.debug("Pinpoint not detected");
+            }
+            telemetryM.update(telemetry);
+        } catch (Exception e) {
+            // Non-fatal for tuning - follower/localizer can still run without Pinpoint
+            telemetryM.debug("Pinpoint init failed: " + e.getMessage());
+            telemetryM.update(telemetry);
+        }
     }
 
     @Override
@@ -134,7 +177,21 @@ class LocalizationTest extends OpMode {
     public void init_loop() {
         telemetryM.debug("This will print your robot's position to telemetry while "
                 + "allowing robot control through a basic mecanum drive on gamepad 1.");
+        telemetryM.debug("=== PINPOINT CONFIGURATION ===");
+        telemetryM.debug("Forward Encoder Dir: " + Constants.PINPOINT_FORWARD_DIR);
+        telemetryM.debug("Strafe Encoder Dir: " + Constants.PINPOINT_STRAFE_DIR);
+        telemetryM.debug("(Edit Constants.java to change directions if X/Y readings are wrong)");
         telemetryM.update(telemetry);
+
+        // If Pinpoint is present, update it and show position
+        try {
+            if (Tuning.hw != null && Tuning.hw.pinpoint != null) {
+                Tuning.hw.updatePinpoint();
+                Pose2D p = Tuning.hw.pinpoint.getPosition();
+                if (p != null) telemetryM.debug("Pinpoint pos (in): x=" + String.format("%.2f", p.getX(DistanceUnit.MM)/25.4) + " y=" + String.format("%.2f", p.getY(DistanceUnit.MM)/25.4) + " h=" + String.format("%.1f", Math.toDegrees(p.getHeading(AngleUnit.RADIANS))));
+            }
+        } catch (Exception ignored) {}
+
         follower.update();
         drawOnlyCurrent();
     }
@@ -152,6 +209,20 @@ class LocalizationTest extends OpMode {
     @Override
     public void loop() {
         follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x, true);
+
+        // Update Pinpoint each loop to keep its internal state fresh
+        try {
+            if (Tuning.hw != null && Tuning.hw.pinpoint != null) {
+                Tuning.hw.updatePinpoint();
+                Pose2D p = Tuning.hw.pinpoint.getPosition();
+                if (p != null) {
+                    telemetryM.debug("Pinpoint X (in): " + String.format("%.2f", p.getX(DistanceUnit.MM)/25.4));
+                    telemetryM.debug("Pinpoint Y (in): " + String.format("%.2f", p.getY(DistanceUnit.MM)/25.4));
+                    telemetryM.debug("Pinpoint H (deg): " + String.format("%.1f", Math.toDegrees(p.getHeading(AngleUnit.RADIANS))));
+                }
+            }
+        } catch (Exception ignored) {}
+
         follower.update();
 
         telemetryM.debug("x:" + follower.getPose().getX());
@@ -366,7 +437,6 @@ class ForwardVelocityTuner extends OpMode {
     public void loop() {
         if (gamepad1.bWasPressed()) {
             stopRobot();
-            requestOpModeStop();
         }
 
         follower.update();
@@ -473,7 +543,6 @@ class LateralVelocityTuner extends OpMode {
     public void loop() {
         if (gamepad1.bWasPressed()) {
             stopRobot();
-            requestOpModeStop();
         }
 
         follower.update();
