@@ -30,18 +30,14 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.bylazar.graph.PanelsGraph;
-import com.bylazar.telemetry.PanelsTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
-import com.qualcomm.robotcore.util.Range;
-import com.qualcomm.robotcore.util.RollingAverage;
 
+import org.firstinspires.ftc.teamcode.ZSupport.Camera;
 import org.firstinspires.ftc.teamcode.ZSupport.RollingAve;
 
 
@@ -60,48 +56,20 @@ import org.firstinspires.ftc.teamcode.ZSupport.RollingAve;
 
 @TeleOp(name="Fly Wheel Testing", group="ZTesting")
 @Disabled
-public class FlyWheelTesting extends LinearOpMode {
-    private DcMotorEx flyWheel = null;
-    VoltageSensor voltSensor = null;
-    double power = 0;
-    double volt = 0;
-    RollingAve rollSpeed = new RollingAve(100);
+public class CameraTesting extends LinearOpMode {
+    private Camera camera = new Camera(this);
 
     @Override
     public void runOpMode() {
+        camera.initialize();
+
         telemetry.addData("Status", "Initialized");
         telemetry.update();
-
-        FtcDashboard dashboard = FtcDashboard.getInstance();
-        telemetry = dashboard.getTelemetry();
-
-        flyWheel = hardwareMap.get(DcMotorEx.class, "deliverL");
-        flyWheel.setDirection(DcMotor.Direction.FORWARD);
-
-        voltSensor = hardwareMap.get(VoltageSensor.class, "Control Hub");
 
         waitForStart();
 
         while (opModeIsActive()) {
-
-            if(gamepad1.dpadUpWasPressed()) {
-                volt += 1;
-            } else if (gamepad1.dpadDownWasPressed()) {
-                volt += -1;
-            }
-
-            power = volt/voltSensor.getVoltage();
-
-            flyWheel.setPower(power);
-            double measureVel = flyWheel.getVelocity()/100;
-            rollSpeed.addValue(measureVel);
-
-
-            telemetry.addData("voltage in", volt);
-            telemetry.addData("speed true(crpm)", measureVel);
-            telemetry.addData("speed ave (crpm)", rollSpeed.getAverage());
-            telemetry.addData("-1.5", -1.5);
-            telemetry.addData("1.5", 1.5);
+            camera.telemetryAprilTagPose();
             telemetry.update();
         }
     }
