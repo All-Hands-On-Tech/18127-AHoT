@@ -77,9 +77,9 @@ public class Camera {
     LinearOpMode linearOpMode;
 
     private Position cameraPosition = new Position(DistanceUnit.INCH,
-            0, 0, 0, 0);
+            0, 6.6, 4.8, 0);
     private YawPitchRollAngles cameraOrientation = new YawPitchRollAngles(AngleUnit.DEGREES,
-            0, -90, 0, 0);
+            0, -83, 0, 0);
 
     public Camera(LinearOpMode l)
     {
