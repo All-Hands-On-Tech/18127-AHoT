@@ -118,6 +118,40 @@ public class K2Teleop extends LinearOpMode {
             /*//////////////////////////
 
 
+            Transfer CODE
+
+
+            //////////////////////////*/
+
+            if(gamepad2.a) {
+                bot.transferLeft();
+                bot.transferRight();
+            }
+            if(gamepad2.right_bumper) {
+                bot.transferLeft();
+            }
+            if(gamepad2.left_bumper) {
+                bot.transferRight();
+            }
+
+            /*//////////////////////////
+
+
+            HOOD CODE
+
+
+            //////////////////////////*/
+
+            if(gamepad2.dpad_down){
+                bot.hoodDown();
+            }
+            if(gamepad2.dpad_up){
+                bot.hoodUp();
+            }
+
+            /*//////////////////////////
+
+
             DELIVER CODE
 
 

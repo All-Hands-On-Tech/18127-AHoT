@@ -1,10 +1,12 @@
 package org.firstinspires.ftc.teamcode.ZSupport;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -38,8 +40,39 @@ https://github.com/calcmogul/controls-engineering-in-frc
 For support, contact tech@gobilda.com
  */
 
+class K2StateFlags{
+    boolean hoodIsDown = true;
+    boolean doorIsClosed = true;
+    char [] colorQueue = {'p', 'p', 'g'};   // 'p' purple   'g' green   'n' none
+    char [] prevColorQueue = {'p', 'p', 'g'};
+}
+
+class K2ServoPositions {
+
+    // Hood positions
+    public static final double HOOD_UP = 0.28;
+    public static final double HOOD_DOWN = 0.06;
+
+    // Transfer positions
+    public static final double LEFT_TRANSFER = 0.80;
+    public static final double LEFT_TRANSFER_IDLE = 0.40;
+
+    public static final double RIGHT_TRANSFER = 0.20;
+    public static final double RIGHT_TRANSFER_IDLE = 0.60;
+
+    // Door positions
+    public static final double DOOR_OPEN = 0.75;
+    public static final double DOOR_CLOSE = 0.25;
+}
+
+
+class K2ColorThresholds{}
+
 public class K2Utilities {
     final double TRACK_WIDTH = 0.0;
+
+    public Servo hood, leftTransfer, rightTransfer, door;
+    public RevColorSensorV3 color0, color1, color2;
     public DcMotor fr, fl, br, bl;
     public DcMotor intakeL, intakeR;
     public DcMotorEx deliverL, deliverR;
@@ -55,13 +88,14 @@ public class K2Utilities {
 
     LinearOpMode linearOpMode;
 
-    public K2Utilities(LinearOpMode l)
-    {
+    K2StateFlags flags = new K2StateFlags();
+
+
+    public K2Utilities(LinearOpMode l) {
         linearOpMode = l;
     }
 
-    public void initialize(LinearOpMode l)
-    {
+    public void initialize(LinearOpMode l) {
         odo = l.hardwareMap.get(GoBildaPinpointDriver.class, "pinPoint");
 
         fr = l.hardwareMap.get(DcMotor.class, "fr");
@@ -75,6 +109,11 @@ public class K2Utilities {
         deliverL = l.hardwareMap.get(DcMotorEx.class, "deliverL");
 //        deliverR = l.hardwareMap.get(DcMotorEx.class, "deliverR");
 
+//        color0 = l.hardwareMap.get(RevColorSensorV3.class, "color0");
+//        color1 = l.hardwareMap.get(RevColorSensorV3.class, "color1");
+//        color2 = l.hardwareMap.get(RevColorSensorV3.class, "color2");
+
+
         fr.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
         br.setDirection(DcMotorSimple.Direction.FORWARD);
@@ -84,8 +123,7 @@ public class K2Utilities {
         resetPosAndIMU();
     }
 
-    void configureOdo()
-    {
+    void configureOdo() {
 
          /*
         Set the odometry pod positions relative to the point that the odometry computer tracks around.
@@ -133,17 +171,15 @@ public class K2Utilities {
         linearOpMode.telemetry.addData("Heading Scalar", odo.getYawScalar());
     }
 
-    public void setPoseEstimate(Pose2D pose)
-    {
+    public void setPoseEstimate(Pose2D pose) {
         odo.setHeading(pose.getHeading(AngleUnit.DEGREES), AngleUnit.DEGREES);
         odo.setPosX(pose.getX(DistanceUnit.INCH), DistanceUnit.INCH);
         odo.setPosY(pose.getY(DistanceUnit.INCH), DistanceUnit.INCH);
     }
 
-    public void move(double forward, double right, double r)
-    {
+    public void move(double forward, double right, double r) {
         //represent inputs as 3D vector then normalize to ensure robot translates and turns at max speed if asked to, and if input exceeds possible power, normalize.
-        double mag = Math.sqrt(forward*forward + right*right + r*r);
+        double mag = Math.sqrt(forward * forward + right * right + r * r);
 
         if (mag > 1.0) {
             forward /= mag;
@@ -158,19 +194,19 @@ public class K2Utilities {
 
         applyDrivePower();
     }
+
     /**
-     @implNote BE AWARE OF THE ORIENTATION
+     * @implNote BE AWARE OF THE ORIENTATION
      **/
-    public void moveFieldOriented(double forward, double right, double r)
-    {
-        right*=-1;
+    public void moveFieldOriented(double forward, double right, double r) {
+        right *= -1;
         double heading = odo.getHeading(AngleUnit.RADIANS);
 
         double cos = Math.cos(heading);
         double sin = Math.sin(heading);
 
         // rotate field input into robot-relative coordinates
-        double forwardR =  forward * cos + right * sin;
+        double forwardR = forward * cos + right * sin;
         double rightR = forward * sin - right * cos;
 
         linearOpMode.telemetry.addData("cosine ", cos);
@@ -232,89 +268,76 @@ public class K2Utilities {
      */
 
 
-
-    public void zeroPower()
-    {
+    public void zeroPower() {
         flPower = 0;
         blPower = 0;
         brPower = 0;
         frPower = 0;
     }
 
-    public void applyDrivePower()
-    {
+    public void applyDrivePower() {
         fl.setPower(flPower);
         bl.setPower(blPower);
         br.setPower(brPower);
         fr.setPower(frPower);
     }
 
-    public void updateLocalization()
-    {
+    public void updateLocalization() {
         odo.update();
     }
 
     /**
-     * @implNote  can update only the heading of the device. This takes less time to read, but will not pull any other data. Only the heading (which you can pull with getHeading() or in getPosition().
+     * @implNote can update only the heading of the device. This takes less time to read, but will not pull any other data. Only the heading (which you can pull with getHeading() or in getPosition().
      **/
-    public void updateHeading()
-    {
+    public void updateHeading() {
         odo.update(GoBildaPinpointDriver.ReadData.ONLY_UPDATE_HEADING);
     }
 
     /**
-     * @implNote  Recalibrates IMU, does not reset pos
+     * @implNote Recalibrates IMU, does not reset pos
      **/
-    public void recalibrateIMU()
-    {
+    public void recalibrateIMU() {
         odo.recalibrateIMU();
     }
 
-    public void resetPosAndIMU()
-    {
+    public void resetPosAndIMU() {
         odo.resetPosAndIMU();
     }
 
 
-    public void logPinpointFrequency()
-    {
+    public void logPinpointFrequency() {
         linearOpMode.telemetry.addData("Pinpoint Frequency", odo.getFrequency());
     }
 
-    public void logREVHubFrequency()
-    {
+    public void logREVHubFrequency() {
         double newTime = linearOpMode.getRuntime();
-        double loopTime = newTime-oldTime;
-        double frequency = 1/loopTime;
+        double loopTime = newTime - oldTime;
+        double frequency = 1 / loopTime;
         oldTime = newTime;
         linearOpMode.telemetry.addData("REV Hub Frequency", frequency);
     }
 
-    public void logDriveData(Pose2D pos)
-    {
+    public void logDriveData(Pose2D pos) {
         String data = String.format(Locale.US, "{X: %.3f, Y: %.3f, H: %.3f}", pos.getX(DistanceUnit.INCH), pos.getY(DistanceUnit.INCH), pos.getHeading(AngleUnit.DEGREES));
         linearOpMode.telemetry.addData("Position", data);
 
-        String velocity = String.format(Locale.US,"{XVel: %.3f, YVel: %.3f, HVel: %.3f}", odo.getVelX(DistanceUnit.INCH), odo.getVelY(DistanceUnit.INCH), odo.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
+        String velocity = String.format(Locale.US, "{XVel: %.3f, YVel: %.3f, HVel: %.3f}", odo.getVelX(DistanceUnit.INCH), odo.getVelY(DistanceUnit.INCH), odo.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
         linearOpMode.telemetry.addData("Velocity", velocity);
     }
 
-    public void squidToPose(Pose2D targetPos)
-    {
+    public void squidToPose(Pose2D targetPos) {
 
         moveFieldOriented(squidToY(targetPos.getX(DistanceUnit.MM)), -squidToX(targetPos.getX(DistanceUnit.MM)), squidToHeading(targetPos.getHeading(AngleUnit.DEGREES)));
     }
 
-    public double squidToX(double x)
-    {
+    public double squidToX(double x) {
         double errX = x - odo.getPosX(DistanceUnit.MM);
         double xPow = signedSqrt(errX / MAX_POWER_DISTANCE);
 
         return xPow;
     }
 
-    public double squidToY(double y)
-    {
+    public double squidToY(double y) {
         double errY = y - odo.getPosY(DistanceUnit.MM);
         double yPow = signedSqrt(errY / MAX_POWER_DISTANCE);
 
@@ -322,46 +345,102 @@ public class K2Utilities {
     }
 
 
-    public double squidToHeading(double targetHeading)
-    {
+    public double squidToHeading(double targetHeading) {
         double errH = targetHeading - odo.getHeading(UnnormalizedAngleUnit.DEGREES);
 
         double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR / 5);
         return hPow;
     }
-    public double squidToHeadingCumulative(double targetHeading, double current)
-    {
+
+    public double squidToHeadingCumulative(double targetHeading, double current) {
         double errH = targetHeading - odo.getHeading(AngleUnit.DEGREES);
 
         double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR / 5);
         return hPow;
     }
 
-    private double signedSqrt(double val)
-    {
+    private double signedSqrt(double val) {
         double temp = val;
         return Math.copySign(Math.sqrt(Math.abs(temp)), val);
     }
 
-    public void setTargetHeading(double h)
-    {
+    public void setTargetHeading(double h) {
         targetHeading = h;
     }
 
-//    public void intakeLeft (double pow){intakeL.setPower(pow);}
-    public void intakeRight (double pow){intakeR.setPower(pow);}
+    //    public void intakeLeft (double pow){intakeL.setPower(pow);}
+    public void intakeRight(double pow) {
+        intakeR.setPower(pow);
+    }
 
-    public void powerDeliver(double pow){
+    public void powerDeliver(double pow) {
         deliverL.setPower(pow);
 //        deliverR.setPower(pow);
     }
-    public double getDeliverLVel(){
+
+    public double getDeliverLVel() {
         return deliverL.getVelocity(AngleUnit.DEGREES);
         /*return deliverL.getVelocity(AngleUnit.RADIANS)/(2*Math.PI)/60;*/
     }  //rpm
 
-    public void setDeliverVel(){
+    public void setDeliverVel() {
         deliverL.setVelocity(3, AngleUnit.DEGREES); // 3000 RPM roughly
 //        deliverR.setVelocity(314, AngleUnit.RADIANS); // 3000 RPM roughly
+    }
+
+
+    public void transferLeft() {
+        leftTransfer.setPosition(K2ServoPositions.LEFT_TRANSFER);
+    }
+
+    public void leftTransferIdle() {
+        leftTransfer.setPosition(K2ServoPositions.LEFT_TRANSFER_IDLE);
+    }
+
+    public void transferRight() {
+        rightTransfer.setPosition(K2ServoPositions.RIGHT_TRANSFER);
+    }
+
+    public void rightTransferIdle(){
+        rightTransfer.setPosition(K2ServoPositions.RIGHT_TRANSFER_IDLE);
+    }
+
+    public void hoodDown() {
+        hood.setPosition(K2ServoPositions.HOOD_DOWN);
+        flags.hoodIsDown = true;
+    }
+
+    public void hoodUp() {
+        hood.setPosition(K2ServoPositions.HOOD_UP);
+        flags.hoodIsDown = false;
+    }
+
+    public void doorOpen() {
+        door.setPosition(K2ServoPositions.DOOR_OPEN);
+        flags.doorIsClosed = false;
+    }
+
+    public void doorClose() {
+        door.setPosition(K2ServoPositions.DOOR_CLOSE);
+        flags.doorIsClosed = true;
+    }
+
+
+    public char interperetColor(RevColorSensorV3 sens) {
+        if (sens.getDistance(DistanceUnit.INCH) < 4) {
+            if (sens.green() > 170) {
+                return 'g';
+            } else {
+                return 'p';
+            }
+        } else {
+            return 'n';
+        }
+    }
+
+    public void pollColorSensors() {
+        flags.colorQueue[0] = interperetColor(color0);
+        flags.colorQueue[1] = interperetColor(color1);
+        flags.colorQueue[2] = interperetColor(color2);
     }
 }
