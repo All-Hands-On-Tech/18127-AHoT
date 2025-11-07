@@ -26,6 +26,8 @@ public class RobotHardware {
 
     // Deposit motors - changed to DcMotor for velocity control
     public DcMotorEx depositMotorL, depositMotorR;
+    // Transfer motors
+    public DcMotorEx transferMotorL, transferMotorR;
     // Servos
     public com.qualcomm.robotcore.hardware.Servo cam;
     public com.qualcomm.robotcore.hardware.Servo transferServo; // Changed from CRServo to Servo
@@ -48,10 +50,10 @@ public class RobotHardware {
             backRight = hardwareMap.get(DcMotor.class, config.backRightName);
             try { intakeMotor = hardwareMap.get(DcMotor.class, config.intakeName); } catch (Exception ignored) {}
 
-            if (frontLeft != null) frontLeft.setDirection(DcMotor.Direction.FORWARD);
-            if (frontRight != null) frontRight.setDirection(DcMotor.Direction.REVERSE);
-            if (backLeft != null) backLeft.setDirection(DcMotor.Direction.FORWARD);
-            if (backRight != null) backRight.setDirection(DcMotor.Direction.REVERSE);
+            if (frontLeft != null) frontLeft.setDirection(DcMotor.Direction.REVERSE);
+            if (frontRight != null) frontRight.setDirection(DcMotor.Direction.FORWARD);
+            if (backLeft != null) backLeft.setDirection(DcMotor.Direction.REVERSE);
+            if (backRight != null) backRight.setDirection(DcMotor.Direction.FORWARD);
             if (intakeMotor != null) intakeMotor.setDirection(DcMotor.Direction.REVERSE);
 
             if (frontLeft != null) frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -86,6 +88,19 @@ public class RobotHardware {
                 depositMotorR.setDirection(DcMotor.Direction.REVERSE);
                 depositMotorR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 depositMotorR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            }
+            // Transfer motors
+            try { transferMotorL = hardwareMap.get(DcMotorEx.class, config.transferMotorLName); } catch (Exception ignored) {}
+            try { transferMotorR = hardwareMap.get(DcMotorEx.class, config.transferMotorRName); } catch (Exception ignored) {}
+            if (transferMotorL != null) {
+                transferMotorL.setDirection(DcMotor.Direction.FORWARD);
+                transferMotorL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                transferMotorL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            }
+            if (transferMotorR != null) {
+                transferMotorR.setDirection(DcMotor.Direction.FORWARD);
+                transferMotorR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                transferMotorR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             }
             // Servos
             try { cam = hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, config.camServoName); } catch (Exception ignored) {}

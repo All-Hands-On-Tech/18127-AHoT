@@ -20,6 +20,8 @@ public class RobotConfig {
     public String imuName = "imu"; // re-added for RobotHardware
     public String depositMotorLName = "DepositMotorL";
     public String depositMotorRName = "DepositMotorR";
+    public String transferMotorLName = "TransferMotorL";
+    public String transferMotorRName = "TransferMotorR";
     public String camServoName = "Cam";
     public String transferServoName = "transferServo";
 

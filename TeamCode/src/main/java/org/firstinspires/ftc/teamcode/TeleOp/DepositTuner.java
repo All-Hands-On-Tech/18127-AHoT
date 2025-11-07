@@ -30,9 +30,9 @@ public class DepositTuner extends LinearOpMode {
         double lastLoopTime = getRuntime();
 
         // Presets (velocity in encoder ticks per second)
-        double presetX = 1000.0; // default used when gamepad2.x is pressed
-        double presetY = 1200.0; // default used when gamepad2.y is pressed
-        double presetB = 1400.0; // third preset used when gamepad2.b is pressed
+        double presetX = 850.0; // default used when gamepad2.x is pressed
+        double presetY = 850.0; // default used when gamepad2.y is pressed
+        double presetB = 850.0; // third preset used when gamepad2.b is pressed
 
         final double MIN_V = 0.0;
         final double MAX_V = 5000.0;
@@ -55,6 +55,14 @@ public class DepositTuner extends LinearOpMode {
 
         boolean prevComboReset = false;
         boolean prevComboRecalibrate = false;
+
+        // Toggle state for deposit buttons (X, Y, B)
+        boolean depositToggleX = false;
+        boolean depositToggleY = false;
+        boolean depositToggleB = false;
+        boolean prevGp2X = false;
+        boolean prevGp2Y = false;
+        boolean prevGp2B = false;
 
         // PID controller for deposit motors (ticks/sec error -> power output)
         PIDController depositPid = new PIDController(0.0008, 0.0000015, 0.00005);
@@ -99,16 +107,28 @@ public class DepositTuner extends LinearOpMode {
             rotate *= speedMul;
             strafe *= 1.1; // Strafe compensation
 
-            // Apply cubic response curve
-            forward = Math.copySign(forward * forward * forward, forward);
-            strafe = Math.copySign(strafe * strafe * strafe, strafe);
-            rotate = Math.copySign(rotate * rotate * rotate, rotate);
 
-            double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1);
-            double fl = (forward + strafe - rotate) / denominator;
-            double fr = (forward - strafe + rotate) / denominator;
-            double bl = (forward - strafe - rotate) / denominator;
-            double br = (forward + strafe + rotate) / denominator;
+            // Mecanum drive formulas with proper normalization
+            double fl = forward + strafe + rotate;
+            double fr = forward - strafe - rotate;
+            double bl = forward - strafe + rotate;
+            double br = forward + strafe - rotate;
+
+            // Normalize to prevent exceeding max power
+            double maxPower = Math.max(1.0, Math.max(Math.abs(fl), Math.max(Math.abs(fr), Math.max(Math.abs(bl), Math.abs(br)))));
+            fl /= maxPower;
+            fr /= maxPower;
+            bl /= maxPower;
+            br /= maxPower;
+
+            // Reduce rotation component after normalization to maintain max speed movement
+            double rotationScale = 0.65; // 65% rotation speed (increased from 50%)
+            double rotationComponent = rotate / maxPower;
+            fl -= rotationComponent * (1.0 - rotationScale);
+            fr += rotationComponent * (1.0 - rotationScale);
+            bl -= rotationComponent * (1.0 - rotationScale);
+            br += rotationComponent * (1.0 - rotationScale);
+
             hw.setDrivePowers(fl, fr, bl, br);
 
             // Driver 1: Safe combos (pinpoint reset / recalibrate)
@@ -275,10 +295,30 @@ public class DepositTuner extends LinearOpMode {
             }
 
             // Apply deposit velocities based on gamepad2 buttons: X -> presetX, Y -> presetY, B -> presetB
+            // Toggle-based control: press button to toggle on/off
+            if (gamepad2.x && !prevGp2X) {
+                depositToggleX = !depositToggleX;
+                depositToggleY = false;
+                depositToggleB = false;
+            }
+            if (gamepad2.y && !prevGp2Y) {
+                depositToggleY = !depositToggleY;
+                depositToggleX = false;
+                depositToggleB = false;
+            }
+            if (gamepad2.b && !prevGp2B) {
+                depositToggleB = !depositToggleB;
+                depositToggleX = false;
+                depositToggleY = false;
+            }
+            prevGp2X = gamepad2.x;
+            prevGp2Y = gamepad2.y;
+            prevGp2B = gamepad2.b;
+
             double target = 0.0;
-            if (gamepad2.x) target = presetX;
-            else if (gamepad2.y) target = presetY;
-            else if (gamepad2.b) target = presetB;
+            if (depositToggleX) target = presetX;
+            else if (depositToggleY) target = presetY;
+            else if (depositToggleB) target = presetB;
 
             // Read actual velocity from motors (ticks/sec). If motor references are null, treat as 0.
             double actual = 0.0;

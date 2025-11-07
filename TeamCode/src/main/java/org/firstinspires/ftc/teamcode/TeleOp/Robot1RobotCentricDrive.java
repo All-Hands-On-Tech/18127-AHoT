@@ -69,18 +69,29 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
             rotate *= speedMul;
             strafe *= 1.1; // Strafe compensation
 
-            // Apply cubic response curve
-            forward = Math.copySign(forward * forward * forward, forward);
-            strafe = Math.copySign(strafe * strafe * strafe, strafe);
-            rotate = Math.copySign(rotate * rotate * rotate, rotate);
 
             // Robot-centric mecanum drive formulas (consistent with RobotHardware motor directions)
             // FL=FORWARD, FR=REVERSE, BL=FORWARD, BR=REVERSE
-            double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1);
-            double fl = (forward + strafe - rotate) / denominator;
-            double fr = (forward - strafe + rotate) / denominator;
-            double bl = (forward - strafe - rotate) / denominator;
-            double br = (forward + strafe + rotate) / denominator;
+            double fl = forward + strafe + rotate;
+            double fr = forward - strafe - rotate;
+            double bl = forward - strafe + rotate;
+            double br = forward + strafe - rotate;
+
+            // Normalize to prevent exceeding max power
+            double maxPower = Math.max(1.0, Math.max(Math.abs(fl), Math.max(Math.abs(fr), Math.max(Math.abs(bl), Math.abs(br)))));
+            fl /= maxPower;
+            fr /= maxPower;
+            bl /= maxPower;
+            br /= maxPower;
+
+            // Reduce rotation component after normalization to maintain max speed movement
+            double rotationScale = 0.65; // 65% rotation speed (increased from 50%)
+            double rotationComponent = rotate / maxPower;
+            fl -= rotationComponent * (1.0 - rotationScale);
+            fr += rotationComponent * (1.0 - rotationScale);
+            bl -= rotationComponent * (1.0 - rotationScale);
+            br += rotationComponent * (1.0 - rotationScale);
+
             hw.setDrivePowers(fl, fr, bl, br);
 
             // Driver 1: Safe combos (pinpoint reset / recalibrate)
@@ -102,7 +113,7 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
             if (hw.intakeMotor != null) hw.intakeMotor.setPower(intakePower);
 
             // Launcher (X) velocity control - use PID to avoid overshoot
-            double launcherVelocityTarget = gamepad2.x ? 1000.0 : 0.0;
+            double launcherVelocityTarget = gamepad2.x ? 850.0 : 0.0;
 
             double actual = 0.0;
             if (hw.depositMotorL != null) actual = hw.depositMotorL.getVelocity();
