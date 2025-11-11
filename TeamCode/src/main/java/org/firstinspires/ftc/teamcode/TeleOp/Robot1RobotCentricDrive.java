@@ -6,7 +6,6 @@ import org.firstinspires.ftc.teamcode.common.RobotHardware;
 import org.firstinspires.ftc.teamcode.common.RobotConfig;
 import org.firstinspires.ftc.teamcode.common.Odometry;
 import org.firstinspires.ftc.teamcode.common.PanelsPublisher;
-import org.firstinspires.ftc.teamcode.common.PIDController;
 
 import java.util.Locale;
 
@@ -39,11 +38,6 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
         boolean prevComboReset = false;
         boolean prevComboRecalibrate = false;
 
-        // PID for launcher/deposit motors
-        PIDController depositPid = new PIDController(0.0008, 0.0000015, 0.00005);
-        depositPid.setOutputLimits(-1.0, 1.0);
-        depositPid.setIntegratorLimits(-2000, 2000);
-        double prevTarget = 0.0;
 
         while (opModeIsActive()) {
             double now = getRuntime();
@@ -112,30 +106,12 @@ public class Robot1RobotCentricDrive extends LinearOpMode {
             double intakePower = (rt && lt) ? 0.0 : rt ? 0.9 : lt ? -0.9 : 0.0;
             if (hw.intakeMotor != null) hw.intakeMotor.setPower(intakePower);
 
-            // Launcher (X) velocity control - use PID to avoid overshoot
+            // Launcher (X) velocity control - use motor's built-in PID
             double launcherVelocityTarget = gamepad2.x ? 850.0 : 0.0;
 
-            double actual = 0.0;
-            if (hw.depositMotorL != null) actual = hw.depositMotorL.getVelocity();
-
-            // Reset PID if target changes
-            if (Math.abs(prevTarget - launcherVelocityTarget) > 1.0) depositPid.reset();
-            prevTarget = launcherVelocityTarget;
-
-            double power = 0.0;
-            if (Math.abs(launcherVelocityTarget) < 1.0) {
-                power = 0.0;
-                depositPid.reset();
-            } else {
-                power = depositPid.update(launcherVelocityTarget, actual, dt);
-                double ff = 0.00015 * Math.signum(launcherVelocityTarget);
-                power += ff;
-                if (power > 1.0) power = 1.0;
-                if (power < -1.0) power = -1.0;
-            }
-
-            if (hw.depositMotorL != null) hw.depositMotorL.setPower(power);
-            if (hw.depositMotorR != null) hw.depositMotorR.setPower(-power);
+            // Use motor's built-in velocity control - both motors get same target
+            if (hw.depositMotorL != null) hw.depositMotorL.setVelocity(launcherVelocityTarget);
+            if (hw.depositMotorR != null) hw.depositMotorR.setVelocity(launcherVelocityTarget);
 
             // Cam (LB/RB) continuous hold-based control - only update when buttons pressed
             if (hw.cam != null) {

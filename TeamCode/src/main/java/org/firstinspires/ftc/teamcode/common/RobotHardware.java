@@ -85,7 +85,7 @@ public class RobotHardware {
                 depositMotorL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             }
             if (depositMotorR != null) {
-                depositMotorR.setDirection(DcMotor.Direction.REVERSE);
+                depositMotorR.setDirection(DcMotor.Direction.FORWARD);
                 depositMotorR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 depositMotorR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             }

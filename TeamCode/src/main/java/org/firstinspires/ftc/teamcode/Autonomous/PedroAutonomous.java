@@ -9,11 +9,12 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import org.firstinspires.ftc.teamcode.common.PIDController;
 
 @Autonomous(name = "Autonomous Path Selection", group = "Autonomous")
 @Configurable // Panels
@@ -28,23 +29,33 @@ public class PedroAutonomous extends OpMode {
     private DcMotor intakeMotor;
     private DcMotorEx depositMotorL;
     private DcMotorEx depositMotorR;
+    private Servo cam;
 
     // ========== TUNING VARIABLES ==========
     // Intake Configuration
-    private static final double INTAKE_POWER = -0.9; // Negative to run in correct direction
-    private static final double INTAKE_DURATION_S = 1.5;
+    private static final double INTAKE_POWER = -1; // Negative to run in correct direction
+    private static final double INTAKE_DURATION_S = 3.5;
 
-    // Deposit Velocity Control Configuration (850 ticks/sec target)
-    private static final double DEPOSIT_SPEED_TARGET = 850.0; // encoder ticks per second
-    private static final double DEPOSIT_KP = 0.0008; // Proportional gain - increase if response is too slow, decrease if overshooting
-    private static final double DEPOSIT_KI = 0.0000015; // Integral gain - helps eliminate steady-state error
-    private static final double DEPOSIT_KD = 0.00005; // Derivative gain - helps reduce oscillation
-    private static final double DEPOSIT_KFF = 0.00025; // Feedforward - initial push to reach target speed faster
-    private static final double DEPOSIT_PID_OUTPUT_LIMIT = 1.0; // Max motor power (0-1.0)
-    private static final double DEPOSIT_PID_INTEGRAL_LIMIT = 2000; // Prevent integral windup
+    // Cam Configuration
+    private static final double CAM_POSITION = 0.5194;
+
+    // Deposit Configuration - using motor's built-in velocity control
+    private double depositTargetVelocity = 677.0; // ticks per second (adjustable via dpad)
 
     // State Machine Timing Configuration
-    private static final double WAIT_BEFORE_INTAKE_S = 2.0; // Wait 2 seconds before starting intake
+    private static final double WAIT_BEFORE_INTAKE_S = 2.5; // Wait 2 seconds before starting intake
+
+    // Tuning parameters for dpad adjustment
+    private static final double MIN_VELOCITY = 0.0;
+    private static final double MAX_VELOCITY = 5000.0;
+    private static final double STEP_SMALL = 10.0;
+    private static final double STEP_LARGE = 100.0;
+
+    // For D-pad edge detection and hold-repeat
+    private boolean prevDpadUp = false, prevDpadDown = false, prevDpadLeft = false, prevDpadRight = false;
+    private long lastDpadChange = System.currentTimeMillis();
+    private static final long FIRST_REPEAT_DELAY_MS = 350;
+    private static final long REPEAT_INTERVAL_MS = 120;
 
     // Path Selection Enum
     public enum PathSelection {
@@ -63,9 +74,12 @@ public class PedroAutonomous extends OpMode {
 
     // ========== INSTANCE VARIABLES ==========
     private ElapsedTime actionTimer;
-    private PIDController depositPID;
     private PathSelection selectedPath = PathSelection.BLUE_BOTTOM; // Default selection
     private boolean pathSelected = false;
+
+    // Deposit manual/auto control
+    private boolean depositEnabled = false; // when true, motors try to reach target ticks/sec
+    private boolean lastAState = false;     // for edge-detecting the A button
 
     @Override
     public void init() {
@@ -88,10 +102,12 @@ public class PedroAutonomous extends OpMode {
             intakeMotor = null;
         }
 
-        // Initialize deposit motors for velocity control
+        // Initialize deposit motors for velocity control (matching DepositTuner)
         try {
             depositMotorL = hardwareMap.get(DcMotorEx.class, "DepositMotorL");
             if (depositMotorL != null) {
+                depositMotorL.setDirection(DcMotorSimple.Direction.REVERSE); // Reverse left motor for auto
+                depositMotorL.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
                 depositMotorL.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
                 depositMotorL.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
                 depositMotorL.setPower(0);
@@ -103,6 +119,7 @@ public class PedroAutonomous extends OpMode {
         try {
             depositMotorR = hardwareMap.get(DcMotorEx.class, "DepositMotorR");
             if (depositMotorR != null) {
+                depositMotorR.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
                 depositMotorR.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
                 depositMotorR.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
                 depositMotorR.setPower(0);
@@ -111,47 +128,60 @@ public class PedroAutonomous extends OpMode {
             depositMotorR = null;
         }
 
-        // Initialize PID controller for deposit velocity control
-        depositPID = new PIDController(DEPOSIT_KP, DEPOSIT_KI, DEPOSIT_KD);
-        depositPID.setOutputLimits(-DEPOSIT_PID_OUTPUT_LIMIT, DEPOSIT_PID_OUTPUT_LIMIT);
-        depositPID.setIntegratorLimits(-DEPOSIT_PID_INTEGRAL_LIMIT, DEPOSIT_PID_INTEGRAL_LIMIT);
+        // Initialize cam servo and set position
+        try {
+            cam = hardwareMap.get(Servo.class, "Cam");
+            if (cam != null) {
+                cam.setPosition(CAM_POSITION);
+            }
+        } catch (Exception e) {
+            cam = null;
+        }
 
-        panelsTelemetry.debug("Status", "Initialized - Select a path");
-        panelsTelemetry.debug("D-Pad Up: Blue Bottom");
-        panelsTelemetry.debug("D-Pad Right: Blue Top");
-        panelsTelemetry.debug("D-Pad Down: Red Bottom");
-        panelsTelemetry.debug("D-Pad Left: Red Top");
+        // Show initialization complete message
+        panelsTelemetry.debug("Status", "✓ Initialized - Use D-Pad to select path");
+        panelsTelemetry.debug("Info", "You can change selection anytime before pressing START");
         panelsTelemetry.update(telemetry);
     }
 
     @Override
     public void init_loop() {
-        if (!pathSelected) {
-            // Handle path selection via D-Pad
-            if (gamepad1.dpad_up) {
-                selectedPath = PathSelection.BLUE_BOTTOM;
-                pathSelected = true;
-            } else if (gamepad1.dpad_right) {
-                selectedPath = PathSelection.BLUE_TOP;
-                pathSelected = true;
-            } else if (gamepad1.dpad_down) {
-                selectedPath = PathSelection.RED_BOTTOM;
-                pathSelected = true;
-            } else if (gamepad1.dpad_left) {
-                selectedPath = PathSelection.RED_TOP;
-                pathSelected = true;
-            }
-
-            if (pathSelected) {
-                // Set starting pose based on selected path
-                Pose startPose = paths.getStartPose(selectedPath);
-                follower.setStartingPose(startPose);
-                panelsTelemetry.debug("Status", "Path Selected: " + selectedPath);
-                panelsTelemetry.debug("Start Pose", startPose);
-            } else {
-                panelsTelemetry.debug("Status", "Waiting for path selection...");
-            }
+        // Handle path selection via D-Pad - always allow changing selection
+        if (gamepad1.dpad_up) {
+            selectedPath = PathSelection.BLUE_BOTTOM;
+            pathSelected = true;
+        } else if (gamepad1.dpad_right) {
+            selectedPath = PathSelection.BLUE_TOP;
+            pathSelected = true;
+        } else if (gamepad1.dpad_down) {
+            selectedPath = PathSelection.RED_BOTTOM;
+            pathSelected = true;
+        } else if (gamepad1.dpad_left) {
+            selectedPath = PathSelection.RED_TOP;
+            pathSelected = true;
         }
+
+        // Always update the starting pose based on current selection
+        if (pathSelected) {
+            Pose startPose = paths.getStartPose(selectedPath);
+            follower.setStartingPose(startPose);
+            panelsTelemetry.debug("Status", "✓ Path Selected (can change before start)");
+            panelsTelemetry.debug("Selected Path", selectedPath.toString());
+            panelsTelemetry.debug("Start Pose", String.format(java.util.Locale.US, "X:%.1f Y:%.1f H:%.1f°",
+                startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading())));
+        } else {
+            panelsTelemetry.debug("Status", "⚠ Waiting for path selection...");
+            panelsTelemetry.debug("Selected Path", "NONE - Use D-Pad to select");
+        }
+
+        // Show available paths with visual indicators
+        panelsTelemetry.debug("", "─────────────────────────────");
+        panelsTelemetry.debug("DPad Up", (selectedPath == PathSelection.BLUE_BOTTOM ? "→ " : "  ") + "Blue Bottom");
+        panelsTelemetry.debug("DPad Right", (selectedPath == PathSelection.BLUE_TOP ? "→ " : "  ") + "Blue Top");
+        panelsTelemetry.debug("DPad Down", (selectedPath == PathSelection.RED_BOTTOM ? "→ " : "  ") + "Red Bottom");
+        panelsTelemetry.debug("DPad Left", (selectedPath == PathSelection.RED_TOP ? "→ " : "  ") + "Red Top");
+        panelsTelemetry.debug("", "─────────────────────────────");
+
         panelsTelemetry.update(telemetry);
     }
 
@@ -160,15 +190,85 @@ public class PedroAutonomous extends OpMode {
         follower.update(); // Update Pedro Pathing
         pathState = autonomousPathUpdate(); // Update autonomous state machine
 
+        // ===== DPAD TUNING FOR DEPOSIT SPEED =====
+        boolean dpadUp = gamepad1.dpad_up;
+        boolean dpadDown = gamepad1.dpad_down;
+        boolean dpadLeft = gamepad1.dpad_left;
+        boolean dpadRight = gamepad1.dpad_right;
+
+        long now = System.currentTimeMillis();
+
+        // Dpad Up = Increase by large step
+        if (dpadUp && (!prevDpadUp || now - lastDpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.min(MAX_VELOCITY, depositTargetVelocity + STEP_LARGE);
+            lastDpadChange = now;
+        }
+        // Dpad Down = Decrease by large step
+        if (dpadDown && (!prevDpadDown || now - lastDpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.max(MIN_VELOCITY, depositTargetVelocity - STEP_LARGE);
+            lastDpadChange = now;
+        }
+        // Dpad Right = Increase by small step
+        if (dpadRight && (!prevDpadRight || now - lastDpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.min(MAX_VELOCITY, depositTargetVelocity + STEP_SMALL);
+            lastDpadChange = now;
+        }
+        // Dpad Left = Decrease by small step
+        if (dpadLeft && (!prevDpadLeft || now - lastDpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.max(MIN_VELOCITY, depositTargetVelocity - STEP_SMALL);
+            lastDpadChange = now;
+        }
+
+        // Enable faster repeat when holding dpad
+        if ((dpadUp || dpadDown || dpadLeft || dpadRight) && now - lastDpadChange > REPEAT_INTERVAL_MS) {
+            lastDpadChange = now - (REPEAT_INTERVAL_MS + 1);
+        }
+
+        // Update previous dpad states
+        prevDpadUp = dpadUp;
+        prevDpadDown = dpadDown;
+        prevDpadLeft = dpadLeft;
+        prevDpadRight = dpadRight;
+
+        // Manual toggle for deposit control: single button (A) toggles on/off
+        boolean aPressed = gamepad1.a;
+        if (aPressed && !lastAState) {
+            depositEnabled = !depositEnabled;
+        }
+        lastAState = aPressed;
+
+        // If deposit is enabled (either manually toggled or set by autonomous), use motor's built-in velocity control
+        if (depositEnabled) {
+            runDepositAtVelocity();
+        } else {
+            stopDeposit();
+        }
+
         // Log values to Panels and Driver Station
         panelsTelemetry.debug("Path State", pathState);
         panelsTelemetry.debug("X", follower.getPose().getX());
         panelsTelemetry.debug("Y", follower.getPose().getY());
         panelsTelemetry.debug("Heading", follower.getPose().getHeading());
+
+        // Deposit tuning telemetry
+        panelsTelemetry.debug("Deposit Target", String.format(java.util.Locale.US, "%.0f ticks/s", depositTargetVelocity));
+        panelsTelemetry.debug("Deposit Enabled", depositEnabled ? "YES (Press A to toggle)" : "NO (Press A to toggle)");
+
+        if (depositMotorL != null) {
+            double vL = depositMotorL.getVelocity();
+            double rpmL = (vL / 28.0) * 60.0;
+            panelsTelemetry.debug("DepositL", String.format(java.util.Locale.US, "%.0f ticks/s (%.0f RPM)", vL, rpmL));
+        }
+        if (depositMotorR != null) {
+            double vR = depositMotorR.getVelocity();
+            double rpmR = (vR / 28.0) * 60.0;
+            panelsTelemetry.debug("DepositR", String.format(java.util.Locale.US, "%.0f ticks/s (%.0f RPM)", vR, rpmR));
+        }
+
         if (intakeMotor != null) panelsTelemetry.debug("Intake Power", intakeMotor.getPower());
-        if (depositMotorL != null) panelsTelemetry.debug("DepositMotorL Vel", depositMotorL.getVelocity());
-        if (depositMotorR != null) panelsTelemetry.debug("DepositMotorR Vel", depositMotorR.getVelocity());
-        panelsTelemetry.debug("ActionTimer", actionTimer.seconds());
+        panelsTelemetry.debug("ActionTimer", String.format(java.util.Locale.US, "%.1f s", actionTimer.seconds()));
+
+        panelsTelemetry.debug("Controls", "DPAD: Up/Down=±100 Left/Right=±10 | A=Toggle Deposit");
         panelsTelemetry.update(telemetry);
     }
 
@@ -180,18 +280,18 @@ public class PedroAutonomous extends OpMode {
         if (depositMotorR != null) depositMotorR.setPower(0);
     }
 
-    private void runDepositAtSpeed() {
+    private void runDepositAtVelocity() {
         if (depositMotorL == null || depositMotorR == null) return;
 
-        double currentVelocity = (depositMotorL.getVelocity() + depositMotorR.getVelocity()) / 2.0;
+        // Use motor's built-in velocity PID control - both motors get same target
+        depositMotorL.setVelocity(depositTargetVelocity);
+        depositMotorR.setVelocity(depositTargetVelocity);
+    }
 
-        // Calculate PID output (setpoint, measurement, dt)
-        double pidOutput = depositPID.update(DEPOSIT_SPEED_TARGET, currentVelocity, 0.016); // ~60 Hz loop
-        double feedForward = DEPOSIT_SPEED_TARGET * DEPOSIT_KFF;
-        double totalPower = pidOutput + feedForward;
-
-        depositMotorL.setPower(-totalPower); // Negative to reverse direction
-        depositMotorR.setPower(totalPower);
+    private void stopDeposit() {
+        if (depositMotorL == null || depositMotorR == null) return;
+        depositMotorL.setPower(0);
+        depositMotorR.setPower(0);
     }
 
     private void startIntake() {
@@ -214,7 +314,7 @@ public class PedroAutonomous extends OpMode {
             blueBottomPath = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(54.677, 7.038), new Pose(73.218, 86.346))
+                            new BezierLine(new Pose(54.677, 7.038), new Pose(73.218, 88.346))
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(138))
                     .build();
@@ -269,15 +369,15 @@ public class PedroAutonomous extends OpMode {
     public int autonomousPathUpdate() {
         switch (pathState) {
             case STATE_START_PATH1:
-                // Start following the selected path and start deposit revving
+                // Start following the selected path
                 follower.followPath(paths.getPath(selectedPath));
-                depositPID.reset();
+                // enable deposit during path
+                depositEnabled = true;
                 pathState = STATE_PATH_AND_DEPOSIT;
                 break;
 
             case STATE_PATH_AND_DEPOSIT:
-                // Run deposit the whole time while following path
-                runDepositAtSpeed();
+                // Deposit is enabled (will run from loop if depositEnabled==true)
                 // Wait until follower finishes the path
                 if (!follower.isBusy()) {
                     // Path complete, start wait timer
@@ -287,9 +387,8 @@ public class PedroAutonomous extends OpMode {
                 break;
 
             case STATE_WAIT_BEFORE_INTAKE:
-                // Run deposit while waiting
-                runDepositAtSpeed();
-                // Wait 1 second before starting intake
+                // deposit remains enabled while waiting
+                // Wait before starting intake
                 if (actionTimer.seconds() >= WAIT_BEFORE_INTAKE_S) {
                     actionTimer.reset();
                     startIntake();
@@ -298,17 +397,17 @@ public class PedroAutonomous extends OpMode {
                 break;
 
             case STATE_INTAKE:
-                // Run intake for configured duration
-                runDepositAtSpeed(); // Keep deposit running
+                // Run intake and keep deposit enabled
                 if (actionTimer.seconds() >= INTAKE_DURATION_S) {
                     stopIntake();
+                    stopDeposit();
+                    depositEnabled = false;
                     pathState = STATE_DONE;
                 }
                 break;
 
             case STATE_DONE:
-                // Continue running deposit until autonomous ends
-                runDepositAtSpeed();
+                // All motors stopped
                 break;
 
             default:
@@ -319,4 +418,3 @@ public class PedroAutonomous extends OpMode {
         return pathState;
     }
 }
-

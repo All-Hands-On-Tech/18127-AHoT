@@ -5,7 +5,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.common.RobotHardware;
 import org.firstinspires.ftc.teamcode.common.Odometry;
 import org.firstinspires.ftc.teamcode.common.PanelsPublisher;
-import org.firstinspires.ftc.teamcode.common.PIDController;
 
 import java.util.Locale;
 //I need to push ignore this
@@ -19,9 +18,9 @@ public class DepositTuner extends LinearOpMode {
         panels.init();
 
         telemetry.addLine("Init complete - waiting start");
-        telemetry.addLine("Use gamepad1 dpad to adjust preset X (used when holding X)");
-        telemetry.addLine("Use gamepad2 dpad to adjust preset Y (used when holding Y)");
-        telemetry.addLine("Hold gamepadX/BACK while using D-pad to adjust Preset B");
+        telemetry.addLine("Gamepad1: Driving | LB=slow mode | RB=tuning mode");
+        telemetry.addLine("Gamepad2: Press X to toggle deposit on/off");
+        telemetry.addLine("Gamepad2: Use Dpad to adjust speed");
         telemetry.update();
 
         waitForStart();
@@ -29,20 +28,34 @@ public class DepositTuner extends LinearOpMode {
 
         double lastLoopTime = getRuntime();
 
-        // Presets (velocity in encoder ticks per second)
-        double presetX = 850.0; // default used when gamepad2.x is pressed
-        double presetY = 850.0; // default used when gamepad2.y is pressed
-        double presetB = 850.0; // third preset used when gamepad2.b is pressed
+        // ===== CONFIGURABLE SPEED VARIABLES =====
+        // Drive speeds (0.0 to 1.0)
+        final double DRIVE_SPEED_NORMAL = 1.0;    // Full speed for normal driving
+        final double DRIVE_SPEED_SLOW = 0.7;      // 70% speed when holding LB
+        final double DRIVE_SPEED_TUNING = 0.35;   // Slower speed for precise tuning/aiming
+
+        // Rotation speeds (0.0 to 1.0)
+        final double ROTATE_SPEED_NORMAL = 1.0;   // Full rotation speed
+        final double ROTATE_SPEED_SLOW = 0.7;     // 70% rotation when holding LB
+        final double ROTATE_SPEED_TUNING = 0.35;  // Slower rotation for tuning
+
+        // Strafe compensation multiplier
+        final double STRAFE_COMPENSATION = 1.1;
+
+        // Deposit motor presets (velocity in encoder ticks per second)
+        double presetX = 650.0; // default used when gamepad2.x is toggled
 
         final double MIN_V = 0.0;
         final double MAX_V = 5000.0;
-        final double STEP_SMALL = 10.0;
-        final double STEP_LARGE = 100.0;
+        final double STEP_SMALL = 1.0;
+        final double STEP_LARGE = 25.0;
 
-        // For D-pad edge detection and hold-repeat
-        boolean prevGp1DpadUp = false, prevGp1DpadDown = false, prevGp1DpadLeft = false, prevGp1DpadRight = false;
+        // Speed mode toggle
+        boolean tuningMode = false;
+        boolean prevRightBumper = false;
+
+        // For D-pad edge detection and hold-repeat (gamepad2 only for tuning)
         boolean prevGp2DpadUp = false, prevGp2DpadDown = false, prevGp2DpadLeft = false, prevGp2DpadRight = false;
-        long gp1LastChange = System.currentTimeMillis();
         long gp2LastChange = System.currentTimeMillis();
         final long FIRST_REPEAT_DELAY_MS = 350;
         final long REPEAT_INTERVAL_MS = 120;
@@ -51,39 +64,25 @@ public class DepositTuner extends LinearOpMode {
         Odometry odometry = new Odometry(hw, hw.pinpoint);
 
         // Set initial servo positions - cam
-        if (hw.cam != null) hw.cam.setPosition(0.48);
+        if (hw.cam != null) hw.cam.setPosition(0.5014);
+
+        // Ensure deposit motors are in velocity mode
+        if (hw.depositMotorL != null) {
+            hw.depositMotorL.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            hw.depositMotorL.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.RUN_USING_ENCODER);
+        }
+        if (hw.depositMotorR != null) {
+            hw.depositMotorR.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            hw.depositMotorR.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.RUN_USING_ENCODER);
+        }
 
         boolean prevComboReset = false;
         boolean prevComboRecalibrate = false;
 
-        // Toggle state for deposit buttons (X, Y, B)
-        boolean depositToggleX = false;
-        boolean depositToggleY = false;
-        boolean depositToggleB = false;
-        boolean prevGp2X = false;
-        boolean prevGp2Y = false;
-        boolean prevGp2B = false;
+        // Toggle states for deposit button X only
+        boolean depositRunningX = false;
+        boolean prevX = false;
 
-        // PID controller for deposit motors (ticks/sec error -> power output)
-        PIDController depositPid = new PIDController(0.0008, 0.0000015, 0.00005);
-        depositPid.setOutputLimits(-1.0, 1.0);
-        depositPid.setIntegratorLimits(-2000, 2000);
-        double prevTarget = 0.0;
-
-        // Live-tuning parameters (mirrors the PID internals and feedforward)
-        double kP = 0.0008;
-        double kI = 0.0000015;
-        double kD = 0.00005;
-        double kFF = 0.00015; // linear feedforward coefficient (power per ticks/sec)
-
-        // PID tuning UI state
-        int pidSelect = 0; // 0=kP,1=kI,2=kD,3=kFF
-        String[] pidNames = new String[] {"kP","kI","kD","kFF"};
-        boolean prevGp1A = false; // for cycling selection
-
-        // Steps for tuning (small/large)
-        double[] smallStep = new double[] {0.00005, 0.0000005, 0.00001, 0.00001};
-        double[] largeStep = new double[] {0.0005, 0.000005, 0.00005, 0.00005};
 
         while (opModeIsActive()) {
             double nowTime = getRuntime();
@@ -95,40 +94,61 @@ public class DepositTuner extends LinearOpMode {
             Odometry.Position pos = odometry.getPosition();
 
             // ===== DRIVER 1: CHASSIS CONTROL =====
-            double forward = Math.abs(gamepad1.left_stick_y) > 0.05 ? -gamepad1.left_stick_y : 0;
-            double strafe = Math.abs(gamepad1.left_stick_x) > 0.05 ? gamepad1.left_stick_x : 0;
-            double rotate = Math.abs(gamepad1.right_stick_x) > 0.05 ? gamepad1.right_stick_x : 0;
+            // Toggle tuning mode with right bumper (edge detection)
+            if (gamepad1.right_bumper && !prevRightBumper) {
+                tuningMode = !tuningMode;
+            }
+            prevRightBumper = gamepad1.right_bumper;
 
-            rotate += -0.15 * forward;
+            // Read raw joystick values (inverted Y for forward)
+            double forward = -gamepad1.left_stick_y;
+            double strafe = gamepad1.left_stick_x;
+            double rotate = -gamepad1.right_stick_x; // Negated to fix turning direction
 
-            double speedMul = gamepad1.left_bumper ? 0.5 : 1.0;
-            forward *= speedMul;
-            strafe *= speedMul;
-            rotate *= speedMul;
-            strafe *= 1.1; // Strafe compensation
+            // Apply very small deadzone for precision (0.02 is barely noticeable)
+            final double DEADZONE = 0.02;
+            if (Math.abs(forward) < DEADZONE) forward = 0;
+            if (Math.abs(strafe) < DEADZONE) strafe = 0;
+            if (Math.abs(rotate) < DEADZONE) rotate = 0;
 
+            // Calculate magnitude and angle for true 360-degree movement
+            double magnitude = Math.hypot(forward, strafe);
+            double angle = Math.atan2(forward, strafe);
 
-            // Mecanum drive formulas with proper normalization
-            double fl = forward + strafe + rotate;
-            double fr = forward - strafe - rotate;
-            double bl = forward - strafe + rotate;
-            double br = forward + strafe - rotate;
+            // Apply speed multiplier based on mode
+            double driveMul, rotateMul;
+            if (tuningMode) {
+                // Tuning mode: slow and precise
+                driveMul = DRIVE_SPEED_TUNING;
+                rotateMul = ROTATE_SPEED_TUNING;
+            } else if (gamepad1.left_bumper) {
+                // Slow mode: 70% speed
+                driveMul = DRIVE_SPEED_SLOW;
+                rotateMul = ROTATE_SPEED_SLOW;
+            } else {
+                // Normal mode: full speed
+                driveMul = DRIVE_SPEED_NORMAL;
+                rotateMul = ROTATE_SPEED_NORMAL;
+            }
 
-            // Normalize to prevent exceeding max power
-            double maxPower = Math.max(1.0, Math.max(Math.abs(fl), Math.max(Math.abs(fr), Math.max(Math.abs(bl), Math.abs(br)))));
-            fl /= maxPower;
-            fr /= maxPower;
-            bl /= maxPower;
-            br /= maxPower;
+            magnitude *= driveMul;
+            rotate *= rotateMul;
 
-            // Reduce rotation component after normalization to maintain max speed movement
-            double rotationScale = 0.65; // 65% rotation speed (increased from 50%)
-            double rotationComponent = rotate / maxPower;
-            fl -= rotationComponent * (1.0 - rotationScale);
-            fr += rotationComponent * (1.0 - rotationScale);
-            bl -= rotationComponent * (1.0 - rotationScale);
-            br += rotationComponent * (1.0 - rotationScale);
+            // Apply cubic response curve to magnitude for smooth control
+            magnitude = Math.copySign(magnitude * magnitude * magnitude, magnitude);
+            rotate = Math.copySign(rotate * rotate * rotate, rotate);
 
+            // Reconstruct forward and strafe from polar coordinates
+            forward = magnitude * Math.sin(angle);
+            strafe = magnitude * Math.cos(angle) * STRAFE_COMPENSATION;
+
+            // Add slight counter-rotation when moving forward for stability
+            // Calculate wheel powers for mecanum drive
+            double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1);
+            double fl = (forward + strafe - rotate) / denominator;
+            double fr = (forward - strafe + rotate) / denominator;
+            double bl = (forward - strafe - rotate) / denominator;
+            double br = (forward + strafe + rotate) / denominator;
             hw.setDrivePowers(fl, fr, bl, br);
 
             // Driver 1: Safe combos (pinpoint reset / recalibrate)
@@ -149,13 +169,8 @@ public class DepositTuner extends LinearOpMode {
             double intakePower = (rt && lt) ? 0.0 : rt ? 0.9 : lt ? -0.9 : 0.0;
             if (hw.intakeMotor != null) hw.intakeMotor.setPower(intakePower);
 
-            // ===== DPAD TUNING =====
-            // Read dpad states
-            boolean gp1Up = gamepad1.dpad_up;
-            boolean gp1Down = gamepad1.dpad_down;
-            boolean gp1Left = gamepad1.dpad_left;
-            boolean gp1Right = gamepad1.dpad_right;
-
+            // ===== DPAD TUNING (GAMEPAD2 ONLY) =====
+            // Read gamepad2 dpad states
             boolean gp2Up = gamepad2.dpad_up;
             boolean gp2Down = gamepad2.dpad_down;
             boolean gp2Left = gamepad2.dpad_left;
@@ -163,192 +178,63 @@ public class DepositTuner extends LinearOpMode {
 
             long now = System.currentTimeMillis();
 
-            // Determine which preset each controller is adjusting. Holding BACK makes the controller adjust presetB instead.
-            boolean gp1AdjustB = gamepad1.back;
-            boolean gp2AdjustB = gamepad2.back;
-
-            // Cycle PID selection when gamepad1.A is pressed (edge detect)
-            if (gamepad1.a && !prevGp1A) {
-                pidSelect = (pidSelect + 1) % pidNames.length;
+            // Adjust presetX with dpad (no need to hold anything)
+            if (gp2Up && (!prevGp2DpadUp || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
+                presetX = Math.min(MAX_V, presetX + STEP_LARGE);
+                gp2LastChange = now;
             }
-            prevGp1A = gamepad1.a;
-
-            // If driver holds right bumper, use gp1 D-pad to tune PID coefficients instead of presets
-            boolean gp1TunePid = gamepad1.right_bumper;
-
-            // Gamepad1 controls presetX or presetB, but if right_bumper held, it tunes PID params
-            if (gp1TunePid) {
-                // adjust selected PID coefficient via dpad
-                if (gp1Up && (!prevGp1DpadUp || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    if (pidSelect == 0) kP += smallStep[0];
-                    if (pidSelect == 1) kI += smallStep[1];
-                    if (pidSelect == 2) kD += smallStep[2];
-                    if (pidSelect == 3) kFF += smallStep[3];
-                    gp1LastChange = now;
-                }
-                if (gp1Down && (!prevGp1DpadDown || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    if (pidSelect == 0) kP = Math.max(0.0, kP - smallStep[0]);
-                    if (pidSelect == 1) kI = Math.max(0.0, kI - smallStep[1]);
-                    if (pidSelect == 2) kD = Math.max(0.0, kD - smallStep[2]);
-                    if (pidSelect == 3) kFF = Math.max(0.0, kFF - smallStep[3]);
-                    gp1LastChange = now;
-                }
-                if (gp1Right && (!prevGp1DpadRight || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    if (pidSelect == 0) kP += largeStep[0];
-                    if (pidSelect == 1) kI += largeStep[1];
-                    if (pidSelect == 2) kD += largeStep[2];
-                    if (pidSelect == 3) kFF += largeStep[3];
-                    gp1LastChange = now;
-                }
-                if (gp1Left && (!prevGp1DpadLeft || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    if (pidSelect == 0) kP = Math.max(0.0, kP - largeStep[0]);
-                    if (pidSelect == 1) kI = Math.max(0.0, kI - largeStep[1]);
-                    if (pidSelect == 2) kD = Math.max(0.0, kD - largeStep[2]);
-                    if (pidSelect == 3) kFF = Math.max(0.0, kFF - largeStep[3]);
-                    gp1LastChange = now;
-                }
-                // whenever we change coefficients, push them into the PID
-                depositPid.setCoefficients(kP, kI, kD);
-            } else {
-                // existing behavior: adjust presets using gp1 dpad
-                if (!gp1AdjustB) {
-                    if (gp1Up && (!prevGp1DpadUp || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetX = Math.min(MAX_V, presetX + STEP_LARGE);
-                        gp1LastChange = now;
-                    }
-                    if (gp1Down && (!prevGp1DpadDown || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetX = Math.max(MIN_V, presetX - STEP_LARGE);
-                        gp1LastChange = now;
-                    }
-                    if (gp1Right && (!prevGp1DpadRight || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetX = Math.min(MAX_V, presetX + STEP_SMALL);
-                        gp1LastChange = now;
-                    }
-                    if (gp1Left && (!prevGp1DpadLeft || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetX = Math.max(MIN_V, presetX - STEP_SMALL);
-                        gp1LastChange = now;
-                    }
-                } else {
-                    if (gp1Up && (!prevGp1DpadUp || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetB = Math.min(MAX_V, presetB + STEP_LARGE);
-                        gp1LastChange = now;
-                    }
-                    if (gp1Down && (!prevGp1DpadDown || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetB = Math.max(MIN_V, presetB - STEP_LARGE);
-                        gp1LastChange = now;
-                    }
-                    if (gp1Right && (!prevGp1DpadRight || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetB = Math.min(MAX_V, presetB + STEP_SMALL);
-                        gp1LastChange = now;
-                    }
-                    if (gp1Left && (!prevGp1DpadLeft || now - gp1LastChange > FIRST_REPEAT_DELAY_MS)) {
-                        presetB = Math.max(MIN_V, presetB - STEP_SMALL);
-                        gp1LastChange = now;
-                    }
-                }
+            if (gp2Down && (!prevGp2DpadDown || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
+                presetX = Math.max(MIN_V, presetX - STEP_LARGE);
+                gp2LastChange = now;
+            }
+            if (gp2Right && (!prevGp2DpadRight || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
+                presetX = Math.min(MAX_V, presetX + STEP_SMALL);
+                gp2LastChange = now;
+            }
+            if (gp2Left && (!prevGp2DpadLeft || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
+                presetX = Math.max(MIN_V, presetX - STEP_SMALL);
+                gp2LastChange = now;
             }
 
-            // while holding, use faster repeat interval for gamepad1
-            if ((gp1Up || gp1Down || gp1Left || gp1Right) && now - gp1LastChange > REPEAT_INTERVAL_MS) {
-                gp1LastChange = now - (REPEAT_INTERVAL_MS + 1);
-            }
-
-            // Gamepad2 controls presetY or presetB
-            if (!gp2AdjustB) {
-                if (gp2Up && (!prevGp2DpadUp || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetY = Math.min(MAX_V, presetY + STEP_LARGE);
-                    gp2LastChange = now;
-                }
-                if (gp2Down && (!prevGp2DpadDown || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetY = Math.max(MIN_V, presetY - STEP_LARGE);
-                    gp2LastChange = now;
-                }
-                if (gp2Right && (!prevGp2DpadRight || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetY = Math.min(MAX_V, presetY + STEP_SMALL);
-                    gp2LastChange = now;
-                }
-                if (gp2Left && (!prevGp2DpadLeft || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetY = Math.max(MIN_V, presetY - STEP_SMALL);
-                    gp2LastChange = now;
-                }
-            } else {
-                if (gp2Up && (!prevGp2DpadUp || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetB = Math.min(MAX_V, presetB + STEP_LARGE);
-                    gp2LastChange = now;
-                }
-                if (gp2Down && (!prevGp2DpadDown || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetB = Math.max(MIN_V, presetB - STEP_LARGE);
-                    gp2LastChange = now;
-                }
-                if (gp2Right && (!prevGp2DpadRight || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetB = Math.min(MAX_V, presetB + STEP_SMALL);
-                    gp2LastChange = now;
-                }
-                if (gp2Left && (!prevGp2DpadLeft || now - gp2LastChange > FIRST_REPEAT_DELAY_MS)) {
-                    presetB = Math.max(MIN_V, presetB - STEP_SMALL);
-                    gp2LastChange = now;
-                }
-            }
-
+            // Enable faster repeat interval while holding dpad
             if ((gp2Up || gp2Down || gp2Left || gp2Right) && now - gp2LastChange > REPEAT_INTERVAL_MS) {
                 gp2LastChange = now - (REPEAT_INTERVAL_MS + 1);
             }
 
-            // Apply deposit velocities based on gamepad2 buttons: X -> presetX, Y -> presetY, B -> presetB
-            // Toggle-based control: press button to toggle on/off
-            if (gamepad2.x && !prevGp2X) {
-                depositToggleX = !depositToggleX;
-                depositToggleY = false;
-                depositToggleB = false;
+            // Toggle deposit button X (edge detection)
+            if (gamepad2.x && !prevX) {
+                depositRunningX = !depositRunningX;
             }
-            if (gamepad2.y && !prevGp2Y) {
-                depositToggleY = !depositToggleY;
-                depositToggleX = false;
-                depositToggleB = false;
+            prevX = gamepad2.x;
+
+            // Apply deposit velocity based on X toggle
+            double target = depositRunningX ? presetX : 0.0;
+
+            // Read actual velocity from both motors (ticks/sec) for telemetry
+            double vL = 0.0;
+            double vR = 0.0;
+            int posL = 0;
+            int posR = 0;
+
+            if (hw.depositMotorL != null) {
+                vL = hw.depositMotorL.getVelocity();
+                posL = hw.depositMotorL.getCurrentPosition();
             }
-            if (gamepad2.b && !prevGp2B) {
-                depositToggleB = !depositToggleB;
-                depositToggleX = false;
-                depositToggleY = false;
+            if (hw.depositMotorR != null) {
+                vR = hw.depositMotorR.getVelocity();
+                posR = hw.depositMotorR.getCurrentPosition();
             }
-            prevGp2X = gamepad2.x;
-            prevGp2Y = gamepad2.y;
-            prevGp2B = gamepad2.b;
+            double actual = (vL + vR) / 2.0;
 
-            double target = 0.0;
-            if (depositToggleX) target = presetX;
-            else if (depositToggleY) target = presetY;
-            else if (depositToggleB) target = presetB;
-
-            // Read actual velocity from motors (ticks/sec). If motor references are null, treat as 0.
-            double actual = 0.0;
-            if (hw.depositMotorL != null) actual = hw.depositMotorL.getVelocity();
-
-            double power;
-
-            // Reset PID when target changes significantly or target is zero
-            if (Math.abs(prevTarget - target) > 1.0) {
-                depositPid.reset();
-            }
-            prevTarget = target;
-
+            // Use motor's built-in velocity PID control - both motors get same target
+            // When target is 0, explicitly stop motors to avoid drift
             if (Math.abs(target) < 1.0) {
-                // Stop motors and reset integrator to avoid windup
-                power = 0.0;
-                depositPid.reset();
+                if (hw.depositMotorL != null) hw.depositMotorL.setPower(0);
+                if (hw.depositMotorR != null) hw.depositMotorR.setPower(0);
             } else {
-                // PID expects setpoint in same units as measurement (ticks/sec)
-                power = depositPid.update(target, actual, dt);
-                // feedforward proportional to target
-                double ff = kFF * target;
-                power += ff;
-                // clamp power
-                if (power > 1.0) power = 1.0;
-                if (power < -1.0) power = -1.0;
+                if (hw.depositMotorL != null) hw.depositMotorL.setVelocity(target);
+                if (hw.depositMotorR != null) hw.depositMotorR.setVelocity(target);
             }
-
-            if (hw.depositMotorL != null) hw.depositMotorL.setPower(power);
-            if (hw.depositMotorR != null) hw.depositMotorR.setPower(-power);
 
             // Cam (LB/RB) continuous hold-based control - only update when buttons pressed
             if (hw.cam != null) {
@@ -362,37 +248,46 @@ public class DepositTuner extends LinearOpMode {
                 }
             }
 
-            // Telemetry
-            telemetry.addData("Preset X (gp1 dpad)", String.format(Locale.US, "%.0f ticks/s", presetX));
-            telemetry.addData("Preset Y (gp2 dpad)", String.format(Locale.US, "%.0f ticks/s", presetY));
-            telemetry.addData("Preset B (hold BACK + dpad)", String.format(Locale.US, "%.0f ticks/s", presetB));
-            telemetry.addData("Active target", String.format(Locale.US, "%.0f", target));
+            // Telemetry - Essential Info Only
+            telemetry.addData("Target Speed", String.format(Locale.US, "%.0f ticks/s", target));
+            telemetry.addData("Actual Speed (avg)", String.format(Locale.US, "%.0f ticks/s", actual));
 
-            // PID tuning telemetry
-            telemetry.addData("PID Select", pidNames[pidSelect]);
-            telemetry.addData("kP/kI/kD/kFF", String.format(Locale.US, "%.6f / %.8f / %.6f / %.6f", kP, kI, kD, kFF));
-            telemetry.addData("PID integrator/err/der", String.format(Locale.US, "I: %.1f E: %.1f D: %.1f", depositPid.getIntegrator(), depositPid.getLastError(), depositPid.getLastDerivative()));
-            telemetry.addData("PID out+ff/power", String.format(Locale.US, "ff: %.4f pwr: %.3f", kFF*target, power));
+            // Motor diagnostics - always show
+            telemetry.addLine();
+            telemetry.addData("Motor Status", String.format(Locale.US, "L: %s | R: %s",
+                hw.depositMotorL != null ? "OK" : "NULL",
+                hw.depositMotorR != null ? "OK" : "NULL"));
 
+            // Always display motor data regardless of running state
+            double ticksPerRev = 28.0;
+            double rpmL = (vL / ticksPerRev) * 60.0;
+            double rpmR = (vR / ticksPerRev) * 60.0;
+            telemetry.addData("Motor RPM", String.format(Locale.US, "L: %.0f | R: %.0f", rpmL, rpmR));
+            telemetry.addData("Motor Velocities", String.format(Locale.US, "L: %.0f | R: %.0f ticks/s", vL, vR));
+            telemetry.addData("Motor Positions", String.format(Locale.US, "L: %d | R: %d", posL, posR));
             if (hw.depositMotorL != null && hw.depositMotorR != null) {
-                double ticksPerRev = 28.0;
-                double vL = hw.depositMotorL.getVelocity();
-                double vR = hw.depositMotorR.getVelocity();
-                double rpmL = (vL / ticksPerRev) * 60.0;
-                double rpmR = (vR / ticksPerRev) * 60.0;
-                telemetry.addData("Launcher RPM", String.format(Locale.US, "L: %.0f, R: %.0f", rpmL, rpmR));
+                telemetry.addData("Motor Power", String.format(Locale.US, "L: %.3f | R: %.3f",
+                    hw.depositMotorL.getPower(), hw.depositMotorR.getPower()));
             }
 
-            telemetry.addData("Controls", "GP1 Dpad -> Preset X (BACK->B). GP2 Dpad -> Preset Y (BACK->B)");
-            telemetry.addData("Use", "Hold GP2.X or GP2.Y or GP2.B to run deposit at preset");
+            telemetry.addLine();
+            telemetry.addData("Preset X", String.format(Locale.US, "%.0f ticks/s", presetX));
+            telemetry.addData("Running Mode", depositRunningX ? "ON" : "OFF");
 
-            // Additional telemetry from Robot1
-            telemetry.addData("Speed Mode", gamepad1.left_bumper ? "SLOW (50%)" : "Normal");
-            telemetry.addData("Heading", String.format(Locale.US, "%.1f°", pos.getHeadingDeg()));
-            telemetry.addData("Position", String.format(Locale.US, "X: %.1f, Y: %.1f in", pos.getXmm()/25.4, pos.getYmm()/25.4));
-            telemetry.addData("Cam Position", hw.cam != null ? String.format(Locale.US, "%.4f", hw.cam.getPosition()) : "N/A");
-            telemetry.addData("Intake Power", String.format(Locale.US, "%.1f", intakePower));
+            // Speed mode display
+            String speedMode;
+            if (tuningMode) {
+                speedMode = String.format(Locale.US, "TUNING (%.0f%%)", DRIVE_SPEED_TUNING * 100);
+            } else if (gamepad1.left_bumper) {
+                speedMode = String.format(Locale.US, "SLOW (%.0f%%)", DRIVE_SPEED_SLOW * 100);
+            } else {
+                speedMode = String.format(Locale.US, "NORMAL (%.0f%%)", DRIVE_SPEED_NORMAL * 100);
+            }
+            telemetry.addData("Drive Speed", speedMode);
 
+            telemetry.addData("Controls", "GP1: Drive | LB=slow | RB=toggle tuning mode");
+            telemetry.addData("", "GP2: Press X=toggle deposit on/off | Dpad=adjust speed");
+            telemetry.addData("", "GP2: LB/RB=cam | Triggers=intake");
             telemetry.addData("Loop Hz", String.format(Locale.US, "%.1f", 1.0 / Math.max(1e-6, dt)));
             telemetry.update();
 
@@ -402,8 +297,7 @@ public class DepositTuner extends LinearOpMode {
             panels.putText("teleop/pinpoint/status", hw.pinpoint!=null? hw.pinpoint.getDeviceStatus().name():"NONE");
             panels.publishPose("teleop/pose", xIn, yIn, pos.getHeadingDeg(), 50);
 
-            // update previous dpad states
-            prevGp1DpadUp = gp1Up; prevGp1DpadDown = gp1Down; prevGp1DpadLeft = gp1Left; prevGp1DpadRight = gp1Right;
+            // update previous dpad states (gamepad2 only)
             prevGp2DpadUp = gp2Up; prevGp2DpadDown = gp2Down; prevGp2DpadLeft = gp2Left; prevGp2DpadRight = gp2Right;
 
             // small sleep to yield
