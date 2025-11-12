@@ -40,22 +40,21 @@ public class K2Teleop extends LinearOpMode {
 
         // initialize target heading to current at start
         bot.setPoseEstimate(START_POSE);
-        targetHeadingDeg = getHeading();
+        targetHeadingDeg = START_POSE.getHeading(AngleUnit.DEGREES);
 
-        while(opModeIsActive())
-        {
+        while(opModeIsActive()) {
             double deltaRuntime = getRuntime() - prevElapsedTime;
             if (deltaRuntime <= 0) deltaRuntime = 0.02; // guard
 
             bot.updateLocalization();
 
-            double y  = Math.abs(gamepad1.left_stick_y)  > 0.05 ? -gamepad1.left_stick_y  : 0; // Forward/backward strafe
-            double x  = Math.abs(gamepad1.left_stick_x)  > 0.05 ? gamepad1.left_stick_x  : 0; // Left/right
+            double y = Math.abs(gamepad1.left_stick_y) > 0.05 ? -gamepad1.left_stick_y : 0; // Forward/backward strafe
+            double x = Math.abs(gamepad1.left_stick_x) > 0.05 ? gamepad1.left_stick_x : 0; // Left/right
             double rx = Math.abs(gamepad1.right_stick_x) > 0.05 ? -gamepad1.right_stick_x : 0; // Rotation
 
             double speedMultiplier = gamepad1.left_bumper ? 0.5 : 1.0;
-            y  *= speedMultiplier;
-            x  *= speedMultiplier;
+            y *= speedMultiplier;
+            x *= speedMultiplier;
             rx *= speedMultiplier;
 
             /*//////////////////////////
@@ -71,29 +70,22 @@ public class K2Teleop extends LinearOpMode {
             }
             prevBack = gamepad1.back;
 
-            if(traditionalDrivetrain) {
+            if (traditionalDrivetrain) {
                 y *= 1.1;
                 bot.move(y, x, rx);
-            }else {
+            } else {
                 double goalAngle = pointToHeading(BLUE_BACKBOARD_POSE.getX(DistanceUnit.INCH), BLUE_BACKBOARD_POSE.getY(DistanceUnit.INCH));
                 telemetry.addData("Goal Angle: ", goalAngle);
 
                 // === Heading hold using squidToHeading when driver isn't rotating ===
 
                 final double rotateDeadband = 0.02;
-                if(!gamepad1.a){
-
-//                    final double maxDegPerSec  = 720.0;        // full-stick = 180°/s target change
-//
-//                    if (Math.abs(rx) > rotateDeadband) {
-//                        targetHeadingDeg = targetHeadingDeg + rx * maxDegPerSec * deltaRuntime;
-//                    }
-//
-//                    rx = bot.squidToHeading(targetHeadingDeg);
-
-
-                }else{
+                if (gamepad1.a) {
                     rx = bot.squidToHeading(goalAngle);
+                } else if (gamepad1.dpad_up) {
+                    rx = bot.squidToHeading(90);
+                } else if (gamepad1.dpad_right) {
+                    rx = bot.squidToHeading(0);
                 }
 
                 prevY = y;
@@ -123,15 +115,15 @@ public class K2Teleop extends LinearOpMode {
 
             //////////////////////////*/
 
-            if(gamepad2.a) {
+            if (gamepad2.a) {
                 bot.transferLeft();
                 bot.transferRight();
-            }
-            if(gamepad2.right_bumper) {
+            } else if (gamepad2.right_bumper) {
                 bot.transferLeft();
-            }
-            if(gamepad2.left_bumper) {
+            } else if (gamepad2.left_bumper) {
                 bot.transferRight();
+            } else {
+                bot.transferIdle();
             }
 
             /*//////////////////////////
@@ -142,10 +134,10 @@ public class K2Teleop extends LinearOpMode {
 
             //////////////////////////*/
 
-            if(gamepad2.dpad_down){
+            if (gamepad2.dpad_down) {
                 bot.hoodDown();
             }
-            if(gamepad2.dpad_up){
+            if (gamepad2.dpad_up) {
                 bot.hoodUp();
             }
 
@@ -156,13 +148,20 @@ public class K2Teleop extends LinearOpMode {
 
 
              //////////////////////////*/
-            bot.powerDeliver(gamepad2.right_trigger);
-            if(gamepad2.a) {
-                bot.setDeliverVel();
-            }else{
-                bot.deliverL.setVelocity(0);
-            }
+            bot.setDeliverVel(gamepad2.right_trigger * 5000);
 
+
+
+            /*//////////////////////////
+
+
+            LIFT CODE
+
+
+             //////////////////////////*/
+
+            bot.liftL.setPosition(-gamepad2.left_stick_y);
+            bot.liftR.setPosition(-gamepad2.right_stick_y);
 
             bot.logDriveData(bot.odo.getPosition());
             telemetry.addLine();telemetry.addLine();telemetry.addLine();

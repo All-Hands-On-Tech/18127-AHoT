@@ -28,8 +28,8 @@ public class ServoPositionDebug extends LinearOpMode {
     public void runOpMode() {
 
         hood = hardwareMap.get(Servo.class, "hood");
-        leftTransfer = hardwareMap.get(Servo.class, "leftTransfer");
-        rightTransfer = hardwareMap.get(Servo.class, "rightTransfer");
+        leftTransfer = hardwareMap.get(Servo.class, "lTransfer");
+        rightTransfer = hardwareMap.get(Servo.class, "rTransfer");
 //        door = hardwareMap.get(Servo.class, "door");
 
         servos = new Servo[]{hood, leftTransfer, rightTransfer, door};

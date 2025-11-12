@@ -34,7 +34,7 @@ public class K2DeliveryDebug extends LinearOpMode {
         while(opModeIsActive())
         {
 
-            bot.setDeliverVel();
+            bot.setDeliverVel(100);
 
             if(Math.abs(bot.getDeliverLVel() - 314) < 5 && !toSpeed){
                 endTime = timer.seconds();

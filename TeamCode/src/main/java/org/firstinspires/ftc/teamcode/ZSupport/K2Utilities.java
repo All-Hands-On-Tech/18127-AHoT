@@ -43,6 +43,7 @@ For support, contact tech@gobilda.com
 class K2StateFlags{
     boolean hoodIsDown = true;
     boolean doorIsClosed = true;
+    boolean deliverVelAchieved = false;
     char [] colorQueue = {'p', 'p', 'g'};   // 'p' purple   'g' green   'n' none
     char [] prevColorQueue = {'p', 'p', 'g'};
 }
@@ -54,11 +55,11 @@ class K2ServoPositions {
     public static final double HOOD_DOWN = 0.06;
 
     // Transfer positions
-    public static final double LEFT_TRANSFER = 0.80;
-    public static final double LEFT_TRANSFER_IDLE = 0.40;
+    public static final double LEFT_TRANSFER = 0.58;
+    public static final double LEFT_TRANSFER_IDLE = 0.66;
 
-    public static final double RIGHT_TRANSFER = 0.20;
-    public static final double RIGHT_TRANSFER_IDLE = 0.60;
+    public static final double RIGHT_TRANSFER = 0.07;
+    public static final double RIGHT_TRANSFER_IDLE = 0.01;
 
     // Door positions
     public static final double DOOR_OPEN = 0.75;
@@ -71,7 +72,7 @@ class K2ColorThresholds{}
 public class K2Utilities {
     final double TRACK_WIDTH = 0.0;
 
-    public Servo hood, leftTransfer, rightTransfer, door;
+    public Servo hood, leftTransfer, rightTransfer, door, liftL, liftR;
     public RevColorSensorV3 color0, color1, color2;
     public DcMotor fr, fl, br, bl;
     public DcMotor intakeL, intakeR;
@@ -81,6 +82,9 @@ public class K2Utilities {
     public GoBildaPinpointDriver odo;
     final double MAX_POWER_DISTANCE = 500;
     final double MAX_POWER_HEADING_ERROR = 45;
+
+
+    private final double deliverTicksPerRev = 28;
 
     private double targetHeading = 0.0;
 
@@ -107,12 +111,22 @@ public class K2Utilities {
         intakeR = l.hardwareMap.get(DcMotor.class, "intakeR");
 
         deliverL = l.hardwareMap.get(DcMotorEx.class, "deliverL");
-//        deliverR = l.hardwareMap.get(DcMotorEx.class, "deliverR");
+        deliverR = l.hardwareMap.get(DcMotorEx.class, "deliverR");
+
+
+        hood = l.hardwareMap.get(Servo.class, "hood");
+        leftTransfer = l.hardwareMap.get(Servo.class, "lTransfer");
+        rightTransfer = l.hardwareMap.get(Servo.class, "rTransfer");
+//        door = l.hardwareMap.get(Servo.class, "door");
+        liftL = l.hardwareMap.get(Servo.class, "liftL");
+        liftR = l.hardwareMap.get(Servo.class, "liftR");
 
 //        color0 = l.hardwareMap.get(RevColorSensorV3.class, "color0");
 //        color1 = l.hardwareMap.get(RevColorSensorV3.class, "color1");
 //        color2 = l.hardwareMap.get(RevColorSensorV3.class, "color2");
 
+        deliverL.setDirection(DcMotorSimple.Direction.FORWARD);
+        deliverR.setDirection(DcMotorSimple.Direction.REVERSE);
 
         fr.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -150,7 +164,7 @@ public class K2Utilities {
         increase when you move the robot forward. And the Y (strafe) pod should increase when
         you move the robot to the left.
          */
-        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED);
+        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
 
         /*
@@ -352,12 +366,6 @@ public class K2Utilities {
         return hPow;
     }
 
-    public double squidToHeadingCumulative(double targetHeading, double current) {
-        double errH = targetHeading - odo.getHeading(AngleUnit.DEGREES);
-
-        double hPow = signedSqrt(errH / MAX_POWER_HEADING_ERROR / 5);
-        return hPow;
-    }
 
     private double signedSqrt(double val) {
         double temp = val;
@@ -375,18 +383,24 @@ public class K2Utilities {
 
     public void powerDeliver(double pow) {
         deliverL.setPower(pow);
-//        deliverR.setPower(pow);
+        deliverR.setPower(pow);
+    }
+
+    public void setDeliverVel(double RPM) { //RPM to events per second
+
+        double eventsPerSecond = RPM * deliverTicksPerRev / 60;
+
+        deliverL.setVelocity(eventsPerSecond);
+        deliverR.setVelocity(eventsPerSecond);
     }
 
     public double getDeliverLVel() {
-        return deliverL.getVelocity(AngleUnit.DEGREES);
+        double RPM = deliverL.getVelocity() / deliverTicksPerRev * 60;
+        return RPM;
         /*return deliverL.getVelocity(AngleUnit.RADIANS)/(2*Math.PI)/60;*/
     }  //rpm
 
-    public void setDeliverVel() {
-        deliverL.setVelocity(3, AngleUnit.DEGREES); // 3000 RPM roughly
-//        deliverR.setVelocity(314, AngleUnit.RADIANS); // 3000 RPM roughly
-    }
+
 
 
     public void transferLeft() {
@@ -401,8 +415,9 @@ public class K2Utilities {
         rightTransfer.setPosition(K2ServoPositions.RIGHT_TRANSFER);
     }
 
-    public void rightTransferIdle(){
+    public void transferIdle(){
         rightTransfer.setPosition(K2ServoPositions.RIGHT_TRANSFER_IDLE);
+        leftTransfer.setPosition(K2ServoPositions.LEFT_TRANSFER_IDLE);
     }
 
     public void hoodDown() {
