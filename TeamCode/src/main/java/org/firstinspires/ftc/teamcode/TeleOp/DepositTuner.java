@@ -35,15 +35,15 @@ public class DepositTuner extends LinearOpMode {
         final double DRIVE_SPEED_TUNING = 0.35;   // Slower speed for precise tuning/aiming
 
         // Rotation speeds (0.0 to 1.0)
-        final double ROTATE_SPEED_NORMAL = 1.0;   // Full rotation speed
-        final double ROTATE_SPEED_SLOW = 0.7;     // 70% rotation when holding LB
+        final double ROTATE_SPEED_NORMAL = 0.9;   // Full rotation speed
+        final double ROTATE_SPEED_SLOW = 0.6;     // 70% rotation when holding LB
         final double ROTATE_SPEED_TUNING = 0.35;  // Slower rotation for tuning
 
         // Strafe compensation multiplier
         final double STRAFE_COMPENSATION = 1.1;
 
         // Deposit motor presets (velocity in encoder ticks per second)
-        double presetX = 675.0; // default used when gamepad2.x is toggled
+        double presetX = 665.0; // default used when gamepad2.x is toggled
 
         final double MIN_V = 0.0;
         final double MAX_V = 5000.0;
@@ -64,7 +64,7 @@ public class DepositTuner extends LinearOpMode {
         Odometry odometry = new Odometry(hw, hw.pinpoint);
 
         // Set initial servo positions - cam
-        if (hw.cam != null) hw.cam.setPosition(0.5014);
+        if (hw.cam != null) hw.cam.setPosition(0.5181);
 
         // Ensure deposit motors are in velocity mode
         if (hw.depositMotorL != null) {
@@ -82,6 +82,10 @@ public class DepositTuner extends LinearOpMode {
         // Toggle states for deposit button X only
         boolean depositRunningX = false;
         boolean prevX = false;
+
+        // Vibration control for gamepad1 dpad_up -> gamepad2 vibration
+        boolean prevGp1DpadUp = false;
+        long vibrationEndTime = 0; // timestamp when vibration should stop
 
 
         while (opModeIsActive()) {
@@ -163,6 +167,19 @@ public class DepositTuner extends LinearOpMode {
             if (comboRecalibrate && !prevComboRecalibrate && hw.pinpoint != null) hw.pinpoint.recalibrateIMU();
             prevComboRecalibrate = comboRecalibrate;
 
+            // ===== VIBRATION CONTROL =====
+            // Driver 1 presses dpad_up -> Driver 2 controller vibrates for 2 seconds
+            if (gamepad1.dpad_up && !prevGp1DpadUp) {
+                // Start vibration on gamepad2 for 2000 milliseconds (2 seconds)
+                vibrationEndTime = System.currentTimeMillis() + 2000;
+                gamepad2.rumble(1.0, 1.0, 2000); // Full power rumble for 2 seconds
+            }
+            prevGp1DpadUp = gamepad1.dpad_up;
+
+            // Update vibration status (optional - the rumble command handles duration automatically)
+            // but we track it for telemetry if needed
+            boolean isVibrating = System.currentTimeMillis() < vibrationEndTime;
+
             // Intake (triggers, both => stop)
             boolean rt = gamepad2.right_trigger > 0.1;
             boolean lt = gamepad2.left_trigger > 0.1;
@@ -243,7 +260,7 @@ public class DepositTuner extends LinearOpMode {
                     if (gamepad2.left_bumper) camPosition -= 0.001; // Move in
                     if (gamepad2.right_bumper) camPosition += 0.001; // Move out
                     // Clamp between reasonable bounds
-                    camPosition = Math.max(0.4622, Math.min(0.5522, camPosition));
+                    camPosition = Math.max(0.4622, Math.min(0.5322, camPosition));
                     hw.cam.setPosition(camPosition);
                 }
             }

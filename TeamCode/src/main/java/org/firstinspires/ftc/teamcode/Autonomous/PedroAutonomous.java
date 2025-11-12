@@ -347,7 +347,7 @@ public class PedroAutonomous extends OpMode {
             redBottomPath1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(88.917, 6.767), new Pose(82.744, 91.218))
+                            new BezierLine(new Pose(88.917, 6.767), new Pose(83.744, 92.218))
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(45))
                     .build();
