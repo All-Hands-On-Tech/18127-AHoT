@@ -43,7 +43,7 @@ public class DepositTuner extends LinearOpMode {
         final double STRAFE_COMPENSATION = 1.1;
 
         // Deposit motor presets (velocity in encoder ticks per second)
-        double presetX = 650.0; // default used when gamepad2.x is toggled
+        double presetX = 675.0; // default used when gamepad2.x is toggled
 
         final double MIN_V = 0.0;
         final double MAX_V = 5000.0;
@@ -273,6 +273,13 @@ public class DepositTuner extends LinearOpMode {
             telemetry.addLine();
             telemetry.addData("Preset X", String.format(Locale.US, "%.0f ticks/s", presetX));
             telemetry.addData("Running Mode", depositRunningX ? "ON" : "OFF");
+
+            // Cam position tracking
+            if (hw.cam != null) {
+                telemetry.addData("Cam Position", String.format(Locale.US, "%.4f", hw.cam.getPosition()));
+            } else {
+                telemetry.addData("Cam Position", "N/A");
+            }
 
             // Speed mode display
             String speedMode;

@@ -34,16 +34,16 @@ public class PedroAutonomous extends OpMode {
     // ========== TUNING VARIABLES ==========
     // Intake Configuration
     private static final double INTAKE_POWER = -1; // Negative to run in correct direction
-    private static final double INTAKE_DURATION_S = 3.5;
+    private static final double INTAKE_DURATION_S = 6.5;
 
     // Cam Configuration
-    private static final double CAM_POSITION = 0.5194;
+    private static final double CAM_POSITION = 0.5124;
 
     // Deposit Configuration - using motor's built-in velocity control
-    private double depositTargetVelocity = 677.0; // ticks per second (adjustable via dpad)
+    private double depositTargetVelocity = 662.7; // ticks per second (adjustable via dpad)
 
     // State Machine Timing Configuration
-    private static final double WAIT_BEFORE_INTAKE_S = 2.5; // Wait 2 seconds before starting intake
+    private static final double WAIT_BEFORE_INTAKE_S = 3; // Wait 2 seconds before starting intake
 
     // Tuning parameters for dpad adjustment
     private static final double MIN_VELOCITY = 0.0;
@@ -67,9 +67,11 @@ public class PedroAutonomous extends OpMode {
 
     // ========== STATE MACHINE CONSTANTS ==========
     private static final int STATE_START_PATH1 = 0;
-    private static final int STATE_PATH_AND_DEPOSIT = 1;
+    private static final int STATE_PATH1_AND_DEPOSIT = 1;
     private static final int STATE_WAIT_BEFORE_INTAKE = 2;
     private static final int STATE_INTAKE = 3;
+    private static final int STATE_START_PATH2 = 4;
+    private static final int STATE_PATH2_MOVING = 5;
     private static final int STATE_DONE = -1;
 
     // ========== INSTANCE VARIABLES ==========
@@ -138,50 +140,40 @@ public class PedroAutonomous extends OpMode {
             cam = null;
         }
 
-        // Show initialization complete message
-        panelsTelemetry.debug("Status", "✓ Initialized - Use D-Pad to select path");
-        panelsTelemetry.debug("Info", "You can change selection anytime before pressing START");
+        // Show path-button mapping permanently (also echoed every loop)
+        panelsTelemetry.debug("Status", "Initialized - Select a path");
+        panelsTelemetry.debug("Paths (permanent):", "DPad Up=Blue Bottom, Right=Blue Top, Down=Red Bottom, Left=Red Top");
         panelsTelemetry.update(telemetry);
     }
 
     @Override
     public void init_loop() {
-        // Handle path selection via D-Pad - always allow changing selection
-        if (gamepad1.dpad_up) {
-            selectedPath = PathSelection.BLUE_BOTTOM;
-            pathSelected = true;
-        } else if (gamepad1.dpad_right) {
-            selectedPath = PathSelection.BLUE_TOP;
-            pathSelected = true;
-        } else if (gamepad1.dpad_down) {
-            selectedPath = PathSelection.RED_BOTTOM;
-            pathSelected = true;
-        } else if (gamepad1.dpad_left) {
-            selectedPath = PathSelection.RED_TOP;
-            pathSelected = true;
+        if (!pathSelected) {
+            // Handle path selection via D-Pad
+            if (gamepad1.dpad_up) {
+                selectedPath = PathSelection.BLUE_BOTTOM;
+                pathSelected = true;
+            } else if (gamepad1.dpad_right) {
+                selectedPath = PathSelection.BLUE_TOP;
+                pathSelected = true;
+            } else if (gamepad1.dpad_down) {
+                selectedPath = PathSelection.RED_BOTTOM;
+                pathSelected = true;
+            } else if (gamepad1.dpad_left) {
+                selectedPath = PathSelection.RED_TOP;
+                pathSelected = true;
+            }
+
+            if (pathSelected) {
+                // Set starting pose based on selected path
+                Pose startPose = paths.getStartPose(selectedPath);
+                follower.setStartingPose(startPose);
+                panelsTelemetry.debug("Status", "Path Selected: " + selectedPath);
+                panelsTelemetry.debug("Start Pose", startPose);
+            } else {
+                panelsTelemetry.debug("Status", "Waiting for path selection...");
+            }
         }
-
-        // Always update the starting pose based on current selection
-        if (pathSelected) {
-            Pose startPose = paths.getStartPose(selectedPath);
-            follower.setStartingPose(startPose);
-            panelsTelemetry.debug("Status", "✓ Path Selected (can change before start)");
-            panelsTelemetry.debug("Selected Path", selectedPath.toString());
-            panelsTelemetry.debug("Start Pose", String.format(java.util.Locale.US, "X:%.1f Y:%.1f H:%.1f°",
-                startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading())));
-        } else {
-            panelsTelemetry.debug("Status", "⚠ Waiting for path selection...");
-            panelsTelemetry.debug("Selected Path", "NONE - Use D-Pad to select");
-        }
-
-        // Show available paths with visual indicators
-        panelsTelemetry.debug("", "─────────────────────────────");
-        panelsTelemetry.debug("DPad Up", (selectedPath == PathSelection.BLUE_BOTTOM ? "→ " : "  ") + "Blue Bottom");
-        panelsTelemetry.debug("DPad Right", (selectedPath == PathSelection.BLUE_TOP ? "→ " : "  ") + "Blue Top");
-        panelsTelemetry.debug("DPad Down", (selectedPath == PathSelection.RED_BOTTOM ? "→ " : "  ") + "Red Bottom");
-        panelsTelemetry.debug("DPad Left", (selectedPath == PathSelection.RED_TOP ? "→ " : "  ") + "Red Top");
-        panelsTelemetry.debug("", "─────────────────────────────");
-
         panelsTelemetry.update(telemetry);
     }
 
@@ -304,64 +296,114 @@ public class PedroAutonomous extends OpMode {
 
     public static class Paths {
 
-        public PathChain blueBottomPath;
-        public PathChain blueTopPath;
-        public PathChain redBottomPath;
-        public PathChain redTopPath;
+        // Split paths into segment 1 (to first point) and segment 2 (to second point)
+        public PathChain blueBottomPath1;
+        public PathChain blueBottomPath2;
+        public PathChain blueTopPath1;
+        public PathChain blueTopPath2;
+        public PathChain redBottomPath1;
+        public PathChain redBottomPath2;
+        public PathChain redTopPath1;
+        public PathChain redTopPath2;
 
         public Paths(Follower follower) {
-            // Blue Bottom Path
-            blueBottomPath = follower
+            // Blue Bottom Path - Segment 1: Start to Point 1
+            blueBottomPath1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(54.677, 7.038), new Pose(73.218, 88.346))
+                            new BezierLine(new Pose(55.083, 6.632), new Pose(58.180, 90.105))
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(138))
+                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(136))
                     .build();
 
-            // Blue Top Path
-            blueTopPath = follower
+            // Blue Bottom Path - Segment 2: Point 1 to Point 2
+            blueBottomPath2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(22.195, 126.812), new Pose(71.323, 79.038))
+                            new BezierLine(new Pose(66.180, 88.105), new Pose(49.263, 52.647))
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(325), Math.toRadians(135))
+                    .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
                     .build();
 
-            // Red Bottom Path
-            redBottomPath = follower
+            // Blue Top Path - Segment 1: Start to Point 1
+            blueTopPath1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(88.917, 6.632), new Pose(79.579, 87.564))
+                            new BezierLine(new Pose(23.549, 128.842), new Pose(58.075, 90.128))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(323), Math.toRadians(136))
+                    .build();
+
+            // Blue Top Path - Segment 2: Point 1 to Point 2
+            blueTopPath2 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(68.075, 85.128), new Pose(56.707, 68.752))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(138), Math.toRadians(90))
+                    .build();
+
+            // Red Bottom Path - Segment 1: Start to Point 1
+            redBottomPath1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(88.917, 6.767), new Pose(82.744, 91.218))
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(45))
                     .build();
 
-            // Red Top Path
-            redTopPath = follower
+            // Red Bottom Path - Segment 2: Point 1 to Point 2
+            redBottomPath2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(121.398, 128.030), new Pose(79.579, 82.692))
+                            new BezierLine(new Pose(81.744, 91.218), new Pose(97.850, 68.617))
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(218), Math.toRadians(45))
+                    .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(90))
+                    .build();
+
+            // Red Top Path - Segment 1: Start to Point 1
+            redTopPath1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(120.722, 128.977), new Pose(83.744, 92.218))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(217), Math.toRadians(46))
+                    .build();
+
+            // Red Top Path - Segment 2: Point 1 to Point 2
+            redTopPath2 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(81.744, 91.218), new Pose(93.789, 57.248))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(46), Math.toRadians(90))
                     .build();
         }
 
-        public PathChain getPath(PathSelection pathSelection) {
+        public PathChain getPath1(PathSelection pathSelection) {
             return switch (pathSelection) {
-                case BLUE_BOTTOM -> blueBottomPath;
-                case BLUE_TOP -> blueTopPath;
-                case RED_BOTTOM -> redBottomPath;
-                case RED_TOP -> redTopPath;
+                case BLUE_BOTTOM -> blueBottomPath1;
+                case BLUE_TOP -> blueTopPath1;
+                case RED_BOTTOM -> redBottomPath1;
+                case RED_TOP -> redTopPath1;
+            };
+        }
+
+        public PathChain getPath2(PathSelection pathSelection) {
+            return switch (pathSelection) {
+                case BLUE_BOTTOM -> blueBottomPath2;
+                case BLUE_TOP -> blueTopPath2;
+                case RED_BOTTOM -> redBottomPath2;
+                case RED_TOP -> redTopPath2;
             };
         }
 
         public Pose getStartPose(PathSelection pathSelection) {
             return switch (pathSelection) {
-                case BLUE_BOTTOM -> new Pose(54.677, 7.038, Math.toRadians(90));
-                case BLUE_TOP -> new Pose(22.195, 126.812, Math.toRadians(325));
-                case RED_BOTTOM -> new Pose(88.917, 6.632, Math.toRadians(90));
-                case RED_TOP -> new Pose(121.398, 128.030, Math.toRadians(218));
+                case BLUE_BOTTOM -> new Pose(55.083, 6.632, Math.toRadians(90));
+                case BLUE_TOP -> new Pose(23.549, 128.842, Math.toRadians(323));
+                case RED_BOTTOM -> new Pose(88.917, 6.767, Math.toRadians(90));
+                case RED_TOP -> new Pose(120.722, 128.977, Math.toRadians(217));
             };
         }
     }
@@ -369,25 +411,25 @@ public class PedroAutonomous extends OpMode {
     public int autonomousPathUpdate() {
         switch (pathState) {
             case STATE_START_PATH1:
-                // Start following the selected path
-                follower.followPath(paths.getPath(selectedPath));
+                // Start following path to point 1
+                follower.followPath(paths.getPath1(selectedPath));
                 // enable deposit during path
                 depositEnabled = true;
-                pathState = STATE_PATH_AND_DEPOSIT;
+                pathState = STATE_PATH1_AND_DEPOSIT;
                 break;
 
-            case STATE_PATH_AND_DEPOSIT:
+            case STATE_PATH1_AND_DEPOSIT:
                 // Deposit is enabled (will run from loop if depositEnabled==true)
-                // Wait until follower finishes the path
+                // Wait until follower finishes path to point 1
                 if (!follower.isBusy()) {
-                    // Path complete, start wait timer
+                    // Reached point 1, start wait timer
                     actionTimer.reset();
                     pathState = STATE_WAIT_BEFORE_INTAKE;
                 }
                 break;
 
             case STATE_WAIT_BEFORE_INTAKE:
-                // deposit remains enabled while waiting
+                // deposit remains enabled while waiting at point 1
                 // Wait before starting intake
                 if (actionTimer.seconds() >= WAIT_BEFORE_INTAKE_S) {
                     actionTimer.reset();
@@ -397,9 +439,24 @@ public class PedroAutonomous extends OpMode {
                 break;
 
             case STATE_INTAKE:
-                // Run intake and keep deposit enabled
+                // Run intake and keep deposit enabled at point 1
                 if (actionTimer.seconds() >= INTAKE_DURATION_S) {
                     stopIntake();
+                    // Start path to point 2
+                    pathState = STATE_START_PATH2;
+                }
+                break;
+
+            case STATE_START_PATH2:
+                // Start following path to point 2
+                follower.followPath(paths.getPath2(selectedPath));
+                pathState = STATE_PATH2_MOVING;
+                break;
+
+            case STATE_PATH2_MOVING:
+                // Moving to point 2, deposit still enabled
+                if (!follower.isBusy()) {
+                    // Reached point 2, stop everything
                     stopDeposit();
                     depositEnabled = false;
                     pathState = STATE_DONE;
