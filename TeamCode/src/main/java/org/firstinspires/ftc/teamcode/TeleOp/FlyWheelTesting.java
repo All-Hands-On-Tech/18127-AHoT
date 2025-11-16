@@ -30,17 +30,12 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.bylazar.graph.PanelsGraph;
-import com.bylazar.telemetry.PanelsTelemetry;
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
-import com.qualcomm.robotcore.util.Range;
-import com.qualcomm.robotcore.util.RollingAverage;
 
 import org.firstinspires.ftc.teamcode.ZSupport.RollingAve;
 
@@ -59,9 +54,9 @@ import org.firstinspires.ftc.teamcode.ZSupport.RollingAve;
  */
 
 @TeleOp(name="Fly Wheel Testing", group="ZTesting")
-@Disabled
 public class FlyWheelTesting extends LinearOpMode {
-    private DcMotorEx flyWheel = null;
+    private DcMotorEx flyWheelL = null;
+    private DcMotorEx flyWheelR = null;
     VoltageSensor voltSensor = null;
     double power = 0;
     double volt = 0;
@@ -75,8 +70,12 @@ public class FlyWheelTesting extends LinearOpMode {
         FtcDashboard dashboard = FtcDashboard.getInstance();
         telemetry = dashboard.getTelemetry();
 
-        flyWheel = hardwareMap.get(DcMotorEx.class, "deliverL");
-        flyWheel.setDirection(DcMotor.Direction.FORWARD);
+        flyWheelL = hardwareMap.get(DcMotorEx.class, "deliverL");
+        flyWheelR = hardwareMap.get(DcMotorEx.class, "deliverR");
+        flyWheelL.setDirection(DcMotor.Direction.FORWARD);
+        flyWheelR.setDirection(DcMotor.Direction.REVERSE);
+        flyWheelL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        flyWheelR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         voltSensor = hardwareMap.get(VoltageSensor.class, "Control Hub");
 
@@ -85,23 +84,26 @@ public class FlyWheelTesting extends LinearOpMode {
         while (opModeIsActive()) {
 
             if(gamepad1.dpadUpWasPressed()) {
-                volt += 1;
+                volt += 100;
             } else if (gamepad1.dpadDownWasPressed()) {
-                volt += -1;
+                volt += -100;
             }
-
-            power = volt/voltSensor.getVoltage();
-
-            flyWheel.setPower(power);
-            double measureVel = flyWheel.getVelocity()/100;
+//
+//            double currentVoltage = voltSensor.getVoltage();
+//            power = volt/currentVoltage;
+//
+//            flyWheelL.setPower(power);
+//            //flyWheelR.setPower(power);
+            double measureVel = flyWheelL.getVelocity();
             rollSpeed.addValue(measureVel);
 
+            flyWheelL.setVelocity(volt);
+            flyWheelR.setVelocity(volt);
 
+//            telemetry.addData("battery voltage", volt/currentVoltage);
             telemetry.addData("voltage in", volt);
-            telemetry.addData("speed true(crpm)", measureVel);
-            telemetry.addData("speed ave (crpm)", rollSpeed.getAverage());
-            telemetry.addData("-1.5", -1.5);
-            telemetry.addData("1.5", 1.5);
+            telemetry.addData("speed true", measureVel);
+            telemetry.addData("speed ave", rollSpeed.getAverage());
             telemetry.update();
         }
     }
