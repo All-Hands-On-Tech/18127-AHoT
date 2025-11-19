@@ -32,8 +32,8 @@ public class DepositTuner extends LinearOpMode {
     private static final double AUTO_AIM_MIN_ROTATION_SPEED = 0.08;  // Minimum rotation speed to overcome friction
     private static final double AUTO_AIM_HEADING_TOLERANCE = 2.0;  // degrees - stop when within this range
     private static final double AUTO_AIM_SLOW_DOWN_ANGLE = 20.0;  // degrees - start slowing down at this angle
-    private static final double AUTO_AIM_BLUE_OFFSET = -7.5;  // Blue alliance heading offset (degrees)
-    private static final double AUTO_AIM_RED_OFFSET = 7.5;     // Red alliance heading offset (degrees)
+    private static final double AUTO_AIM_BLUE_OFFSET = 7.7;   // Blue alliance heading offset (degrees) - corrected
+    private static final double AUTO_AIM_RED_OFFSET = -7.7;    // Red alliance heading offset (degrees) - corrected
 
     // Camera configuration constants (adjust for your robot)
     private static final double CAMERA_X_OFFSET_MM = 0.0;    // mm right from robot center
@@ -239,9 +239,9 @@ public class DepositTuner extends LinearOpMode {
             prevRightBumper = gamepad1.right_bumper;
 
             // Read raw joystick values (inverted Y for forward)
-            double forward = -gamepad1.left_stick_y;
-            double strafe = gamepad1.left_stick_x;
-            double rotate = -gamepad1.right_stick_x; // Negated to fix turning direction
+            double forward = -gamepad1.left_stick_y;  // No deadzone
+            double strafe = gamepad1.left_stick_x;    // No deadzone
+            double rotate = -gamepad1.right_stick_x;  // Negated for correct rotation direction
 
             // ===== AUTO-AIMING LOGIC =====
             // Driver 1 holds X to auto-aim at alliance goal
@@ -272,9 +272,9 @@ public class DepositTuner extends LinearOpMode {
                             }
 
                             // Calculate error: how far off from desired bearing
-                            // Positive error means tag is to the right of target, need to rotate left (CCW, positive)
-                            // Negative error means tag is to the left of target, need to rotate right (CW, negative)
-                            double bearingError = tagBearing - targetBearing;
+                            // Negative error means tag is to the right of target, need to rotate right (CW, negative)
+                            // Positive error means tag is to the left of target, need to rotate left (CCW, positive)
+                            double bearingError = targetBearing - tagBearing;  // Inverted to turn towards tag
 
                             // Normalize to [-180, 180] range
                             while (bearingError > 180) bearingError -= 360;
@@ -313,26 +313,20 @@ public class DepositTuner extends LinearOpMode {
 
             // Calculate magnitude and angle for true 360-degree movement
             double magnitude = Math.hypot(forward, strafe);
-            double angle = Math.atan2(forward, strafe);
+            double angle = Math.atan2(strafe, forward);  // atan2(x, y) for proper angle in all quadrants
 
-            // Apply cubic response curve to magnitude for smooth control (skip when auto-aiming)
-            if (!autoAiming) {
-                magnitude = Math.copySign(magnitude * magnitude * magnitude, magnitude);
-                rotate = Math.copySign(rotate * rotate * rotate, rotate);
-            }
-
-            // Apply speed multiplier based on mode (skip when auto-aiming)
+            // Apply speed multiplier based on mode FIRST (before cubic curve)
             double driveMul, rotateMul;
             if (autoAiming) {
                 // Auto-aiming: rotation already set, don't modify
-                driveMul = DRIVE_SPEED_NORMAL;
+                driveMul = 1.0;
                 rotateMul = 1.0; // Don't modify auto-aim rotation speed
             } else if (tuningMode) {
                 // Tuning mode: slow and precise
                 driveMul = DRIVE_SPEED_TUNING;
                 rotateMul = ROTATE_SPEED_TUNING;
             } else if (gamepad1.left_bumper) {
-                // Slow mode: 70% speed
+                // Slow mode: 60% speed
                 driveMul = DRIVE_SPEED_SLOW;
                 rotateMul = ROTATE_SPEED_SLOW;
             } else {
@@ -342,16 +336,17 @@ public class DepositTuner extends LinearOpMode {
             }
 
             magnitude *= driveMul;
+            rotate *= rotateMul;
+
+            // Apply cubic response curve to magnitude for smooth control
+            magnitude = Math.copySign(magnitude * magnitude * magnitude, magnitude);
             if (!autoAiming) {
-                rotate *= rotateMul;
+                rotate = Math.copySign(rotate * rotate * rotate, rotate);
             }
 
-
             // Reconstruct forward and strafe from polar coordinates
-            forward = magnitude * Math.sin(angle);
-            strafe = magnitude * Math.cos(angle) * STRAFE_COMPENSATION;
-
-            // Add slight counter-rotation when moving forward for stability
+            forward = magnitude * Math.cos(angle);
+            strafe = magnitude * Math.sin(angle) * STRAFE_COMPENSATION;
             // Calculate wheel powers for mecanum drive
             double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1);
             double fl = (forward + strafe - rotate) / denominator;
