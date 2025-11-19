@@ -22,8 +22,8 @@ public class SmallKrabsTele extends OpMode {
     // Local motor power correction multipliers (start at 1.0)
     private static final double LF_MULT = 1.0;
     private static final double RF_MULT = 1.0;
-    private static final double LR_MULT = 1.0;
-    private static final double RR_MULT = 1.0;
+    private static final double LR_MULT = 0.8;
+    private static final double RR_MULT = 0.8;
 
     // Slow mode scale (50% when left bumper held)
     private static final double SLOW_MODE_SCALE = 0.5;
@@ -95,12 +95,9 @@ public class SmallKrabsTele extends OpMode {
     @Override
     public void loop() {
         // Read the joysticks
-        double forward = -gamepad1.left_stick_y; // forward is negative on gamepad
-        double strafe = gamepad1.left_stick_x;
-        double rotate = gamepad1.right_stick_x;
-
-        // Apply slow mode
-        double scale = gamepad1.left_bumper ? SLOW_MODE_SCALE : 1.0;
+        double forward = -0.5*gamepad1.left_stick_y; // forward is negative on gamepad
+        double strafe = 0.5*gamepad1.left_stick_x;
+        double rotate = 0.35*gamepad1.right_stick_x;
 
         // Mecanum drive algorithm (standard)
         double lf = forward + strafe + rotate;
@@ -116,10 +113,10 @@ public class SmallKrabsTele extends OpMode {
         rr /= max;
 
         // Apply slow mode scale and motor multipliers
-        lf = lf * scale * LF_MULT;
-        rf = rf * scale * RF_MULT;
-        lr = lr * scale * LR_MULT;
-        rr = rr * scale * RR_MULT;
+        lf = lf * LF_MULT;
+        rf = rf * RF_MULT;
+        lr = lr * LR_MULT;
+        rr = rr * RR_MULT;
 
         // Set motor powers
         if (leftFront != null) leftFront.setPower(lf);
@@ -129,10 +126,10 @@ public class SmallKrabsTele extends OpMode {
 
         // ---------- Claw servo control (LB / RB) ----------
         // Left bumper closes/lowers claw (decrease position), right bumper opens/raises (increase)
-        if (gamepad1.left_bumper) {
+        if (gamepad2.left_bumper) {
             clawPosition -= CLAW_DELTA;
         }
-        if (gamepad1.right_bumper) {
+        if (gamepad2.right_bumper) {
             clawPosition += CLAW_DELTA;
         }
         // Clamp and write
@@ -142,12 +139,12 @@ public class SmallKrabsTele extends OpMode {
 
         // ---------- Slider motor control (ZL / ZR mapped to left_trigger / right_trigger) ----------
         double sliderPower = 0.0;
-        if (gamepad1.left_trigger > TRIGGER_THRESHOLD) {
+        if (gamepad2.left_trigger > TRIGGER_THRESHOLD) {
             // left trigger moves slider in positive direction
-            sliderPower = SLIDER_POWER * gamepad1.left_trigger;
-        } else if (gamepad1.right_trigger > TRIGGER_THRESHOLD) {
+            sliderPower = SLIDER_POWER * gamepad2.left_trigger;
+        } else if (gamepad2.right_trigger > TRIGGER_THRESHOLD) {
             // right trigger moves slider in negative direction
-            sliderPower = -SLIDER_POWER * gamepad1.right_trigger;
+            sliderPower = -SLIDER_POWER * gamepad2.right_trigger;
         }
         if (sliderMotor != null) sliderMotor.setPower(sliderPower);
 
@@ -156,7 +153,6 @@ public class SmallKrabsTele extends OpMode {
         telemetry.addData("rf", String.format("%.2f", rf));
         telemetry.addData("lr", String.format("%.2f", lr));
         telemetry.addData("rr", String.format("%.2f", rr));
-        telemetry.addData("slow", scale == SLOW_MODE_SCALE ? "ON" : "OFF");
         telemetry.addData("clawPos", String.format("%.2f", clawPosition));
         telemetry.addData("sliderPwr", String.format("%.2f", sliderMotor != null ? sliderMotor.getPower() : 0.0));
         telemetry.update();
