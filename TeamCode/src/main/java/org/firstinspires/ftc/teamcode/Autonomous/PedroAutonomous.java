@@ -4,6 +4,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
@@ -26,24 +27,29 @@ public class PedroAutonomous extends OpMode {
     private Paths paths; // Paths defined in the Paths class
 
     // Hardware for intake and deposit
-    private DcMotor intakeMotor;
+    private DcMotor intake1;  // Lower stage intake
+    private DcMotor intake2;  // Upper stage intake
     private DcMotorEx depositMotorL;
     private DcMotorEx depositMotorR;
     private Servo cam;
 
     // ========== TUNING VARIABLES ==========
-    // Intake Configuration
-    private static final double INTAKE_POWER = -1; // Negative to run in correct direction
-    private static final double INTAKE_DURATION_S = 6.5;
+    // Intake Configuration - Two Stage System
+    private static final double INTAKE1_POWER = -1.0; // Lower stage - runs continuously
+    private static final double INTAKE2_POWER = 1.0; // Upper stage - runs in cycles
+
+    // Deposit Cycle Configuration
+    private static final double DEPOSIT_CYCLE_PAUSE_INTAKE1_S = 2.5;  // Wait for motors to stabilize at 656 RPM (first time, longer stabilization)
+    private static final double DEPOSIT_CYCLE_INTAKE2_RUN_S = 2.0;    // Run intake2 (extended shooting time)
+    private static final double DEPOSIT_CYCLE_INTAKE1_RUN_S = 1.5;    // Run intake1
+    private static final double DEPOSIT_CYCLE_PAUSE_S = 1.5;          // Pause
+    private static final double DEPOSIT_CYCLE_INTAKE2_RUN2_S = 2.0;   // Run intake2 again (extended shooting time)
 
     // Cam Configuration
     private static final double CAM_POSITION = 0.5124;
 
     // Deposit Configuration - using motor's built-in velocity control
-    private double depositTargetVelocity = 662.7; // ticks per second (adjustable via dpad)
-
-    // State Machine Timing Configuration
-    private static final double WAIT_BEFORE_INTAKE_S = 3; // Wait 2 seconds before starting intake
+    private double depositTargetVelocity = 656.7; // ticks per second (adjustable via dpad)
 
     // Tuning parameters for dpad adjustment
     private static final double MIN_VELOCITY = 0.0;
@@ -57,30 +63,35 @@ public class PedroAutonomous extends OpMode {
     private static final long FIRST_REPEAT_DELAY_MS = 350;
     private static final long REPEAT_INTERVAL_MS = 120;
 
-    // Path Selection Enum
-    public enum PathSelection {
-        BLUE_BOTTOM,
-        BLUE_TOP,
-        RED_BOTTOM,
-        RED_TOP
-    }
 
     // ========== STATE MACHINE CONSTANTS ==========
     private static final int STATE_START_PATH1 = 0;
-    private static final int STATE_PATH1_AND_DEPOSIT = 1;
-    private static final int STATE_WAIT_BEFORE_INTAKE = 2;
-    private static final int STATE_INTAKE = 3;
-    private static final int STATE_START_PATH2 = 4;
-    private static final int STATE_PATH2_MOVING = 5;
+    private static final int STATE_PATH1_MOVING = 1;
+    private static final int STATE_DEPOSIT_CYCLE1_PAUSE = 2;
+    private static final int STATE_DEPOSIT_CYCLE1_INTAKE2_RUN1 = 3;
+    private static final int STATE_DEPOSIT_CYCLE1_INTAKE1_RUN = 4;
+    private static final int STATE_DEPOSIT_CYCLE1_PAUSE2 = 5;
+    private static final int STATE_DEPOSIT_CYCLE1_INTAKE2_RUN2 = 6;
+    private static final int STATE_START_PATH2 = 7;
+    private static final int STATE_PATH2_MOVING = 8;
+    private static final int STATE_START_PATH3 = 9;
+    private static final int STATE_PATH3_MOVING = 10;
+    private static final int STATE_START_PATH4 = 11;
+    private static final int STATE_PATH4_MOVING = 12;
+    private static final int STATE_DEPOSIT_CYCLE2_PAUSE = 13;
+    private static final int STATE_DEPOSIT_CYCLE2_INTAKE2_RUN1 = 14;
+    private static final int STATE_DEPOSIT_CYCLE2_INTAKE1_RUN = 15;
+    private static final int STATE_DEPOSIT_CYCLE2_PAUSE2 = 16;
+    private static final int STATE_DEPOSIT_CYCLE2_INTAKE2_RUN2 = 17;
+    private static final int STATE_START_PATH5 = 18;
+    private static final int STATE_PATH5_MOVING = 19;
     private static final int STATE_DONE = -1;
 
     // ========== INSTANCE VARIABLES ==========
     private ElapsedTime actionTimer;
-    private PathSelection selectedPath = PathSelection.BLUE_BOTTOM; // Default selection
-    private boolean pathSelected = false;
 
     // Deposit manual/auto control
-    private boolean depositEnabled = false; // when true, motors try to reach target ticks/sec
+    private boolean depositEnabled = true; // when true, motors try to reach target ticks/sec
     private boolean lastAState = false;     // for edge-detecting the A button
 
     @Override
@@ -88,20 +99,32 @@ public class PedroAutonomous extends OpMode {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
         follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(new Pose(120.316, 128.707, Math.toRadians(38))); // Red Top starting pose
+
         paths = new Paths(follower); // Build paths
 
         // Initialize action timer
         actionTimer = new ElapsedTime();
 
-        // Initialize intake motor
+        // Initialize intake motors
         try {
-            intakeMotor = hardwareMap.get(DcMotor.class, "intake");
-            if (intakeMotor != null) {
-                intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-                intakeMotor.setPower(0);
+            intake1 = hardwareMap.get(DcMotor.class, "intake1");
+            if (intake1 != null) {
+                intake1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                intake1.setPower(0);
             }
         } catch (Exception e) {
-            intakeMotor = null;
+            intake1 = null;
+        }
+
+        try {
+            intake2 = hardwareMap.get(DcMotor.class, "intake2");
+            if (intake2 != null) {
+                intake2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                intake2.setPower(0);
+            }
+        } catch (Exception e) {
+            intake2 = null;
         }
 
         // Initialize deposit motors for velocity control (matching DepositTuner)
@@ -110,8 +133,10 @@ public class PedroAutonomous extends OpMode {
             if (depositMotorL != null) {
                 depositMotorL.setDirection(DcMotorSimple.Direction.REVERSE); // Reverse left motor for auto
                 depositMotorL.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-                depositMotorL.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-                depositMotorL.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+                depositMotorL.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER); // Required for velocity control
+                depositMotorL.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
+                // Set velocity PID coefficients for stability (tune these if needed)
+                depositMotorL.setVelocityPIDFCoefficients(15, 0.5, 3, 12.6);
                 depositMotorL.setPower(0);
             }
         } catch (Exception e) {
@@ -122,8 +147,10 @@ public class PedroAutonomous extends OpMode {
             depositMotorR = hardwareMap.get(DcMotorEx.class, "DepositMotorR");
             if (depositMotorR != null) {
                 depositMotorR.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-                depositMotorR.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-                depositMotorR.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+                depositMotorR.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER); // Required for velocity control
+                depositMotorR.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
+                // Set velocity PID coefficients for stability (tune these if needed)
+                depositMotorR.setVelocityPIDFCoefficients(15, 0.5, 3, 12.6);
                 depositMotorR.setPower(0);
             }
         } catch (Exception e) {
@@ -141,39 +168,7 @@ public class PedroAutonomous extends OpMode {
         }
 
         // Show path-button mapping permanently (also echoed every loop)
-        panelsTelemetry.debug("Status", "Initialized - Select a path");
-        panelsTelemetry.debug("Paths (permanent):", "DPad Up=Blue Bottom, Right=Blue Top, Down=Red Bottom, Left=Red Top");
-        panelsTelemetry.update(telemetry);
-    }
-
-    @Override
-    public void init_loop() {
-        if (!pathSelected) {
-            // Handle path selection via D-Pad
-            if (gamepad1.dpad_up) {
-                selectedPath = PathSelection.BLUE_BOTTOM;
-                pathSelected = true;
-            } else if (gamepad1.dpad_right) {
-                selectedPath = PathSelection.BLUE_TOP;
-                pathSelected = true;
-            } else if (gamepad1.dpad_down) {
-                selectedPath = PathSelection.RED_BOTTOM;
-                pathSelected = true;
-            } else if (gamepad1.dpad_left) {
-                selectedPath = PathSelection.RED_TOP;
-                pathSelected = true;
-            }
-
-            if (pathSelected) {
-                // Set starting pose based on selected path
-                Pose startPose = paths.getStartPose(selectedPath);
-                follower.setStartingPose(startPose);
-                panelsTelemetry.debug("Status", "Path Selected: " + selectedPath);
-                panelsTelemetry.debug("Start Pose", startPose);
-            } else {
-                panelsTelemetry.debug("Status", "Waiting for path selection...");
-            }
-        }
+        panelsTelemetry.debug("Status", "Initialized - Red Top Path");
         panelsTelemetry.update(telemetry);
     }
 
@@ -257,7 +252,8 @@ public class PedroAutonomous extends OpMode {
             panelsTelemetry.debug("DepositR", String.format(java.util.Locale.US, "%.0f ticks/s (%.0f RPM)", vR, rpmR));
         }
 
-        if (intakeMotor != null) panelsTelemetry.debug("Intake Power", intakeMotor.getPower());
+        if (intake1 != null) panelsTelemetry.debug("Intake1 Power", intake1.getPower());
+        if (intake2 != null) panelsTelemetry.debug("Intake2 Power", intake2.getPower());
         panelsTelemetry.debug("ActionTimer", String.format(java.util.Locale.US, "%.1f s", actionTimer.seconds()));
 
         panelsTelemetry.debug("Controls", "DPAD: Up/Down=±100 Left/Right=±10 | A=Toggle Deposit");
@@ -267,7 +263,8 @@ public class PedroAutonomous extends OpMode {
     @Override
     public void stop() {
         // Stop all motors
-        if (intakeMotor != null) intakeMotor.setPower(0);
+        if (intake1 != null) intake1.setPower(0);
+        if (intake2 != null) intake2.setPower(0);
         if (depositMotorL != null) depositMotorL.setPower(0);
         if (depositMotorR != null) depositMotorR.setPower(0);
     }
@@ -286,179 +283,249 @@ public class PedroAutonomous extends OpMode {
         depositMotorR.setPower(0);
     }
 
-    private void startIntake() {
-        if (intakeMotor != null) intakeMotor.setPower(INTAKE_POWER);
+    private void startIntake1() {
+        if (intake1 != null) intake1.setPower(INTAKE1_POWER);
     }
 
-    private void stopIntake() {
-        if (intakeMotor != null) intakeMotor.setPower(0);
+    private void stopIntake1() {
+        if (intake1 != null) intake1.setPower(0);
+    }
+
+    private void startIntake2() {
+        if (intake2 != null) intake2.setPower(INTAKE2_POWER);
+    }
+
+    private void stopIntake2() {
+        if (intake2 != null) intake2.setPower(0);
     }
 
     public static class Paths {
 
-        // Split paths into segment 1 (to first point) and segment 2 (to second point)
-        public PathChain blueBottomPath1;
-        public PathChain blueBottomPath2;
-        public PathChain blueTopPath1;
-        public PathChain blueTopPath2;
-        public PathChain redBottomPath1;
-        public PathChain redBottomPath2;
-        public PathChain redTopPath1;
-        public PathChain redTopPath2;
+        // Red Top path segments
+        public PathChain Path1;
+        public PathChain Path2;
+        public PathChain Path3;
+        public PathChain Path4;
+        public PathChain Path5;
 
         public Paths(Follower follower) {
-            // Blue Bottom Path - Segment 1: Start to Point 1
-            blueBottomPath1 = follower
+            Path1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(55.083, 6.632), new Pose(58.180, 90.105))
+                            new BezierLine(new Pose(120.316, 128.707), new Pose(82.286, 86.617))
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(136))
+                    .setLinearHeadingInterpolation(Math.toRadians(38), Math.toRadians(42))
                     .build();
 
-            // Blue Bottom Path - Segment 2: Point 1 to Point 2
-            blueBottomPath2 = follower
+            Path2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(66.180, 88.105), new Pose(49.263, 52.647))
+                            new BezierLine(new Pose(82.286, 86.617), new Pose(93.925, 84.451))
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
+                    .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
                     .build();
 
-            // Blue Top Path - Segment 1: Start to Point 1
-            blueTopPath1 = follower
+            Path3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(23.549, 128.842), new Pose(58.075, 90.128))
+                            new BezierLine(new Pose(93.925, 84.451), new Pose(128.842, 83.910))
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(323), Math.toRadians(136))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
-            // Blue Top Path - Segment 2: Point 1 to Point 2
-            blueTopPath2 = follower
+            Path4 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(68.075, 85.128), new Pose(56.707, 68.752))
+                            new BezierLine(new Pose(128.842, 83.910), new Pose(82.421, 86.887))
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(138), Math.toRadians(90))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(43))
                     .build();
 
-            // Red Bottom Path - Segment 1: Start to Point 1
-            redBottomPath1 = follower
+            Path5 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(88.917, 6.767), new Pose(83.744, 92.218))
+                            new BezierCurve(
+                                    new Pose(82.421, 86.887),
+                                    new Pose(97.038, 70.376),
+                                    new Pose(126.271, 72.000)
+                            )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(45))
+                    .setTangentHeadingInterpolation()
                     .build();
-
-            // Red Bottom Path - Segment 2: Point 1 to Point 2
-            redBottomPath2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(81.744, 91.218), new Pose(97.850, 68.617))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(90))
-                    .build();
-
-            // Red Top Path - Segment 1: Start to Point 1
-            redTopPath1 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(120.722, 128.977), new Pose(83.744, 92.218))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(217), Math.toRadians(46))
-                    .build();
-
-            // Red Top Path - Segment 2: Point 1 to Point 2
-            redTopPath2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(81.744, 91.218), new Pose(93.789, 57.248))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(46), Math.toRadians(90))
-                    .build();
-        }
-
-        public PathChain getPath1(PathSelection pathSelection) {
-            return switch (pathSelection) {
-                case BLUE_BOTTOM -> blueBottomPath1;
-                case BLUE_TOP -> blueTopPath1;
-                case RED_BOTTOM -> redBottomPath1;
-                case RED_TOP -> redTopPath1;
-            };
-        }
-
-        public PathChain getPath2(PathSelection pathSelection) {
-            return switch (pathSelection) {
-                case BLUE_BOTTOM -> blueBottomPath2;
-                case BLUE_TOP -> blueTopPath2;
-                case RED_BOTTOM -> redBottomPath2;
-                case RED_TOP -> redTopPath2;
-            };
-        }
-
-        public Pose getStartPose(PathSelection pathSelection) {
-            return switch (pathSelection) {
-                case BLUE_BOTTOM -> new Pose(55.083, 6.632, Math.toRadians(90));
-                case BLUE_TOP -> new Pose(23.549, 128.842, Math.toRadians(323));
-                case RED_BOTTOM -> new Pose(88.917, 6.767, Math.toRadians(90));
-                case RED_TOP -> new Pose(120.722, 128.977, Math.toRadians(217));
-            };
         }
     }
 
     public int autonomousPathUpdate() {
         switch (pathState) {
             case STATE_START_PATH1:
-                // Start following path to point 1
-                follower.followPath(paths.getPath1(selectedPath));
-                // enable deposit during path
+                // Start following path to point 1, enable deposit and intake1
+                follower.followPath(paths.Path1);
                 depositEnabled = true;
-                pathState = STATE_PATH1_AND_DEPOSIT;
+                startIntake1();
+                pathState = STATE_PATH1_MOVING;
                 break;
 
-            case STATE_PATH1_AND_DEPOSIT:
-                // Deposit is enabled (will run from loop if depositEnabled==true)
-                // Wait until follower finishes path to point 1
+            case STATE_PATH1_MOVING:
+                // Deposit and intake1 running while moving to point 1
                 if (!follower.isBusy()) {
-                    // Reached point 1, start wait timer
+                    // Reached end of Path1, start deposit cycle 1
+                    stopIntake1(); // Pause intake1
                     actionTimer.reset();
-                    pathState = STATE_WAIT_BEFORE_INTAKE;
+                    pathState = STATE_DEPOSIT_CYCLE1_PAUSE;
                 }
                 break;
 
-            case STATE_WAIT_BEFORE_INTAKE:
-                // deposit remains enabled while waiting at point 1
-                // Wait before starting intake
-                if (actionTimer.seconds() >= WAIT_BEFORE_INTAKE_S) {
+            // ===== DEPOSIT CYCLE 1 (at end of Path1) =====
+            case STATE_DEPOSIT_CYCLE1_PAUSE:
+                // Pause before starting deposit cycle
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_INTAKE1_S) {
+                    startIntake2(); // Start intake2
                     actionTimer.reset();
-                    startIntake();
-                    pathState = STATE_INTAKE;
+                    pathState = STATE_DEPOSIT_CYCLE1_INTAKE2_RUN1;
                 }
                 break;
 
-            case STATE_INTAKE:
-                // Run intake and keep deposit enabled at point 1
-                if (actionTimer.seconds() >= INTAKE_DURATION_S) {
-                    stopIntake();
-                    // Start path to point 2
+            case STATE_DEPOSIT_CYCLE1_INTAKE2_RUN1:
+                // Run intake2 for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN_S) {
+                    stopIntake2();
+                    startIntake1(); // Run intake1
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE1_INTAKE1_RUN;
+                }
+                break;
+
+            case STATE_DEPOSIT_CYCLE1_INTAKE1_RUN:
+                // Run intake1 for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE1_RUN_S) {
+                    stopIntake1();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE1_PAUSE2;
+                }
+                break;
+
+            case STATE_DEPOSIT_CYCLE1_PAUSE2:
+                // Pause for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_S) {
+                    startIntake2(); // Run intake2 again
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE1_INTAKE2_RUN2;
+                }
+                break;
+
+            case STATE_DEPOSIT_CYCLE1_INTAKE2_RUN2:
+                // Run intake2 again for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN2_S) {
+                    stopIntake2();
                     pathState = STATE_START_PATH2;
                 }
                 break;
 
+            // ===== PATH 2 =====
             case STATE_START_PATH2:
-                // Start following path to point 2
-                follower.followPath(paths.getPath2(selectedPath));
+                // Start Path2, resume intake1
+                follower.followPath(paths.Path2);
+                startIntake1();
                 pathState = STATE_PATH2_MOVING;
                 break;
 
             case STATE_PATH2_MOVING:
-                // Moving to point 2, deposit still enabled
+                // Deposit and intake1 running while moving
                 if (!follower.isBusy()) {
-                    // Reached point 2, stop everything
-                    stopDeposit();
+                    pathState = STATE_START_PATH3;
+                }
+                break;
+
+            // ===== PATH 3 =====
+            case STATE_START_PATH3:
+                // Start Path3
+                follower.followPath(paths.Path3);
+                pathState = STATE_PATH3_MOVING;
+                break;
+
+            case STATE_PATH3_MOVING:
+                // Deposit and intake1 running while moving
+                if (!follower.isBusy()) {
+                    pathState = STATE_START_PATH4;
+                }
+                break;
+
+            // ===== PATH 4 =====
+            case STATE_START_PATH4:
+                // Start Path4
+                follower.followPath(paths.Path4);
+                pathState = STATE_PATH4_MOVING;
+                break;
+
+            case STATE_PATH4_MOVING:
+                // Deposit and intake1 running while moving
+                if (!follower.isBusy()) {
+                    // Reached end of Path4, start deposit cycle 2
+                    stopIntake1(); // Pause intake1
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE2_PAUSE;
+                }
+                break;
+
+            // ===== DEPOSIT CYCLE 2 (at end of Path4) =====
+            case STATE_DEPOSIT_CYCLE2_PAUSE:
+                // Pause before starting deposit cycle
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_INTAKE1_S) {
+                    startIntake2(); // Start intake2
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE2_INTAKE2_RUN1;
+                }
+                break;
+
+            case STATE_DEPOSIT_CYCLE2_INTAKE2_RUN1:
+                // Run intake2 for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN_S) {
+                    stopIntake2();
+                    startIntake1(); // Run intake1
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE2_INTAKE1_RUN;
+                }
+                break;
+
+            case STATE_DEPOSIT_CYCLE2_INTAKE1_RUN:
+                // Run intake1 for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE1_RUN_S) {
+                    stopIntake1();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE2_PAUSE2;
+                }
+                break;
+
+            case STATE_DEPOSIT_CYCLE2_PAUSE2:
+                // Pause for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_S) {
+                    startIntake2(); // Run intake2 again
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE2_INTAKE2_RUN2;
+                }
+                break;
+
+            case STATE_DEPOSIT_CYCLE2_INTAKE2_RUN2:
+                // Run intake2 again for 1.5 seconds
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN2_S) {
+                    stopIntake2();
+                    pathState = STATE_START_PATH5;
+                }
+                break;
+
+            // ===== PATH 5 =====
+            case STATE_START_PATH5:
+                // Start final Path5
+                follower.followPath(paths.Path5);
+                pathState = STATE_PATH5_MOVING;
+                break;
+
+            case STATE_PATH5_MOVING:
+                // Deposit still running (intake1 stopped)
+                if (!follower.isBusy()) {
+                    // Reached final point, stop everything
                     depositEnabled = false;
+                    stopDeposit();
                     pathState = STATE_DONE;
                 }
                 break;

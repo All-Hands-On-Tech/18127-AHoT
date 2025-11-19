@@ -12,7 +12,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 public class RobotHardware {
     // Drive motors
-    public DcMotor frontLeft, frontRight, backLeft, backRight, intakeMotor;
+    public DcMotor frontLeft, frontRight, backLeft, backRight, intake1, intake2;
 
     // IMU (hub) fallback
     public IMU imu;
@@ -48,19 +48,22 @@ public class RobotHardware {
             frontRight = hardwareMap.get(DcMotor.class, config.frontRightName);
             backLeft = hardwareMap.get(DcMotor.class, config.backLeftName);
             backRight = hardwareMap.get(DcMotor.class, config.backRightName);
-            try { intakeMotor = hardwareMap.get(DcMotor.class, config.intakeName); } catch (Exception ignored) {}
+            try { intake1 = hardwareMap.get(DcMotor.class, config.intake1Name); } catch (Exception ignored) {}
+            try { intake2 = hardwareMap.get(DcMotor.class, config.intake2Name); } catch (Exception ignored) {}
 
             if (frontLeft != null) frontLeft.setDirection(DcMotor.Direction.REVERSE);
             if (frontRight != null) frontRight.setDirection(DcMotor.Direction.FORWARD);
             if (backLeft != null) backLeft.setDirection(DcMotor.Direction.REVERSE);
             if (backRight != null) backRight.setDirection(DcMotor.Direction.FORWARD);
-            if (intakeMotor != null) intakeMotor.setDirection(DcMotor.Direction.REVERSE);
+            if (intake1 != null) intake1.setDirection(DcMotor.Direction.FORWARD);
+            if (intake2 != null) intake2.setDirection(DcMotor.Direction.FORWARD);
 
             if (frontLeft != null) frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             if (frontRight != null) frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             if (backLeft != null) backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             if (backRight != null) backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            if (intakeMotor != null) intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            if (intake1 != null) intake1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            if (intake2 != null) intake2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
             // IMU
             try {
@@ -159,11 +162,17 @@ public class RobotHardware {
     }
 
     // Intake control
-    public void startIntake() {
-        if (intakeMotor != null) intakeMotor.setPower(1.0); // Adjust power as needed
+    public void startIntake1() {
+        if (intake1 != null) intake1.setPower(1.0);
     }
-    public void stopIntake() {
-        if (intakeMotor != null) intakeMotor.setPower(0.0);
+    public void stopIntake1() {
+        if (intake1 != null) intake1.setPower(0.0);
+    }
+    public void startIntake2() {
+        if (intake2 != null) intake2.setPower(1.0);
+    }
+    public void stopIntake2() {
+        if (intake2 != null) intake2.setPower(0.0);
     }
 
     // Deposit control (simple example: run both motors forward for deposit)

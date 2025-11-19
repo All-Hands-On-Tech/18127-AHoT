@@ -15,7 +15,8 @@ public class RobotConfig {
     public String strafePodLogicalName = "strafePod";   // strafe (Y) pod label
 
     // Device names
-    public String intakeName = "intake";
+    public String intake1Name = "intake1";
+    public String intake2Name = "intake2";
     public String pinpointName = "odo"; // Pinpoint device name
     public String imuName = "imu"; // re-added for RobotHardware
     public String depositMotorLName = "DepositMotorL";
