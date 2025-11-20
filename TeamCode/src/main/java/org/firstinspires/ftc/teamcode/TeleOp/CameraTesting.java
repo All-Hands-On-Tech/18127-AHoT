@@ -54,8 +54,7 @@ import org.firstinspires.ftc.teamcode.ZSupport.RollingAve;
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list
  */
 
-@TeleOp(name="Fly Wheel Testing", group="ZTesting")
-@Disabled
+@TeleOp(name="Camera Testing", group="ZTesting")
 public class CameraTesting extends LinearOpMode {
     private Camera camera = new Camera(this);
 
