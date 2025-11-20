@@ -55,11 +55,11 @@ class K2ServoPositions {
     public static final double HOOD_DOWN = 0.06;
 
     // Transfer positions
-    public static final double LEFT_TRANSFER = 0.58;
-    public static final double LEFT_TRANSFER_IDLE = 0.66;
+    public static final double LEFT_TRANSFER = 0.05;
+    public static final double LEFT_TRANSFER_IDLE = 0.55;
 
-    public static final double RIGHT_TRANSFER = 0.07;
-    public static final double RIGHT_TRANSFER_IDLE = 0.01;
+    public static final double RIGHT_TRANSFER = 0.75;
+    public static final double RIGHT_TRANSFER_IDLE = 0.25;
 
     // Door positions
     public static final double DOOR_OPEN = 0.75;
