@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit; // added
@@ -9,6 +10,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.teamcode.ZSupport.RAndDBotUtilities;
 
+@Disabled
 @TeleOp(name="RAndDBotTeleOp", group="Z")
 public class RAndDBotTeleOp extends LinearOpMode {
     RAndDBotUtilities bot = new RAndDBotUtilities(this);

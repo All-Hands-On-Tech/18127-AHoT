@@ -156,19 +156,10 @@ public class Camera {
     }
     /**Adds telemetry about estimated robot pose*/
     public void telemetryAprilTagPose() {
-        List<AprilTagDetection> currentDetections = aprilTag.getDetections();
-        for (AprilTagDetection detection : currentDetections) {
-            if (detection.metadata != null) {
-                linearOpMode.telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
-                if (!detection.metadata.name.contains("Obelisk")) {
-                    linearOpMode.telemetry.addLine(String.format("XYYaw %6.1f %6.1f %6.1f",
-                            (72 + detection.robotPose.getPosition().y),
-                            (72 - detection.robotPose.getPosition().x),
-                            (detection.robotPose.getOrientation().getYaw(AngleUnit.DEGREES) - 90)));
-                }
-            }
-        }
-
+        Pose2D currentPose = getPose();
+        linearOpMode.telemetry.addData("X pos (in):    ", currentPose.getX(DistanceUnit.INCH));
+        linearOpMode.telemetry.addData("Y pos (in):    ", currentPose.getY(DistanceUnit.INCH));
+        linearOpMode.telemetry.addData("Heading (deg): ", currentPose.getHeading(AngleUnit.DEGREES));
     }
 
     /** returns Pose using Pedro Pathing coordinates*/
