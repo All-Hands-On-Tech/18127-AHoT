@@ -1,20 +1,20 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
 import com.pedropathing.control.FilteredPIDFCoefficients;
+import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.FollowerBuilder;
 import com.pedropathing.ftc.drivetrains.MecanumConstants;
 import com.pedropathing.ftc.localization.constants.PinpointConstants;
 import com.pedropathing.paths.PathConstraints;
-import com.pedropathing.control.PIDFCoefficients;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class Constants {
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(8.2)  // Robot mass in kilograms
+            .mass(9.5)  // Robot mass in kilograms
             .forwardZeroPowerAcceleration(-42.983767)
             .lateralZeroPowerAcceleration(-56.82688)
             .translationalPIDFCoefficients(new PIDFCoefficients(
@@ -25,7 +25,7 @@ public class Constants {
             ))
             .translationalPIDFSwitch(4)
             .headingPIDFCoefficients(new PIDFCoefficients(
-                    1.567,
+                    1.0,    // Reduced from 1.567 to reduce oscillation
                     0,
                     0.034,
                     0.0
@@ -47,12 +47,12 @@ public class Constants {
     public static final double RIGHT_REAR_POWER = 1.0;
 
     public static MecanumConstants driveConstants = new MecanumConstants()
-            .maxPower(1)
+            .maxPower(0.8)  // Reduced from 1.0 for smoother control and to prevent aggressive movements
             .rightFrontMotorName("frontRight") //backLeft
             .rightRearMotorName("backRight") //frontLeft
             .leftRearMotorName("backLeft") //frontRight
             .leftFrontMotorName("frontLeft")  //backRight/
-            // Match RobotHardware motor directions:
+            // REVERSED - all motors flipped to reverse drive direction:
             .leftFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
             .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)

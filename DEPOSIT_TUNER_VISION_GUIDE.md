@@ -2,73 +2,26 @@
 
 ## Overview
 
-The Deposit Tuner now includes AprilTag vision localization with **sensor fusion** to display the robot's field position in real-time using the FTC Field Coordinate System. The system combines odometry and vision data for optimal position tracking.
+The Deposit Tuner now includes AprilTag vision localization to display the robot's field position in real-time using the FTC Field Coordinate System.
 
 ## What Was Added
 
 ### Vision Integration Features:
 1. **AprilTag Detection** - Automatically detects DECODE season AprilTags
-2. **Sensor Fusion** - Intelligently combines odometry and vision data
-3. **Three Position Sources** - Displays fused, odometry, and vision positions separately
-4. **Field Coordinates** - All positions in millimeters (X, Y coordinates)
-5. **Heading Display** - Shows robot orientation in degrees
-6. **Tag Information** - Lists detected tag IDs and names
-7. **No Driver Input Required** - Vision runs automatically in the background
+2. **Field Coordinates** - Displays position in millimeters (X, Y coordinates)
+3. **Heading Display** - Shows robot orientation in degrees
+4. **Tag Information** - Lists detected tag IDs and names
+5. **No Driver Input Required** - Vision runs automatically in the background
 
 ### Display Format:
 ```
-=== ROBOT LOCALIZATION ===
-FUSED POSITION (Primary):
-  X: 1487.3 mm
-  Y: -2543.8 mm
-  Heading: 45.2°
-  Fusion: 70% vision, 30% odo
-
-ODOMETRY:
-  X: 1502.1 mm
-  Y: -2531.4 mm
-  Heading: 44.8°
-
-VISION (AprilTag):
-  Tags Detected: 2
-  X: 1481.5 mm
-  Y: -2549.7 mm
-  Heading: 45.4°
-  Tag IDs: 11 (Blue Observation Zone), 15 (Red Submersible)
+=== VISION LOCALIZATION ===
+Tags Detected: 2
+Field X: 1487.3 mm
+Field Y: -2543.8 mm
+Heading: 45.2°
+Tag IDs: 11 (Blue Observation Zone), 15 (Red Submersible)
 ```
-
-## Sensor Fusion Algorithm
-
-The system uses **weighted averaging** to combine odometry and vision:
-
-### Fusion Weights:
-- **2+ Tags Detected**: 70% vision, 30% odometry (high confidence)
-- **1 Tag Detected**: 40% vision, 60% odometry (moderate confidence)
-- **0 Tags Detected**: 0% vision, 100% odometry (fallback)
-
-### Why Sensor Fusion?
-- **Odometry Strengths**: Smooth, continuous, high frequency
-- **Odometry Weaknesses**: Accumulates drift over time
-- **Vision Strengths**: Absolute position, corrects drift
-- **Vision Weaknesses**: Can be noisy, depends on tag visibility
-- **Fused Result**: Best of both worlds - smooth and accurate
-
-### Position Sources:
-
-1. **FUSED POSITION (Primary)** 
-   - Weighted average of odometry and vision
-   - Use this for navigation and autonomous
-   - Most accurate and stable position estimate
-
-2. **ODOMETRY**
-   - Raw odometry from Pinpoint sensors
-   - Continuous, smooth tracking
-   - May drift over time
-
-3. **VISION (AprilTag)**
-   - Raw vision from AprilTag detection
-   - Absolute field position
-   - Only available when tags are visible
 
 ## Field Coordinate System (DECODE)
 
@@ -132,93 +85,46 @@ This matches the FTC documentation which uses mm for field coordinates.
 4. **Averaging**: When multiple tags are visible, positions are averaged for accuracy
 5. **Coordinate Conversion**: SDK provides inches, converted to mm for display
 
-## Using Position Data
+## Using Vision Data
 
 ### In TeleOp:
-- **Monitor FUSED position** for most accurate robot location
-- **Check ODOMETRY** to see raw sensor data
-- **Check VISION** to verify AprilTag detection
-- Use for alignment with game elements
+- Monitor position while driving for awareness
+- Check alignment with game elements
 - Verify robot location on field
 
-### In Autonomous (Using Fused Position):
+### In Autonomous:
 ```java
-// In your main loop, after sensor updates and fusion calculation:
-
-// Use the fused position for navigation (most accurate)
-double currentX = fusedX_mm;
-double currentY = fusedY_mm;
-double currentHeading = fusedHeading;
-
-// Navigate to target position
-double targetX = 1500.0;  // mm
-double targetY = -2000.0; // mm
-
-double errorX = targetX - currentX;
-double errorY = targetY - currentY;
-
-// Simple proportional control
-double forwardPower = errorY * 0.0005;  // Adjust gain as needed
-double strafePower = errorX * 0.0005;
-
-// Check if at target
-double distance = Math.hypot(errorX, errorY);
-if (distance < 50.0) {  // Within 50mm (5cm) of target
-    // Reached destination
+// Vision data is available in the main loop
+if (visionTagCount > 0) {
+    // Use visionX_mm, visionY_mm, visionHeading
+    // Navigate to target position
+    double errorX = targetX_mm - visionX_mm;
+    double errorY = targetY_mm - visionY_mm;
+    // ... drive control logic
 }
 ```
 
-### Accessing Individual Sources:
+## Sensor Fusion (Future Enhancement)
+
+Vision localization works alongside odometry:
+- **Odometry**: Continuous, smooth position tracking
+- **Vision**: Absolute position from tags, corrects drift
+- **Combined**: Use vision to reset/correct odometry periodically
+
+Example fusion logic:
 ```java
-// Fused position (recommended for navigation)
-double x = fusedX_mm;
-double y = fusedY_mm;
-double heading = fusedHeading;
-
-// Odometry only
-double odoX = odoX_mm;
-double odoY = odoY_mm;
-double odoHeading = odoHeading;
-
-// Vision only (when available)
-if (visionValid) {
-    double visionX = visionX_mm;
-    double visionY = visionY_mm;
-    double visionHeading = visionHeading;
-}
-```
-
-## Comparing Position Sources
-
-### When to Trust Each Source:
-
-**Use FUSED Position when:**
-- Navigating autonomously
-- Need most accurate position
-- Tags are occasionally visible
-
-**Use ODOMETRY when:**
-- Need smooth, continuous tracking
-- Vision is temporarily unavailable
-- Short-duration movements
-
-**Use VISION when:**
-- Need absolute field position
-- Correcting long-term drift
-- Multiple tags are visible (high confidence)
-
-### Monitoring Fusion Quality:
-```java
-// Check fusion weight to see confidence level
-if (visionWeight >= 0.7) {
-    // High confidence - 2+ tags visible
-    // Safe to make precise movements
-} else if (visionWeight >= 0.4) {
-    // Moderate confidence - 1 tag visible
-    // Acceptable for most operations
+if (visionTagCount >= 2) {  // High confidence with 2+ tags
+    // Trust vision more
+    double fusedX = 0.7 * visionX_mm + 0.3 * pos.getXmm();
+    double fusedY = 0.7 * visionY_mm + 0.3 * pos.getYmm();
+} else if (visionTagCount == 1) {  // Lower confidence
+    // Balance vision and odometry
+    double fusedX = 0.4 * visionX_mm + 0.6 * pos.getXmm();
+    double fusedY = 0.4 * visionY_mm + 0.6 * pos.getYmm();
 } else {
-    // Low confidence - no tags
-    // Relying on odometry only
+    // No vision, use odometry only
+    double fusedX = pos.getXmm();
+    double fusedY = pos.getYmm();
 }
 ```
 

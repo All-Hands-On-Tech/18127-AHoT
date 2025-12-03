@@ -239,8 +239,8 @@ public class DepositTuner extends LinearOpMode {
             prevRightBumper = gamepad1.right_bumper;
 
             // Read raw joystick values (inverted Y for forward)
-            double forward = -gamepad1.left_stick_y;  // No deadzone
-            double strafe = gamepad1.left_stick_x;    // No deadzone
+            double forward = gamepad1.left_stick_y;   // Reverse drive direction
+            double strafe = -gamepad1.left_stick_x;   // Reverse strafe direction
             double rotate = -gamepad1.right_stick_x;  // Negated for correct rotation direction
 
             // ===== AUTO-AIMING LOGIC =====

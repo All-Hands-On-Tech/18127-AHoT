@@ -21,14 +21,10 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @Configurable // Panels
 public class PedroAutonomous extends OpMode {
 
-    // Path selection enum
-    private enum PathChoice { NONE, RED_TOP, BLUE_TOP }
-
     private TelemetryManager panelsTelemetry;
     public Follower follower;
     private int pathState;
     private Paths paths;
-    private PathChoice selectedPath = PathChoice.NONE;
 
     private DcMotor intake1;
     private DcMotor intake2;
@@ -45,7 +41,7 @@ public class PedroAutonomous extends OpMode {
     private static final double DEPOSIT_CYCLE_PAUSE_S = 1.0;         // Reduced from 1.5
     private static final double DEPOSIT_CYCLE_INTAKE2_RUN2_S = 1.4;  // Reduced from 2.0
     private static final double CAM_POSITION = 0.5124;
-    private double depositTargetVelocity = 645.7;
+    private double depositTargetVelocity = 656.7;
 
     private static final double MIN_VELOCITY = 0.0;
     private static final double MAX_VELOCITY = 5000.0;
@@ -92,22 +88,7 @@ public class PedroAutonomous extends OpMode {
     private static final int STATE_DEPOSIT_CYCLE3_PAUSE2 = 27;
     private static final int STATE_DEPOSIT_CYCLE3_INTAKE2_RUN2 = 28;
 
-    private static final int STATE_START_PATH8 = 29;
-    private static final int STATE_PATH8_MOVING = 30;
-    private static final int STATE_START_PATH9 = 31;
-    private static final int STATE_PATH9_MOVING = 32;
-    private static final int STATE_START_PATH10 = 33;
-    private static final int STATE_PATH10_MOVING = 34;
-
-    private static final int STATE_DEPOSIT_CYCLE4_PAUSE = 35;
-    private static final int STATE_DEPOSIT_CYCLE4_INTAKE2_RUN1 = 36;
-    private static final int STATE_DEPOSIT_CYCLE4_INTAKE1_RUN = 37;
-    private static final int STATE_DEPOSIT_CYCLE4_PAUSE2 = 38;
-    private static final int STATE_DEPOSIT_CYCLE4_INTAKE2_RUN2 = 39;
-
-    private static final int STATE_START_PATH11 = 40;
-    private static final int STATE_PATH11_MOVING = 41;
-    private static final int STATE_DONE = -1;
+    private static final int STATE_DONE = 29;
 
     private ElapsedTime actionTimer;
     private boolean depositEnabled = true;
@@ -116,46 +97,8 @@ public class PedroAutonomous extends OpMode {
     @Override
     public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
-
-        // Path selection during init
-        ElapsedTime initTimer = new ElapsedTime();
-
-        telemetry.addLine("=== PATH SELECTION ===");
-        telemetry.addLine("Gamepad1 Dpad Right: RED TOP");
-        telemetry.addLine("Gamepad1 Dpad Left: BLUE TOP");
-        telemetry.update();
-
-        while (initTimer.seconds() < 25) {
-            if (gamepad1.dpad_right) {
-                selectedPath = PathChoice.RED_TOP;
-            } else if (gamepad1.dpad_left) {
-                selectedPath = PathChoice.BLUE_TOP;
-            }
-
-            String pathName = "NONE";
-            if (selectedPath == PathChoice.RED_TOP) {
-                pathName = "RED TOP";
-            } else if (selectedPath == PathChoice.BLUE_TOP) {
-                pathName = "BLUE TOP";
-            }
-
-            telemetry.addLine("=== PATH SELECTION ===");
-            telemetry.addLine("Gamepad1 Dpad Right: RED TOP");
-            telemetry.addLine("Gamepad1 Dpad Left: BLUE TOP");
-            telemetry.addLine();
-            telemetry.addData("Selected Path", pathName);
-            telemetry.update();
-        }
-
         follower = Constants.createFollower(hardwareMap);
-
-        // Set starting pose based on path selection
-        if (selectedPath == PathChoice.RED_TOP) {
-            follower.setStartingPose(new Pose(120.316, 128.707, Math.toRadians(38)));
-        } else if (selectedPath == PathChoice.BLUE_TOP) {
-            follower.setStartingPose(new Pose(24.632, 129.383, Math.toRadians(142)));
-        }
-
+        follower.setStartingPose(new Pose(120.316, 128.707, Math.toRadians(38)));
         paths = new Paths(follower);
         actionTimer = new ElapsedTime();
 
@@ -186,9 +129,8 @@ public class PedroAutonomous extends OpMode {
                 depositMotorL.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
                 depositMotorL.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
                 depositMotorL.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
-                // Significantly reduced P gain (7.5 -> 3.0) + increased I gain to prevent overshoot
-                // P=3.0 reduces aggressive acceleration, I=1.5 helps reach target smoothly
-                depositMotorL.setVelocityPIDFCoefficients(3.0, 1.5, 1.0, 11.0);
+                // Reduced P gain by 50% (15 -> 7.5) to slow ramp-up and reduce overshoot
+                depositMotorL.setVelocityPIDFCoefficients(7.5, 0.5, 3, 12.6);
                 depositMotorL.setPower(0);
             }
         } catch (Exception e) {
@@ -201,9 +143,8 @@ public class PedroAutonomous extends OpMode {
                 depositMotorR.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
                 depositMotorR.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
                 depositMotorR.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
-                // Significantly reduced P gain (7.5 -> 3.0) + increased I gain to prevent overshoot
-                // P=3.0 reduces aggressive acceleration, I=1.5 helps reach target smoothly
-                depositMotorR.setVelocityPIDFCoefficients(3.0, 1.5, 1.0, 11.0);
+                // Reduced P gain by 50% (15 -> 7.5) to slow ramp-up and reduce overshoot
+                depositMotorR.setVelocityPIDFCoefficients(7.5, 0.5, 3, 12.6);
                 depositMotorR.setPower(0);
             }
         } catch (Exception e) {
@@ -331,128 +272,74 @@ public class PedroAutonomous extends OpMode {
         if (intake2 != null) intake2.setPower(0);
     }
 
-    public class Paths {
-        public PathChain Path1, Path2, Path3, Path4, Path5, Path6, Path7, Path8, Path9, Path10, Path11;
+    public static class Paths {
+        public PathChain Path1;
+        public PathChain Path2;
+        public PathChain Path3;
+        public PathChain Path4;
+        public PathChain Path5;
+        public PathChain Path6;
+        public PathChain Path7;
 
         public Paths(Follower follower) {
-            if (selectedPath == PathChoice.RED_TOP) {
-                buildRedTopPaths(follower);
-            } else if (selectedPath == PathChoice.BLUE_TOP) {
-                buildBlueTopPaths(follower);
-            }
-        }
-
-        private void buildRedTopPaths(Follower follower) {
-            Path1 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(120.316, 128.707), new Pose(82.286, 86.617)))
+            Path1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(120.316, 128.707), new Pose(82.286, 86.617))
+                    )
                     .setLinearHeadingInterpolation(Math.toRadians(38), Math.toRadians(45))
                     .build();
 
-            Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(82.286, 86.617), new Pose(93.925, 84.451)))
+            Path2 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(82.286, 86.617), new Pose(93.925, 84.451))
+                    )
                     .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
                     .build();
 
-            Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(93.925, 84.451), new Pose(128.842, 83.910)))
+            Path3 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(93.925, 84.451), new Pose(128.842, 83.910))
+                    )
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
-            Path4 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(128.842, 83.910), new Pose(82.421, 86.887)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
+            Path4 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(128.842, 83.910), new Pose(82.421, 86.887))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(43))
                     .build();
 
-            Path5 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(82.421, 86.887), new Pose(93.383, 60.090)))
-                    .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
+            Path5 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(82.421, 86.887), new Pose(93.383, 60.090))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(43), Math.toRadians(180))
                     .build();
 
-            Path6 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(93.383, 60.090), new Pose(135.880, 59.278)))
+            Path6 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(93.383, 60.090), new Pose(135.880, 59.278))
+                    )
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
-            Path7 = follower.pathBuilder()
-                    .addPath(new BezierCurve(new Pose(135.880, 59.278), new Pose(79.038, 65.098), new Pose(82.421, 86.887)))
+            Path7 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    new Pose(135.880, 59.278),
+                                    new Pose(79.038, 65.098),
+                                    new Pose(82.421, 86.887)
+                            )
+                    )
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
-                    .build();
-
-            Path8 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(82.421, 86.887), new Pose(93.383, 35.600)))
-                    .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
-                    .build();
-
-            Path9 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(93.383, 35.600), new Pose(135.474, 35.188)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
-                    .build();
-
-            Path10 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(135.474, 35.188), new Pose(82.421, 86.887)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
-                    .build();
-
-            Path11 = follower.pathBuilder()
-                    .addPath(new BezierCurve(new Pose(82.421, 86.887), new Pose(92.301, 71.188), new Pose(122.481, 70.917)))
-                    .setTangentHeadingInterpolation()
-                    .build();
-        }
-
-        private void buildBlueTopPaths(Follower follower) {
-            Path1 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(24.632, 129.383), new Pose(59.955, 91.895)))
-                    .setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(135))
-                    .build();
-
-            Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(59.955, 91.895), new Pose(46.015, 84.451)))
-                    .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
-                    .build();
-
-            Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(46.015, 84.451), new Pose(14.752, 84.316)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
-                    .build();
-
-            Path4 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(14.752, 84.316), new Pose(59.955, 91.895)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
-                    .build();
-
-            Path5 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(59.955, 91.895), new Pose(45.609, 60.767)))
-                    .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
-                    .build();
-
-            Path6 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(45.609, 60.767), new Pose(10.556, 60.767)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
-                    .build();
-
-            Path7 = follower.pathBuilder()
-                    .addPath(new BezierCurve(new Pose(10.556, 60.767), new Pose(58.331, 63.609), new Pose(59.955, 91.895)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
-                    .build();
-
-            Path8 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(59.955, 91.895), new Pose(44.526, 36.271)))
-                    .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
-                    .build();
-
-            Path9 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(44.526, 36.271), new Pose(7.985, 36.541)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
-                    .build();
-
-            Path10 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(7.985, 36.541), new Pose(59.955, 91.895)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
-                    .build();
-
-            Path11 = follower.pathBuilder()
-                    .addPath(new BezierCurve(new Pose(59.955, 91.895), new Pose(50.0, 70.0), new Pose(30.0, 70.0)))
-                    .setTangentHeadingInterpolation()
                     .build();
         }
     }
@@ -635,81 +522,6 @@ public class PedroAutonomous extends OpMode {
             case STATE_DEPOSIT_CYCLE3_INTAKE2_RUN2:
                 if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN2_S) {
                     stopIntake2();
-                    pathState = STATE_START_PATH8;
-                }
-                break;
-
-            case STATE_START_PATH8:
-                follower.followPath(paths.Path8);
-                startIntake1();
-                pathState = STATE_PATH8_MOVING;
-                break;
-            case STATE_PATH8_MOVING:
-                if (!follower.isBusy()) pathState = STATE_START_PATH9;
-                break;
-
-            case STATE_START_PATH9:
-                follower.followPath(paths.Path9);
-                pathState = STATE_PATH9_MOVING;
-                break;
-            case STATE_PATH9_MOVING:
-                if (!follower.isBusy()) pathState = STATE_START_PATH10;
-                break;
-
-            case STATE_START_PATH10:
-                follower.followPath(paths.Path10);
-                pathState = STATE_PATH10_MOVING;
-                break;
-            case STATE_PATH10_MOVING:
-                if (!follower.isBusy()) {
-                    stopIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE4_PAUSE;
-                }
-                break;
-
-            case STATE_DEPOSIT_CYCLE4_PAUSE:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_INTAKE1_S) {
-                    startIntake2();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE4_INTAKE2_RUN1;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE4_INTAKE2_RUN1:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN_S) {
-                    stopIntake2();
-                    startIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE4_INTAKE1_RUN;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE4_INTAKE1_RUN:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE1_RUN_S) {
-                    stopIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE4_PAUSE2;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE4_PAUSE2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_S) {
-                    startIntake2();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE4_INTAKE2_RUN2;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE4_INTAKE2_RUN2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN2_S) {
-                    stopIntake2();
-                    pathState = STATE_START_PATH11;
-                }
-                break;
-
-            case STATE_START_PATH11:
-                follower.followPath(paths.Path11);
-                pathState = STATE_PATH11_MOVING;
-                break;
-            case STATE_PATH11_MOVING:
-                if (!follower.isBusy()) {
                     depositEnabled = false;
                     stopDeposit();
                     pathState = STATE_DONE;

@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver;
 import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver.DeviceStatus;
 import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver.EncoderDirection;
@@ -35,6 +36,9 @@ public class RobotHardware {
     private final RobotConfig config;
     private HardwareMap hwMap;
 
+    // Custom PIDF coefficients for deposit motors - tuned for stable velocity control
+    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(80.0, 0.4, 6.0, 12.0);
+
     public RobotHardware(HardwareMap hardwareMap) {
         config = new RobotConfig();
         hwMap = hardwareMap;
@@ -51,10 +55,10 @@ public class RobotHardware {
             try { intake1 = hardwareMap.get(DcMotor.class, config.intake1Name); } catch (Exception ignored) {}
             try { intake2 = hardwareMap.get(DcMotor.class, config.intake2Name); } catch (Exception ignored) {}
 
-            if (frontLeft != null) frontLeft.setDirection(DcMotor.Direction.REVERSE);
-            if (frontRight != null) frontRight.setDirection(DcMotor.Direction.FORWARD);
-            if (backLeft != null) backLeft.setDirection(DcMotor.Direction.REVERSE);
-            if (backRight != null) backRight.setDirection(DcMotor.Direction.FORWARD);
+            if (frontLeft != null) frontLeft.setDirection(DcMotor.Direction.FORWARD);
+            if (frontRight != null) frontRight.setDirection(DcMotor.Direction.REVERSE);
+            if (backLeft != null) backLeft.setDirection(DcMotor.Direction.FORWARD);
+            if (backRight != null) backRight.setDirection(DcMotor.Direction.REVERSE);
             if (intake1 != null) intake1.setDirection(DcMotor.Direction.FORWARD);
             if (intake2 != null) intake2.setDirection(DcMotor.Direction.FORWARD);
 
@@ -86,11 +90,13 @@ public class RobotHardware {
                 depositMotorL.setDirection(DcMotor.Direction.REVERSE);
                 depositMotorL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 depositMotorL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                depositMotorL.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, DEPOSIT_PIDF);
             }
             if (depositMotorR != null) {
                 depositMotorR.setDirection(DcMotor.Direction.FORWARD);
                 depositMotorR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 depositMotorR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                depositMotorR.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, DEPOSIT_PIDF);
             }
             // Transfer motors
             try { transferMotorL = hardwareMap.get(DcMotorEx.class, config.transferMotorLName); } catch (Exception ignored) {}
