@@ -94,10 +94,10 @@ public class SmallKrabsTele extends OpMode {
 
     @Override
     public void loop() {
-        // Read the joysticks
-        double forward = -0.5*gamepad1.left_stick_y; // forward is negative on gamepad
-        double strafe = 0.5*gamepad1.left_stick_x;
-        double rotate = 0.35*gamepad1.right_stick_x;
+        // Read the joysticks (scaled to 90% of original values)
+        double forward = -0.45*gamepad1.left_stick_y; // forward is negative on gamepad
+        double strafe = 0.45*gamepad1.left_stick_x;
+        double rotate = 0.315*gamepad1.right_stick_x;
 
         // Mecanum drive algorithm (standard)
         double lf = forward + strafe + rotate;
@@ -126,10 +126,10 @@ public class SmallKrabsTele extends OpMode {
 
         // ---------- Claw servo control (LB / RB) ----------
         // Left bumper closes/lowers claw (decrease position), right bumper opens/raises (increase)
-        if (gamepad2.left_bumper) {
+        if (gamepad1.left_bumper) {
             clawPosition -= CLAW_DELTA;
         }
-        if (gamepad2.right_bumper) {
+        if (gamepad1.right_bumper) {
             clawPosition += CLAW_DELTA;
         }
         // Clamp and write
@@ -139,12 +139,12 @@ public class SmallKrabsTele extends OpMode {
 
         // ---------- Slider motor control (ZL / ZR mapped to left_trigger / right_trigger) ----------
         double sliderPower = 0.0;
-        if (gamepad2.left_trigger > TRIGGER_THRESHOLD) {
+        if (gamepad1.left_trigger > TRIGGER_THRESHOLD) {
             // left trigger moves slider in positive direction
-            sliderPower = SLIDER_POWER * gamepad2.left_trigger;
-        } else if (gamepad2.right_trigger > TRIGGER_THRESHOLD) {
+            sliderPower = SLIDER_POWER * gamepad1.left_trigger;
+        } else if (gamepad1.right_trigger > TRIGGER_THRESHOLD) {
             // right trigger moves slider in negative direction
-            sliderPower = -SLIDER_POWER * gamepad2.right_trigger;
+            sliderPower = -SLIDER_POWER * gamepad1.right_trigger;
         }
         if (sliderMotor != null) sliderMotor.setPower(sliderPower);
 
