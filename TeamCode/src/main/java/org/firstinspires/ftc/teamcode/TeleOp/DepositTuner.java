@@ -241,7 +241,7 @@ public class DepositTuner extends LinearOpMode {
             // Read raw joystick values (inverted Y for forward)
             double forward = gamepad1.left_stick_y;   // Reverse drive direction
             double strafe = -gamepad1.left_stick_x;   // Reverse strafe direction
-            double rotate = -gamepad1.right_stick_x;  // Negated for correct rotation direction
+            double rotate = gamepad1.right_stick_x;  // Rotation direction
 
             // ===== AUTO-AIMING LOGIC =====
             // Driver 1 holds X to auto-aim at alliance goal
@@ -272,9 +272,9 @@ public class DepositTuner extends LinearOpMode {
                             }
 
                             // Calculate error: how far off from desired bearing
-                            // Negative error means tag is to the right of target, need to rotate right (CW, negative)
-                            // Positive error means tag is to the left of target, need to rotate left (CCW, positive)
-                            double bearingError = targetBearing - tagBearing;  // Inverted to turn towards tag
+                            // Positive error means tag is to the right, need to rotate right (CW, positive)
+                            // Negative error means tag is to the left, need to rotate left (CCW, negative)
+                            double bearingError = tagBearing - targetBearing;  // Turn towards tag
 
                             // Normalize to [-180, 180] range
                             while (bearingError > 180) bearingError -= 360;
@@ -315,7 +315,13 @@ public class DepositTuner extends LinearOpMode {
             double magnitude = Math.hypot(forward, strafe);
             double angle = Math.atan2(strafe, forward);  // atan2(x, y) for proper angle in all quadrants
 
-            // Apply speed multiplier based on mode FIRST (before cubic curve)
+            // Apply cubic response curve to magnitude for smooth control FIRST
+            magnitude = Math.copySign(magnitude * magnitude * magnitude, magnitude);
+            if (!autoAiming) {
+                rotate = Math.copySign(rotate * rotate * rotate, rotate);
+            }
+
+            // Apply speed multiplier based on mode AFTER cubic curve
             double driveMul, rotateMul;
             if (autoAiming) {
                 // Auto-aiming: rotation already set, don't modify
@@ -338,11 +344,6 @@ public class DepositTuner extends LinearOpMode {
             magnitude *= driveMul;
             rotate *= rotateMul;
 
-            // Apply cubic response curve to magnitude for smooth control
-            magnitude = Math.copySign(magnitude * magnitude * magnitude, magnitude);
-            if (!autoAiming) {
-                rotate = Math.copySign(rotate * rotate * rotate, rotate);
-            }
 
             // Reconstruct forward and strafe from polar coordinates
             forward = magnitude * Math.cos(angle);

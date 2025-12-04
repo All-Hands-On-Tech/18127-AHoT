@@ -11,6 +11,7 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -33,13 +34,11 @@ public class PedroAutonomous extends OpMode {
     private Servo cam;
 
     // ========== TUNING VARIABLES ==========
-    private static final double INTAKE1_POWER = -1.0;
-    private static final double INTAKE2_POWER = 1.0;
-    private static final double DEPOSIT_CYCLE_PAUSE_INTAKE1_S = 1.8;  // Reduced from 2.5
-    private static final double DEPOSIT_CYCLE_INTAKE2_RUN_S = 1.4;   // Reduced from 2.0
-    private static final double DEPOSIT_CYCLE_INTAKE1_RUN_S = 1.0;   // Reduced from 1.5
-    private static final double DEPOSIT_CYCLE_PAUSE_S = 1.0;         // Reduced from 1.5
-    private static final double DEPOSIT_CYCLE_INTAKE2_RUN2_S = 1.4;  // Reduced from 2.0
+    private static final double INTAKE1_POWER = -1.0;   // Full power
+    private static final double INTAKE2_POWER = 1.0;   // Full power
+    private static final double DEPOSIT_CYCLE_TIME_S = 1.25;  // Run both intakes for 1.25 seconds
+    private static final double FIRST_SHOT_DELAY_S = 2.5;   // Delay before first shot to prevent overshoot (increased from 1.1)
+    private static final double SECOND_SHOT_DELAY_S = 0.5;  // Delay before second shot
     private static final double CAM_POSITION = 0.5124;
     private double depositTargetVelocity = 656.7;
 
@@ -53,42 +52,46 @@ public class PedroAutonomous extends OpMode {
     private static final long FIRST_REPEAT_DELAY_MS = 350;
     private static final long REPEAT_INTERVAL_MS = 120;
 
+    // ========== ALLIANCE SELECTION ==========
+    public enum Alliance { NONE, BLUE, RED }
+    private Alliance selectedAlliance = Alliance.NONE;
+
     // ========== STATE MACHINE CONSTANTS ==========
     private static final int STATE_START_PATH1 = 0;
     private static final int STATE_PATH1_MOVING = 1;
-    private static final int STATE_DEPOSIT_CYCLE1_PAUSE = 2;
-    private static final int STATE_DEPOSIT_CYCLE1_INTAKE2_RUN1 = 3;
-    private static final int STATE_DEPOSIT_CYCLE1_INTAKE1_RUN = 4;
-    private static final int STATE_DEPOSIT_CYCLE1_PAUSE2 = 5;
-    private static final int STATE_DEPOSIT_CYCLE1_INTAKE2_RUN2 = 6;
+    private static final int STATE_DEPOSIT_CYCLE1_FIRST_DELAY = 2;
+    private static final int STATE_DEPOSIT_CYCLE1_FIRST_SHOT = 3;
+    private static final int STATE_DEPOSIT_CYCLE1_SECOND_DELAY = 4;
+    private static final int STATE_DEPOSIT_CYCLE1_SECOND_SHOT = 5;
 
-    private static final int STATE_START_PATH2 = 7;
-    private static final int STATE_PATH2_MOVING = 8;
-    private static final int STATE_START_PATH3 = 9;
-    private static final int STATE_PATH3_MOVING = 10;
-    private static final int STATE_START_PATH4 = 11;
-    private static final int STATE_PATH4_MOVING = 12;
+    private static final int STATE_START_PATH2 = 6;
+    private static final int STATE_PATH2_MOVING = 7;
+    private static final int STATE_START_PATH3 = 8;
+    private static final int STATE_PATH3_MOVING = 9;
+    private static final int STATE_START_PATH4 = 10;
+    private static final int STATE_PATH4_MOVING = 11;
 
-    private static final int STATE_DEPOSIT_CYCLE2_PAUSE = 13;
-    private static final int STATE_DEPOSIT_CYCLE2_INTAKE2_RUN1 = 14;
-    private static final int STATE_DEPOSIT_CYCLE2_INTAKE1_RUN = 15;
-    private static final int STATE_DEPOSIT_CYCLE2_PAUSE2 = 16;
-    private static final int STATE_DEPOSIT_CYCLE2_INTAKE2_RUN2 = 17;
+    private static final int STATE_DEPOSIT_CYCLE2_FIRST_DELAY = 12;
+    private static final int STATE_DEPOSIT_CYCLE2_FIRST_SHOT = 13;
+    private static final int STATE_DEPOSIT_CYCLE2_SECOND_DELAY = 14;
+    private static final int STATE_DEPOSIT_CYCLE2_SECOND_SHOT = 15;
 
-    private static final int STATE_START_PATH5 = 18;
-    private static final int STATE_PATH5_MOVING = 19;
-    private static final int STATE_START_PATH6 = 20;
-    private static final int STATE_PATH6_MOVING = 21;
-    private static final int STATE_START_PATH7 = 22;
-    private static final int STATE_PATH7_MOVING = 23;
+    private static final int STATE_START_PATH5 = 16;
+    private static final int STATE_PATH5_MOVING = 17;
+    private static final int STATE_START_PATH6 = 18;
+    private static final int STATE_PATH6_MOVING = 19;
+    private static final int STATE_START_PATH7 = 20;
+    private static final int STATE_PATH7_MOVING = 21;
 
-    private static final int STATE_DEPOSIT_CYCLE3_PAUSE = 24;
-    private static final int STATE_DEPOSIT_CYCLE3_INTAKE2_RUN1 = 25;
-    private static final int STATE_DEPOSIT_CYCLE3_INTAKE1_RUN = 26;
-    private static final int STATE_DEPOSIT_CYCLE3_PAUSE2 = 27;
-    private static final int STATE_DEPOSIT_CYCLE3_INTAKE2_RUN2 = 28;
+    private static final int STATE_DEPOSIT_CYCLE3_FIRST_DELAY = 22;
+    private static final int STATE_DEPOSIT_CYCLE3_FIRST_SHOT = 23;
+    private static final int STATE_DEPOSIT_CYCLE3_SECOND_DELAY = 24;
+    private static final int STATE_DEPOSIT_CYCLE3_SECOND_SHOT = 25;
 
-    private static final int STATE_DONE = 29;
+    private static final int STATE_START_PATH8 = 26;
+    private static final int STATE_PATH8_MOVING = 27;
+
+    private static final int STATE_DONE = 28;
 
     private ElapsedTime actionTimer;
     private boolean depositEnabled = true;
@@ -98,8 +101,6 @@ public class PedroAutonomous extends OpMode {
     public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(120.316, 128.707, Math.toRadians(38)));
-        paths = new Paths(follower);
         actionTimer = new ElapsedTime();
 
         try {
@@ -127,10 +128,11 @@ public class PedroAutonomous extends OpMode {
             if (depositMotorL != null) {
                 depositMotorL.setDirection(DcMotorSimple.Direction.REVERSE);
                 depositMotorL.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-                depositMotorL.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-                depositMotorL.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
-                // Reduced P gain by 50% (15 -> 7.5) to slow ramp-up and reduce overshoot
-                depositMotorL.setVelocityPIDFCoefficients(7.5, 0.5, 3, 12.6);
+                depositMotorL.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                depositMotorL.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+                // Use same PIDF as RobotHardware/DepositTuner: (80.0, 0.4, 6.0, 12.0)
+                depositMotorL.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER,
+                    new PIDFCoefficients(80.0, 0.4, 6.0, 12.0));
                 depositMotorL.setPower(0);
             }
         } catch (Exception e) {
@@ -140,11 +142,13 @@ public class PedroAutonomous extends OpMode {
         try {
             depositMotorR = hardwareMap.get(DcMotorEx.class, "DepositMotorR");
             if (depositMotorR != null) {
+                depositMotorR.setDirection(DcMotorSimple.Direction.FORWARD);
                 depositMotorR.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-                depositMotorR.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-                depositMotorR.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
-                // Reduced P gain by 50% (15 -> 7.5) to slow ramp-up and reduce overshoot
-                depositMotorR.setVelocityPIDFCoefficients(7.5, 0.5, 3, 12.6);
+                depositMotorR.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                depositMotorR.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+                // Use same PIDF as RobotHardware/DepositTuner: (80.0, 0.4, 6.0, 12.0)
+                depositMotorR.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER,
+                    new PIDFCoefficients(80.0, 0.4, 6.0, 12.0));
                 depositMotorR.setPower(0);
             }
         } catch (Exception e) {
@@ -160,8 +164,40 @@ public class PedroAutonomous extends OpMode {
             cam = null;
         }
 
-        panelsTelemetry.debug("Status", "Initialized - Red Top 8-Ball");
+        panelsTelemetry.debug("Status", "Initialized - Alliance Selection");
+        panelsTelemetry.debug("Controls", "X = BLUE | B = RED");
         panelsTelemetry.update(telemetry);
+    }
+
+    @Override
+    public void init_loop() {
+        // Alliance selection during init
+        if (gamepad1.x && selectedAlliance != Alliance.BLUE) {
+            selectedAlliance = Alliance.BLUE;
+            // Set blue starting pose
+            follower.setStartingPose(new Pose(25.579, 129.654, Math.toRadians(143.6)));
+            paths = new Paths(follower, selectedAlliance);
+        } else if (gamepad1.b && selectedAlliance != Alliance.RED) {
+            selectedAlliance = Alliance.RED;
+            // Set red starting pose
+            follower.setStartingPose(new Pose(119.504, 127.895, Math.toRadians(38)));
+            paths = new Paths(follower, selectedAlliance);
+        }
+
+        String allianceStr = selectedAlliance == Alliance.BLUE ? "BLUE" :
+                             selectedAlliance == Alliance.RED ? "RED" : "NONE";
+        panelsTelemetry.debug("Alliance", allianceStr);
+        panelsTelemetry.debug("Controls", "X = BLUE | B = RED");
+        panelsTelemetry.update(telemetry);
+    }
+
+    @Override
+    public void start() {
+        if (selectedAlliance == Alliance.NONE) {
+            selectedAlliance = Alliance.RED; // Default to RED if no selection
+            follower.setStartingPose(new Pose(119.504, 127.895, Math.toRadians(38)));
+            paths = new Paths(follower, selectedAlliance);
+        }
     }
 
     @Override
@@ -280,72 +316,163 @@ public class PedroAutonomous extends OpMode {
         public PathChain Path5;
         public PathChain Path6;
         public PathChain Path7;
+        public PathChain Path8;
 
-        public Paths(Follower follower) {
-            Path1 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(120.316, 128.707), new Pose(82.286, 86.617))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(38), Math.toRadians(45))
-                    .build();
+        public Paths(Follower follower, Alliance alliance) {
+            if (alliance == Alliance.BLUE) {
+                // Blue alliance paths
+                Path1 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(25.579, 129.654), new Pose(59.955, 89.188))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(143.6), Math.toRadians(134))
+                        .build();
 
-            Path2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(82.286, 86.617), new Pose(93.925, 84.451))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
-                    .build();
+                Path2 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(59.955, 89.188), new Pose(46.015, 84.451))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
+                        .build();
 
-            Path3 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(93.925, 84.451), new Pose(128.842, 83.910))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
-                    .build();
+                Path3 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(46.015, 84.451), new Pose(19.083, 85.128))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                        .build();
 
-            Path4 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(128.842, 83.910), new Pose(82.421, 86.887))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(43))
-                    .build();
+                Path4 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(19.083, 85.128), new Pose(56.436, 91.759))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(134))
+                        .build();
 
-            Path5 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(82.421, 86.887), new Pose(93.383, 60.090))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(43), Math.toRadians(180))
-                    .build();
+                Path5 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(56.436, 91.759), new Pose(45.068, 59.955))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
+                        .build();
 
-            Path6 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(93.383, 60.090), new Pose(135.880, 59.278))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
-                    .build();
+                Path6 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(45.068, 59.955), new Pose(10.421, 59.008))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                        .build();
 
-            Path7 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(135.880, 59.278),
-                                    new Pose(79.038, 65.098),
-                                    new Pose(82.421, 86.887)
-                            )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
-                    .build();
+                Path7 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierCurve(
+                                        new Pose(10.421, 59.008),
+                                        new Pose(58.331, 63.609),
+                                        new Pose(56.436, 92.436)
+                                )
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
+                        .build();
+
+                Path8 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierCurve(
+                                        new Pose(56.436, 92.436),
+                                        new Pose(55.759, 70.647),
+                                        new Pose(40.737, 71.594)
+                                )
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(90))
+                        .build();
+
+            } else {
+                // Red alliance paths
+                Path1 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(119.504, 127.895), new Pose(85.300, 83.800))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(38), Math.toRadians(44))
+                        .build();
+
+                Path2 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(85.300, 83.800), new Pose(93.726, 83.639))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
+                        .build();
+
+                Path3 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(93.726, 83.639), new Pose(127.083, 84.045))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                        .build();
+
+                Path4 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(127.083, 84.045), new Pose(88.989, 92.301))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(43))
+                        .build();
+
+                Path5 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(88.989, 92.301), new Pose(93.383, 60.090))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(43), Math.toRadians(180))
+                        .build();
+
+                Path6 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierLine(new Pose(93.383, 60.090), new Pose(129.113, 59.278))
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                        .build();
+
+                Path7 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierCurve(
+                                        new Pose(129.113, 59.278),
+                                        new Pose(79.038, 65.098),
+                                        new Pose(89.666, 92.165)
+                                )
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
+                        .build();
+
+                Path8 = follower
+                        .pathBuilder()
+                        .addPath(
+                                new BezierCurve(
+                                        new Pose(89.666, 92.165),
+                                        new Pose(92.508, 72.000),
+                                        new Pose(105.699, 71.053)
+                                )
+                        )
+                        .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(90))
+                        .build();
+            }
         }
     }
 
     public int autonomousPathUpdate() {
         switch (pathState) {
+            // ===== CYCLE 1 =====
             case STATE_START_PATH1:
                 follower.followPath(paths.Path1);
                 depositEnabled = true;
@@ -356,46 +483,42 @@ public class PedroAutonomous extends OpMode {
                 if (!follower.isBusy()) {
                     stopIntake1();
                     actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE1_PAUSE;
+                    pathState = STATE_DEPOSIT_CYCLE1_FIRST_DELAY;
                 }
                 break;
-
-            case STATE_DEPOSIT_CYCLE1_PAUSE:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_INTAKE1_S) {
-                    startIntake2();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE1_INTAKE2_RUN1;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE1_INTAKE2_RUN1:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN_S) {
-                    stopIntake2();
+            case STATE_DEPOSIT_CYCLE1_FIRST_DELAY:
+                if (actionTimer.seconds() >= FIRST_SHOT_DELAY_S) {
                     startIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE1_INTAKE1_RUN;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE1_INTAKE1_RUN:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE1_RUN_S) {
-                    stopIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE1_PAUSE2;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE1_PAUSE2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_S) {
                     startIntake2();
                     actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE1_INTAKE2_RUN2;
+                    pathState = STATE_DEPOSIT_CYCLE1_FIRST_SHOT;
                 }
                 break;
-            case STATE_DEPOSIT_CYCLE1_INTAKE2_RUN2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN2_S) {
+            case STATE_DEPOSIT_CYCLE1_FIRST_SHOT:
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_TIME_S) {
+                    stopIntake1();
+                    stopIntake2();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE1_SECOND_DELAY;
+                }
+                break;
+            case STATE_DEPOSIT_CYCLE1_SECOND_DELAY:
+                if (actionTimer.seconds() >= SECOND_SHOT_DELAY_S) {
+                    startIntake1();
+                    startIntake2();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE1_SECOND_SHOT;
+                }
+                break;
+            case STATE_DEPOSIT_CYCLE1_SECOND_SHOT:
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_TIME_S) {
+                    stopIntake1();
                     stopIntake2();
                     pathState = STATE_START_PATH2;
                 }
                 break;
 
+            // ===== PATHS 2-4 =====
             case STATE_START_PATH2:
                 follower.followPath(paths.Path2);
                 startIntake1();
@@ -421,46 +544,44 @@ public class PedroAutonomous extends OpMode {
                 if (!follower.isBusy()) {
                     stopIntake1();
                     actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE2_PAUSE;
+                    pathState = STATE_DEPOSIT_CYCLE2_FIRST_DELAY;
                 }
                 break;
 
-            case STATE_DEPOSIT_CYCLE2_PAUSE:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_INTAKE1_S) {
-                    startIntake2();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE2_INTAKE2_RUN1;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE2_INTAKE2_RUN1:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN_S) {
-                    stopIntake2();
+            // ===== CYCLE 2 =====
+            case STATE_DEPOSIT_CYCLE2_FIRST_DELAY:
+                if (actionTimer.seconds() >= FIRST_SHOT_DELAY_S) {
                     startIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE2_INTAKE1_RUN;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE2_INTAKE1_RUN:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE1_RUN_S) {
-                    stopIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE2_PAUSE2;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE2_PAUSE2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_S) {
                     startIntake2();
                     actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE2_INTAKE2_RUN2;
+                    pathState = STATE_DEPOSIT_CYCLE2_FIRST_SHOT;
                 }
                 break;
-            case STATE_DEPOSIT_CYCLE2_INTAKE2_RUN2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN2_S) {
+            case STATE_DEPOSIT_CYCLE2_FIRST_SHOT:
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_TIME_S) {
+                    stopIntake1();
+                    stopIntake2();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE2_SECOND_DELAY;
+                }
+                break;
+            case STATE_DEPOSIT_CYCLE2_SECOND_DELAY:
+                if (actionTimer.seconds() >= SECOND_SHOT_DELAY_S) {
+                    startIntake1();
+                    startIntake2();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE2_SECOND_SHOT;
+                }
+                break;
+            case STATE_DEPOSIT_CYCLE2_SECOND_SHOT:
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_TIME_S) {
+                    stopIntake1();
                     stopIntake2();
                     pathState = STATE_START_PATH5;
                 }
                 break;
 
+            // ===== PATHS 5-7 =====
             case STATE_START_PATH5:
                 follower.followPath(paths.Path5);
                 startIntake1();
@@ -486,46 +607,57 @@ public class PedroAutonomous extends OpMode {
                 if (!follower.isBusy()) {
                     stopIntake1();
                     actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE3_PAUSE;
+                    pathState = STATE_DEPOSIT_CYCLE3_FIRST_DELAY;
                 }
                 break;
 
-            case STATE_DEPOSIT_CYCLE3_PAUSE:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_INTAKE1_S) {
-                    startIntake2();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE3_INTAKE2_RUN1;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE3_INTAKE2_RUN1:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN_S) {
-                    stopIntake2();
+            // ===== CYCLE 3 =====
+            case STATE_DEPOSIT_CYCLE3_FIRST_DELAY:
+                if (actionTimer.seconds() >= FIRST_SHOT_DELAY_S) {
                     startIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE3_INTAKE1_RUN;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE3_INTAKE1_RUN:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE1_RUN_S) {
-                    stopIntake1();
-                    actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE3_PAUSE2;
-                }
-                break;
-            case STATE_DEPOSIT_CYCLE3_PAUSE2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_PAUSE_S) {
                     startIntake2();
                     actionTimer.reset();
-                    pathState = STATE_DEPOSIT_CYCLE3_INTAKE2_RUN2;
+                    pathState = STATE_DEPOSIT_CYCLE3_FIRST_SHOT;
                 }
                 break;
-            case STATE_DEPOSIT_CYCLE3_INTAKE2_RUN2:
-                if (actionTimer.seconds() >= DEPOSIT_CYCLE_INTAKE2_RUN2_S) {
+            case STATE_DEPOSIT_CYCLE3_FIRST_SHOT:
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_TIME_S) {
+                    stopIntake1();
+                    stopIntake2();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE3_SECOND_DELAY;
+                }
+                break;
+            case STATE_DEPOSIT_CYCLE3_SECOND_DELAY:
+                if (actionTimer.seconds() >= SECOND_SHOT_DELAY_S) {
+                    startIntake1();
+                    startIntake2();
+                    actionTimer.reset();
+                    pathState = STATE_DEPOSIT_CYCLE3_SECOND_SHOT;
+                }
+                break;
+            case STATE_DEPOSIT_CYCLE3_SECOND_SHOT:
+                if (actionTimer.seconds() >= DEPOSIT_CYCLE_TIME_S) {
+                    stopIntake1();
                     stopIntake2();
                     depositEnabled = false;
                     stopDeposit();
-                    pathState = STATE_DONE;
+                    // Both alliances continue to Path8
+                    if (paths.Path8 != null) {
+                        pathState = STATE_START_PATH8;
+                    } else {
+                        pathState = STATE_DONE;
+                    }
                 }
+                break;
+
+            // ===== PATH 8 (EXIT BOX) =====
+            case STATE_START_PATH8:
+                follower.followPath(paths.Path8);
+                pathState = STATE_PATH8_MOVING;
+                break;
+            case STATE_PATH8_MOVING:
+                if (!follower.isBusy()) pathState = STATE_DONE;
                 break;
 
             case STATE_DONE:
