@@ -30,6 +30,7 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -53,6 +54,7 @@ import org.firstinspires.ftc.teamcode.ZSupport.RollingAve;
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list
  */
 
+@Disabled
 @TeleOp(name="Fly Wheel Testing", group="ZTesting")
 public class FlyWheelTesting extends LinearOpMode {
     private DcMotorEx flyWheelL = null;
