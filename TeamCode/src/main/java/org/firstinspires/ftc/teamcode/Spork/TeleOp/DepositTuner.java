@@ -460,7 +460,7 @@ public class DepositTuner extends LinearOpMode {
                 if (hw.depositMotorL != null) hw.depositMotorL.setPower(0);
                 if (hw.depositMotorR != null) hw.depositMotorR.setPower(0);
             } else {
-                if (hw.depositMotorL != null) hw.depositMotorL.setVelocity(target);
+                if (hw.depositMotorL != null) hw.depositMotorL.setVelocity(target + 6);
                 if (hw.depositMotorR != null) hw.depositMotorR.setVelocity(target);
             }
 
