@@ -22,7 +22,7 @@ public class TrowelConfig {
     public String transfer2Name = "transfer2";
 
     // Device names
-    public String pinpointName = "pinpoint";
+    public String pinpointName = "odo";
     public String imuName = "imu";
 
     // Pinpoint odometry pod offsets in millimeters

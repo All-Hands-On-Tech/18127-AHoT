@@ -10,7 +10,11 @@ public class RandyButterNubs {
     private DcMotor backRight;
 
     // PIDF coefficients for deposit motors - tuned for stable velocity control
-    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(80.0, 0.4, 6.0, 12.0);
+    // P: Proportional gain - higher = faster response but can overshoot
+    // I: Integral gain - corrects steady-state error but can cause windup
+    // D: Derivative gain - dampens oscillations
+    // F: Feedforward gain - predicts motor output needed for target velocity
+    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(30.0, 0.02, 20.0, 15.0);
 
     // Default deposit velocity in ticks per second
     public static final double DEFAULT_DEPOSIT_VELOCITY = 1800.0;
@@ -50,11 +54,10 @@ public class RandyButterNubs {
      * @param rotate Rotation (-1.0 to 1.0)
      */
     public void drive(double forward, double strafe, double rotate) {
-        // Negate rotate to fix turning direction
-        rotate = -rotate;
-
-        // Mecanum drive equations
-        // Each wheel's power is a combination of forward, strafe, and rotate
+        // Standard mecanum drive equations
+        // Forward: all wheels same direction
+        // Strafe: diagonal pairs opposite (FL+BR vs FR+BL)
+        // Rotate: left side vs right side opposite
         double frontLeftPower = forward + strafe + rotate;
         double frontRightPower = forward - strafe - rotate;
         double backLeftPower = forward - strafe + rotate;
@@ -69,7 +72,6 @@ public class RandyButterNubs {
             backRightPower /= maxPower;
         }
 
-        // Full speed - no power scaling
         // Set motor powers
         setMotorPower(frontLeft, frontLeftPower);
         setMotorPower(frontRight, frontRightPower);

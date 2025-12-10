@@ -49,7 +49,11 @@ public class TrowelHardware {
     public String pinpointRecoveryAction = "";
 
     // Custom PIDF coefficients for deposit motors - tuned for stable velocity control
-    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(80.0, 0.4, 6.0, 13.5);
+    // P: Proportional gain - higher = faster response but can overshoot
+    // I: Integral gain - corrects steady-state error but can cause windup
+    // D: Derivative gain - dampens oscillations
+    // F: Feedforward gain - predicts motor output needed for target velocity
+    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(35.0, 0.02, 20.0, 15.1);
 
     /**
      * Constructor - Initialize hardware with HardwareMap
@@ -105,12 +109,12 @@ public class TrowelHardware {
                 frontRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             }
             if (backLeft != null) {
-                backLeft.setDirection(DcMotor.Direction.REVERSE);
+                backLeft.setDirection(DcMotor.Direction.FORWARD);
                 backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 backLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             }
             if (backRight != null) {
-                backRight.setDirection(DcMotor.Direction.FORWARD);
+                backRight.setDirection(DcMotor.Direction.REVERSE);
                 backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 backRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             }
@@ -165,16 +169,15 @@ public class TrowelHardware {
             } catch (Exception ignored) {
             }
 
-            // Configure transfer servos - set to starting positions
-            // transfer2 is reversed (1.0 to 0.0) so both servos move together
+            // Configure transfer servos - don't set position during init to prevent movement
             if (transfer1 != null) {
                 transfer1.scaleRange(0.0, 1.0);
-                transfer1.setPosition(0.5);
+                // Don't set position here - wait until start
             }
             if (transfer2 != null) {
                 transfer2.setDirection(Servo.Direction.REVERSE);
                 transfer2.scaleRange(0.0, 1.0);
-                transfer2.setPosition(0.5);
+                // Don't set position here - wait until start
             }
 
         } catch (Exception e) {
@@ -288,6 +291,45 @@ public class TrowelHardware {
             deposit2.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
             deposit2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
+    }
+
+    /**
+     * Get deposit motor 1 velocity in ticks per second
+     */
+    public double getDeposit1Velocity() {
+        return deposit1 != null ? deposit1.getVelocity() : 0;
+    }
+
+    /**
+     * Get deposit motor 2 velocity in ticks per second
+     */
+    public double getDeposit2Velocity() {
+        return deposit2 != null ? deposit2.getVelocity() : 0;
+    }
+
+    /**
+     * Get deposit motor 1 RPM
+     * Assumes 28 ticks per revolution (standard for REV motors)
+     */
+    public double getDeposit1RPM() {
+        double velocity = getDeposit1Velocity();
+        return (velocity / 28.0) * 60.0;
+    }
+
+    /**
+     * Get deposit motor 2 RPM
+     * Assumes 28 ticks per revolution (standard for REV motors)
+     */
+    public double getDeposit2RPM() {
+        double velocity = getDeposit2Velocity();
+        return (velocity / 28.0) * 60.0;
+    }
+
+    /**
+     * Get average deposit RPM from both motors
+     */
+    public double getAverageDepositRPM() {
+        return (getDeposit1RPM() + getDeposit2RPM()) / 2.0;
     }
 
 
