@@ -36,7 +36,6 @@ import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
 import org.firstinspires.ftc.vision.opencv.ColorRange;
 import org.firstinspires.ftc.vision.opencv.ImageRegion;
 
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -70,9 +69,14 @@ import java.util.List;
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list
  */
 
+
 @Disabled
 @TeleOp(name = "Circle Finder", group = "ZTest")
-public class CirlceFinder extends LinearOpMode {
+public class CircleFinder extends LinearOpMode {
+    //camera resolution values
+    private static final double resHorz = 320;
+    private static final double resVert = 240;
+
     @Override
     public void runOpMode() {
         /* Build a "Color Locator" vision processor based on the ColorBlobLocatorProcessor class.
@@ -178,7 +182,7 @@ public class CirlceFinder extends LinearOpMode {
         VisionPortal portal = new VisionPortal.Builder()
                 .addProcessor(colorLocatorPurple)
                 .addProcessor(colorLocatorGreen)
-                .setCameraResolution(new Size(320, 240))
+                .setCameraResolution(new Size((int)resHorz, (int)resVert))
                 .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
                 .build();
 
@@ -251,11 +255,19 @@ public class CirlceFinder extends LinearOpMode {
 
             blobs.sort(Comparator.comparingDouble(ColorBlobLocatorProcessor.Blob::getContourArea));
             // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
+            double focalLength = -1; //needs to be measured experimentally
+                                     //f = radius * known distance / 2.5 in
+            double fovHorzontal = 55 * Math.sqrt(1+resVert/resHorz); //for c270 with resolution 320x240 in degrees
             for (ColorBlobLocatorProcessor.Blob b : blobs) {
 
                 Circle circleFit = b.getCircle();
                 telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
                            b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
+
+                double range = 2.5 * focalLength / circleFit.getRadius();
+                double yaw = (circleFit.getX() - 0.5*resHorz) * (fovHorzontal/resHorz);
+                telemetry.addLine(String.format("est. location: (%5.1f,%5.1f)",
+                        Math.cos(yaw)*range, Math.sin(yaw)*range));
             }
 
             telemetry.update();
