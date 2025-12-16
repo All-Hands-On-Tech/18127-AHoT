@@ -1,10 +1,12 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.ZSupport.RAndDBotUtilities;
 
+@Disabled
 @TeleOp(name="RAndDBotDebug", group="Z")
 public class RAndDBotDebug extends LinearOpMode {
     RAndDBotUtilities bot = new RAndDBotUtilities(this);

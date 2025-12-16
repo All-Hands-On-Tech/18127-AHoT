@@ -46,6 +46,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
+import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.List;
@@ -74,6 +76,7 @@ public class Camera {
 
     private AprilTagProcessor aprilTag;
     private VisionPortal visionPortal;
+    private AprilTagLibrary aprilTagLibrary;
     LinearOpMode linearOpMode;
 
     private Position cameraPosition = new Position(DistanceUnit.INCH,
@@ -87,10 +90,17 @@ public class Camera {
     }
 
     public void initialize() {
+        //WARNING: Doesn't have pose tags
+        aprilTagLibrary = new AprilTagLibrary.Builder()
+                .addTag(AprilTagGameDatabase.getDecodeTagLibrary().lookupTag(21))
+                .addTag(AprilTagGameDatabase.getDecodeTagLibrary().lookupTag(22))
+                .addTag(AprilTagGameDatabase.getDecodeTagLibrary().lookupTag(23))
+                .build();
 
         // Create the AprilTag processor.
         aprilTag = new AprilTagProcessor.Builder()
                 .setCameraPose(cameraPosition, cameraOrientation)
+                //.setTagLibrary(aprilTagLibrary)
                 .build();
 
         // Adjust Image Decimation to trade-off detection-range for detection-rate.
@@ -113,6 +123,7 @@ public class Camera {
 
         // Set the stream format; MJPEG uses less bandwidth than default YUY2.
         builder.setStreamFormat(VisionPortal.StreamFormat.MJPEG);
+
 
         // Set and enable the processor.
         builder.addProcessor(aprilTag);
@@ -156,19 +167,10 @@ public class Camera {
     }
     /**Adds telemetry about estimated robot pose*/
     public void telemetryAprilTagPose() {
-        List<AprilTagDetection> currentDetections = aprilTag.getDetections();
-        for (AprilTagDetection detection : currentDetections) {
-            if (detection.metadata != null) {
-                linearOpMode.telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
-                if (!detection.metadata.name.contains("Obelisk")) {
-                    linearOpMode.telemetry.addLine(String.format("XYYaw %6.1f %6.1f %6.1f",
-                            (72 + detection.robotPose.getPosition().y),
-                            (72 - detection.robotPose.getPosition().x),
-                            (detection.robotPose.getOrientation().getYaw(AngleUnit.DEGREES) - 90)));
-                }
-            }
-        }
-
+        Pose2D currentPose = getPose();
+        linearOpMode.telemetry.addData("X pos (in):    ", currentPose.getX(DistanceUnit.INCH));
+        linearOpMode.telemetry.addData("Y pos (in):    ", currentPose.getY(DistanceUnit.INCH));
+        linearOpMode.telemetry.addData("Heading (deg): ", currentPose.getHeading(AngleUnit.DEGREES));
     }
 
     /** returns Pose using Pedro Pathing coordinates*/
