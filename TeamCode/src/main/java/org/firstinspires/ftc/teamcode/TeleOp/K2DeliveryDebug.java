@@ -20,6 +20,12 @@ public class K2DeliveryDebug extends LinearOpMode {
 
     boolean toSpeed = false;
 
+    double targetRPM = 0;
+    double prevTargetRPM = 0;
+
+    boolean dpadUp, prevDpadUp;
+    boolean dpadDown, prevDpadDown;
+
     @Override
     public void runOpMode()
     {
@@ -33,21 +39,47 @@ public class K2DeliveryDebug extends LinearOpMode {
 
         while(opModeIsActive())
         {
+            dpadUp = gamepad1.dpad_up;
+            dpadDown = gamepad1.dpad_down;
 
-            bot.setDeliverVel(100);
+            if(prevDpadUp && !dpadUp){
+                targetRPM += 100;
+            }
+            if(prevDpadDown && !dpadDown){
+                targetRPM -= 100;
+            }
 
-            if(Math.abs(bot.getDeliverLVel() - 314) < 5 && !toSpeed){
+            if(prevTargetRPM != targetRPM){
+                toSpeed = false;
+                startTime = timer.seconds();
+            }
+
+            if(gamepad1.a) {
+                bot.setDeliverVel(targetRPM);
+            }else{
+                bot.setDeliverVel(0);
+            }
+
+
+            if(Math.abs(bot.getDeliverLVel() - targetRPM) < 5 && !toSpeed){
                 endTime = timer.seconds();
                 toSpeed = true;
             }
 
             if(toSpeed) telemetry.addData("Ramp-up time:", endTime-startTime);
 
+            prevTargetRPM = targetRPM;
+            prevDpadDown = dpadDown;
+            prevDpadUp = dpadUp;
+
+            telemetry.addData("Hold 'a' to apply rpm of: ", targetRPM);
+            telemetry.addLine();telemetry.addLine();
+
             bot.logDriveData(bot.odo.getPosition());
             telemetry.addLine();telemetry.addLine();telemetry.addLine();
             bot.logPinpointFrequency();
             bot.logREVHubFrequency();
-            telemetry.addData("DeliverL rad/s", bot.getDeliverLVel());
+            telemetry.addData("DeliverL rpm", bot.getDeliverLVel());
             telemetry.update();
 
         }

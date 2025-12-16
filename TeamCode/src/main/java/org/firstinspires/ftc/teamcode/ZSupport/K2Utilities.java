@@ -125,8 +125,8 @@ public class K2Utilities {
 //        color1 = l.hardwareMap.get(RevColorSensorV3.class, "color1");
 //        color2 = l.hardwareMap.get(RevColorSensorV3.class, "color2");
 
-        deliverL.setDirection(DcMotorSimple.Direction.FORWARD);
-        deliverR.setDirection(DcMotorSimple.Direction.REVERSE);
+        deliverL.setDirection(DcMotorSimple.Direction.REVERSE);
+        deliverR.setDirection(DcMotorSimple.Direction.FORWARD);
 
         fr.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
