@@ -43,7 +43,7 @@ public class TrowelAutonomous extends OpMode {
     public static double TRANSFER_IN = 0.0;
     public static double TRANSFER_OUT = 1.0;
     public static double TRANSFER_NEUTRAL = 0.5;
-    public static double depositTargetVelocity = 1800.0;
+    public static double depositTargetVelocity = 750.0;
 
     // Velocity tuning bounds
     private static final double MIN_VELOCITY = 0.0;

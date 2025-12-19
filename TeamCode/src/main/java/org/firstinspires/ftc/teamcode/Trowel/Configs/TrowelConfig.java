@@ -22,18 +22,20 @@ public class TrowelConfig {
     public String transfer2Name = "transfer2";
 
     // Device names
-    public String pinpointName = "odo";
+    // Standardize on a single IMU name. If your robot config uses a different name change this value.
     public String imuName = "imu";
+    public String pinpointName = "odo";
+
+    // Standardized encoder ticks per revolution (default requested: 750)
+    public int encoderTicksPerRev = 750;
 
     // Pinpoint odometry pod offsets in millimeters
-    // These are the physical distances from the center of rotation to each encoder wheel
     // X offset is for the forward/backward encoder (parallel to forward motion)
     // Y offset is for the left/right encoder (perpendicular to forward motion)
-    public double odoPerpendicularOffsetMM = 19.05;  // 0.75 inches = 19.05 mm (forward pod Y offset)
-    public double odoParallelOffsetMM = 107.95;      // 4.25 inches = 107.95 mm (strafe pod X offset)
+    public double odoPerpendicularOffsetMM = -127.05;
+    public double odoParallelOffsetMM = -165.95;
 
     // Pinpoint encoder directions
-    public GoBildaPinpointDriver.EncoderDirection pinpointForwardEncoderDirection = GoBildaPinpointDriver.EncoderDirection.FORWARD;
-    public GoBildaPinpointDriver.EncoderDirection pinpointStrafeEncoderDirection = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+    public GoBildaPinpointDriver.EncoderDirection pinpointForwardEncoderDirection = GoBildaPinpointDriver.EncoderDirection.REVERSED;
+    public GoBildaPinpointDriver.EncoderDirection pinpointStrafeEncoderDirection = GoBildaPinpointDriver.EncoderDirection.REVERSED;
 }
-

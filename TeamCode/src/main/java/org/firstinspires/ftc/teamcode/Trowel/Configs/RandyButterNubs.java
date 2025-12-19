@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.Trowel.Configs;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 public class RandyButterNubs {
     private DcMotor frontLeft;
@@ -9,15 +8,10 @@ public class RandyButterNubs {
     private DcMotor backLeft;
     private DcMotor backRight;
 
-    // PIDF coefficients for deposit motors - tuned for stable velocity control
-    // P: Proportional gain - higher = faster response but can overshoot
-    // I: Integral gain - corrects steady-state error but can cause windup
-    // D: Derivative gain - dampens oscillations
-    // F: Feedforward gain - predicts motor output needed for target velocity
-    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(30.0, 0.02, 20.0, 15.0);
+    // Deposit PIDF is centralized in TrowelHardware.DEPOSIT_PIDF
 
     // Default deposit velocity in ticks per second
-    public static final double DEFAULT_DEPOSIT_VELOCITY = 1800.0;
+    public static final double DEFAULT_DEPOSIT_VELOCITY = 735.0;
 
     /**
      * Constructor for RandyButterNubs (Mecanum Drive)
@@ -58,6 +52,42 @@ public class RandyButterNubs {
         // Forward: all wheels same direction
         // Strafe: diagonal pairs opposite (FL+BR vs FR+BL)
         // Rotate: left side vs right side opposite
+        double frontLeftPower = forward + strafe + rotate;
+        double frontRightPower = forward - strafe - rotate;
+        double backLeftPower = forward - strafe + rotate;
+        double backRightPower = forward + strafe - rotate;
+
+        // Normalize power values to be within [-1, 1]
+        double maxPower = getMaxAbsValue(frontLeftPower, frontRightPower, backLeftPower, backRightPower);
+        if (maxPower > 1.0) {
+            frontLeftPower /= maxPower;
+            frontRightPower /= maxPower;
+            backLeftPower /= maxPower;
+            backRightPower /= maxPower;
+        }
+
+        // Set motor powers
+        setMotorPower(frontLeft, frontLeftPower);
+        setMotorPower(frontRight, frontRightPower);
+        setMotorPower(backLeft, backLeftPower);
+        setMotorPower(backRight, backRightPower);
+    }
+
+    /**
+     * Drive with optional slow-mode modifiers based on bumpers.
+     * If rightBumper is held, scale = 0.3 (higher priority). If leftBumper is held, scale = 0.7.
+     */
+    public void drive(double forward, double strafe, double rotate, boolean leftBumper, boolean rightBumper) {
+        double scale = 1.0;
+        if (rightBumper) scale = 0.3; // RB = 30% speed
+        else if (leftBumper) scale = 0.7; // LB = 70% speed
+
+        // Apply scaling to inputs
+        forward *= scale;
+        strafe *= scale;
+        rotate *= scale;
+
+        // Standard mecanum drive equations
         double frontLeftPower = forward + strafe + rotate;
         double frontRightPower = forward - strafe - rotate;
         double backLeftPower = forward - strafe + rotate;
@@ -152,4 +182,3 @@ public class RandyButterNubs {
         return backRight != null ? backRight.getPower() : 0;
     }
 }
-

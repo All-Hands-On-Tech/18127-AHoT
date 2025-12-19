@@ -48,12 +48,7 @@ public class TrowelHardware {
     public boolean pinpointBusDowngraded = false;
     public String pinpointRecoveryAction = "";
 
-    // Custom PIDF coefficients for deposit motors - tuned for stable velocity control
-    // P: Proportional gain - higher = faster response but can overshoot
-    // I: Integral gain - corrects steady-state error but can cause windup
-    // D: Derivative gain - dampens oscillations
-    // F: Feedforward gain - predicts motor output needed for target velocity
-    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(35.0, 0.02, 20.0, 15.1);
+    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(35.0, 0.0, 0.0, 17.1);
 
     /**
      * Constructor - Initialize hardware with HardwareMap
@@ -409,4 +404,3 @@ public class TrowelHardware {
         return powers.toString();
     }
 }
-
