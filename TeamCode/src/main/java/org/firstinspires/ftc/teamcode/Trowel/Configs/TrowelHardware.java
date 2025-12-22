@@ -10,6 +10,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver;
 import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver.DeviceStatus;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 /**
  * TrowelHardware - Robot hardware abstraction for Trowel
@@ -38,6 +40,9 @@ public class TrowelHardware {
     public IMU imu;
     public GoBildaPinpointDriver pinpoint;
 
+    // IMU availability flag
+    private boolean imuAvailable = false;
+
     // Configuration
     private final TrowelConfig config;
     private HardwareMap hwMap;
@@ -48,7 +53,18 @@ public class TrowelHardware {
     public boolean pinpointBusDowngraded = false;
     public String pinpointRecoveryAction = "";
 
-    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(35.0, 0.0, 0.0, 17.1);
+    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(27.0, 0.0, 0.0, 60.8);
+
+    // Standard default deposit velocity (ticks per second)
+    public static final double DEFAULT_DEPOSIT_VELOCITY = 265.0;
+
+    // Additional software feedforward multiplier (0.0 = no extra FF). This is separate from the
+    // REV PIDF F constant and allows increasing the commanded velocity to drive the motor harder
+    // during spin-up without changing the PIDF coefficients.
+    private double depositFeedforwardFactor = 0.0;
+    // Additional absolute feedforward boost in ticks/sec. This adds a fixed number of ticks/sec
+    // to the commanded velocity to help overcome static friction / increase spin-up speed.
+    private double depositFeedforwardBoostTicks = 0.0;
 
     /**
      * Constructor - Initialize hardware with HardwareMap
@@ -160,8 +176,12 @@ public class TrowelHardware {
                     IMU.Parameters params = new IMU.Parameters(orientationOnRobot);
                     imu.initialize(params);
                     imu.resetYaw();
+                    imuAvailable = true;
+                } else {
+                    imuAvailable = false;
                 }
             } catch (Exception ignored) {
+                imuAvailable = false;
             }
 
             // Configure transfer servos - don't set position during init to prevent movement
@@ -258,11 +278,18 @@ public class TrowelHardware {
      * Uses setVelocity with RUN_USING_ENCODER mode for smooth control
      */
     public void setDepositVelocity(double velocity) {
+        if (Double.isNaN(velocity)) return;
+
+        // Apply software feedforward multiplier (keeps PIDF coefficients unchanged)
+        double ffContribution = computeDepositFeedforwardContribution(velocity);
+        double commandedVelocity = velocity + ffContribution;
+
         if (deposit1 != null) {
-            deposit1.setVelocity(velocity);
+            // keep prior small offset for motor sync
+            deposit1.setVelocity(commandedVelocity + 15);
         }
         if (deposit2 != null) {
-            deposit2.setVelocity(velocity);
+            deposit2.setVelocity(commandedVelocity);
         }
     }
 
@@ -402,5 +429,68 @@ public class TrowelHardware {
         if (deposit2 != null) powers.append("Deposit2 Power: ").append(String.format("%.2f", deposit2.getPower())).append("\n");
 
         return powers.toString();
+    }
+
+    /**
+     * Check if IMU is available
+     */
+    public boolean isImuAvailable() {
+        return imuAvailable && imu != null;
+    }
+
+    /**
+     * Get the IMU yaw (heading) in degrees, or Double.NaN if unavailable
+     */
+    public double getImuYawDegrees() {
+        if (!isImuAvailable()) return Double.NaN;
+        try {
+            // IMU.getRobotYawPitchRollAngles() returns angles; getYaw with DEGREES returns degrees directly
+            YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
+            return ypr.getYaw(AngleUnit.DEGREES);
+        } catch (Exception e) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Set the software feedforward multiplier applied to deposit velocity commands.
+     * @param factor fractional additive factor (e.g. 0.1 adds 10% to the commanded velocity)
+     */
+    public void setDepositFeedforwardFactor(double factor) {
+        this.depositFeedforwardFactor = factor;
+    }
+
+    /**
+     * Set an absolute feedforward boost (ticks/sec) to add to deposit velocity commands.
+     * This is additive on top of the multiplicative feedforward factor.
+     */
+    public void setDepositFeedforwardBoostTicks(double boostTicks) {
+        this.depositFeedforwardBoostTicks = boostTicks;
+    }
+
+    /**
+     * Get the absolute feedforward boost (ticks/sec).
+     */
+    public double getDepositFeedforwardBoostTicks() {
+        return this.depositFeedforwardBoostTicks;
+    }
+
+    /**
+     * Get the current software feedforward factor applied to deposit commands.
+     */
+    public double getDepositFeedforwardFactor() {
+        return this.depositFeedforwardFactor;
+    }
+
+    /**
+     * Compute the feedforward contribution (in ticks/sec) that will be added for a given target
+     * velocity. Useful for telemetry (how much extra velocity is being requested due to FF).
+     */
+    public double computeDepositFeedforwardContribution(double targetVelocity) {
+        if (Double.isNaN(targetVelocity)) return 0.0;
+        // Contribution = multiplicative fraction + absolute boost
+        double mult = targetVelocity * depositFeedforwardFactor;
+        double abs = depositFeedforwardBoostTicks;
+        return mult + abs;
     }
 }

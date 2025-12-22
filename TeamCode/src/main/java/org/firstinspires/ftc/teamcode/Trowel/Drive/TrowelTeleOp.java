@@ -19,20 +19,25 @@ public class TrowelTeleOp extends OpMode {
     public static int BLUE_TAG_ID = 20;
     public static int RED_TAG_ID = 24;
 
-    public static double AUTO_TURN_SPEED = 0.45;
+    public static double AUTO_TURN_SPEED = 0.35;
     public static double YAW_THRESHOLD = 2.0;
     public static double HEADING_RESET_SPEED = 0.4;
     public static double HEADING_THRESHOLD = 2.0;
     // PD controller settings for vision auto-aim (tuned conservative)
-    public static double SNAP_KP = 0.045;      // much higher proportional gain for strong/fast aiming
-    public static double SNAP_KD = 0.008;      // slightly higher derivative gain for stability
-    public static double SNAP_MAX_POWER = 0.45; // much higher max rotation power for aggressive aiming
-    public static double SNAP_DEADZONE_DEG = 0.5; // much smaller deadzone for tighter aiming
-    // Hardcoded shift: always treat tag as 2° more to the right (positive = right)
+    // Reduced gains and max power to slow down auto-aim speed
+    public static double SNAP_KP = 0.035;      // reduced proportional gain
+    public static double SNAP_KD = 0.006;      // reduced derivative gain
+    public static double SNAP_MAX_POWER = 0.25; // reduced max rotation power to slow aiming
+    public static double SNAP_DEADZONE_DEG = 0.5; // small deadzone for tighter aiming
+    // Hardcoded shift magnitude: 2 degrees. Sign will be applied per-team (blue -> left, red -> right)
     public static final double HARD_AIM_SHIFT_DEG = 2.0;
     private double aimLastError = 0.0;
     private long aimLastTime = 0;
     private boolean autoTurnEnabled = false;
+    // Deposit spin-up (open-loop) burst to overcome static friction before switching to velocity control
+    public static double DEPOSIT_SPINUP_POWER = 0.8; // open-loop power during spin-up (0-1)
+    public static int DEPOSIT_SPINUP_MS = 75; // duration of open-loop spin-up in milliseconds
+    private long depositSpinupEndTime = 0; // 0 means not spinning up; -1 means spin-up finished
 
     private TrowelHardware robot;
     private RandyButterNubs drive;
@@ -55,10 +60,31 @@ public class TrowelTeleOp extends OpMode {
     private boolean lastDpadLeftState = false;
     private boolean lastDpadRightState = false;
 
+    // Panels-tunable software feedforward factor (fractional). Keep PIDF constants unchanged.
+    public static double DEPOSIT_FF_FACTOR = 0.05; // default small multiplicative FF
+    // Panels-tunable absolute feedforward boost in ticks/sec (additive)
+    public static double DEPOSIT_FF_BOOST_TICKS = 120.0; // default additive boost (ticks/sec)
+    // Panels-tunable deposit target velocity so you can tune via the Panels UI
+    public static double PANEL_DEPOSIT_TARGET_VELOCITY = RandyButterNubs.DEFAULT_DEPOSIT_VELOCITY;
+
+    // ===== Gamepad2 D-Pad tuning constants/vars =====
+    private static final double DEPOSIT_STEP_SMALL = 10.0;
+    private static final double DEPOSIT_STEP_LARGE = 100.0;
+    private static final double DEPOSIT_MIN_VELOCITY = 0.0;
+    private static final double DEPOSIT_MAX_VELOCITY = 5000.0;
+    private boolean prevGp2DpadUp = false, prevGp2DpadDown = false, prevGp2DpadLeft = false, prevGp2DpadRight = false;
+    private long lastGp2DpadChange = 0;
+    private static final long FIRST_REPEAT_DELAY_MS = 350;
+    private static final long REPEAT_INTERVAL_MS = 120;
+    // =================================================
+
     @Override
     public void init() {
         robot = new TrowelHardware(hardwareMap);
         drive = new RandyButterNubs(robot.frontLeft, robot.frontRight, robot.backLeft, robot.backRight);
+
+        // Apply initial feedforward factor (can be tuned via Panels because this class is @Configurable)
+        robot.setDepositFeedforwardFactor(DEPOSIT_FF_FACTOR);
 
         try {
             robot.initPinpoint();
@@ -124,6 +150,66 @@ public class TrowelTeleOp extends OpMode {
 
     @Override
     public void loop() {
+        // If DEPOSIT_FF_FACTOR is changed via panels, propagate it to the robot instance
+        if (robot != null && robot.getDepositFeedforwardFactor() != DEPOSIT_FF_FACTOR) {
+            robot.setDepositFeedforwardFactor(DEPOSIT_FF_FACTOR);
+        }
+        // Propagate absolute boost ticks as well
+        if (robot != null && robot.getDepositFeedforwardBoostTicks() != DEPOSIT_FF_BOOST_TICKS) {
+            robot.setDepositFeedforwardBoostTicks(DEPOSIT_FF_BOOST_TICKS);
+        }
+
+        // Sync panels deposit target velocity to runtime variable. This allows tuning via the Panels UI.
+        if (PANEL_DEPOSIT_TARGET_VELOCITY != depositTargetVelocity) {
+            depositTargetVelocity = PANEL_DEPOSIT_TARGET_VELOCITY;
+            // If deposit is currently active, apply immediately
+            if (depositActive) robot.setDepositVelocity(depositTargetVelocity);
+        }
+
+        // ===== Gamepad2 D-Pad tuning: override/update depositTargetVelocity =====
+        boolean gp2Up = gamepad2.dpad_up;
+        boolean gp2Down = gamepad2.dpad_down;
+        boolean gp2Left = gamepad2.dpad_left;
+        boolean gp2Right = gamepad2.dpad_right;
+        long now = System.currentTimeMillis();
+
+        if (gp2Up && (!prevGp2DpadUp || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.min(DEPOSIT_MAX_VELOCITY, depositTargetVelocity + DEPOSIT_STEP_LARGE);
+            lastGp2DpadChange = now;
+        }
+        if (gp2Down && (!prevGp2DpadDown || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.max(DEPOSIT_MIN_VELOCITY, depositTargetVelocity - DEPOSIT_STEP_LARGE);
+            lastGp2DpadChange = now;
+        }
+        if (gp2Right && (!prevGp2DpadRight || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.min(DEPOSIT_MAX_VELOCITY, depositTargetVelocity + DEPOSIT_STEP_SMALL);
+            lastGp2DpadChange = now;
+        }
+        if (gp2Left && (!prevGp2DpadLeft || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
+            depositTargetVelocity = Math.max(DEPOSIT_MIN_VELOCITY, depositTargetVelocity - DEPOSIT_STEP_SMALL);
+            lastGp2DpadChange = now;
+        }
+
+        if ((gp2Up || gp2Down || gp2Left || gp2Right) && now - lastGp2DpadChange > REPEAT_INTERVAL_MS) {
+            lastGp2DpadChange = now - (REPEAT_INTERVAL_MS + 1);
+        }
+
+        prevGp2DpadUp = gp2Up;
+        prevGp2DpadDown = gp2Down;
+        prevGp2DpadLeft = gp2Left;
+        prevGp2DpadRight = gp2Right;
+
+        // Make sure panels UI reflects the runtime change
+        if (PANEL_DEPOSIT_TARGET_VELOCITY != depositTargetVelocity) {
+            PANEL_DEPOSIT_TARGET_VELOCITY = depositTargetVelocity;
+        }
+
+        // If deposit is active, ensure robot receives the updated velocity command immediately
+        if (depositActive && depositSpinupEndTime == -1) {
+            robot.setDepositVelocity(depositTargetVelocity);
+        }
+        // ==============================================================
+
         if (odometryEnabled && robot.pinpoint != null) {
             robot.updatePinpoint();
             if (odometry == null) odometry = new Odometry(robot, robot.pinpoint);
@@ -161,8 +247,18 @@ public class TrowelTeleOp extends OpMode {
             double rawError;
             boolean haveBearing = !Double.isNaN(bearing);
             if (haveBearing) rawError = bearing; else rawError = yawToTag;
-            // Hardcode a +2 degree rightward shift for all aiming
-            rawError += 2.0;
+
+            // Apply team-specific hard aim shift: Blue -> 2° left, Red -> +2° right (preserve previous right-shift behavior)
+            double appliedShiftDeg = HARD_AIM_SHIFT_DEG;
+            if (selectedTeam == Team.BLUE) {
+                appliedShiftDeg = -HARD_AIM_SHIFT_DEG; // left shift for blue
+            } else if (selectedTeam == Team.RED) {
+                appliedShiftDeg = HARD_AIM_SHIFT_DEG; // right shift for red (unchanged)
+            } else {
+                appliedShiftDeg = HARD_AIM_SHIFT_DEG; // default to right if none selected
+            }
+
+            rawError += appliedShiftDeg;
             tagVisible = !Double.isNaN(rawError);
 
             if (tagVisible) {
@@ -172,7 +268,7 @@ public class TrowelTeleOp extends OpMode {
                 telemetry.addData("Vision Source", haveBearing ? "bearing" : "yaw");
                 if (haveBearing) telemetry.addData("Bearing (deg)", "%.2f", bearing);
                 telemetry.addData("Yaw (deg)", "%.2f", yawToTag);
-                telemetry.addData("Hard Aim Shift (deg)", "%.2f", HARD_AIM_SHIFT_DEG);
+                telemetry.addData("Applied Aim Shift (deg)", "%.2f", appliedShiftDeg);
 
                 // deadzone
                 if (Math.abs(error) <= SNAP_DEADZONE_DEG) {
@@ -264,46 +360,33 @@ public class TrowelTeleOp extends OpMode {
         if (gamepad2.x && !lastXButtonState) {
             depositActive = !depositActive;
             if (depositActive) {
-                robot.setDepositVelocity(depositTargetVelocity);
+                // start open-loop spin-up burst, then we'll switch to velocity control after DEPOSIT_SPINUP_MS
+                depositSpinupEndTime = System.currentTimeMillis() + DEPOSIT_SPINUP_MS;
+                // Apply open-loop power to both deposit motors to get them spinning
+                if (robot.deposit1 != null) robot.deposit1.setPower(DEPOSIT_SPINUP_POWER);
+                if (robot.deposit2 != null) robot.deposit2.setPower(DEPOSIT_SPINUP_POWER);
             } else {
+                // stopped
+                depositSpinupEndTime = 0;
                 robot.stopDeposit();
             }
         }
         lastXButtonState = gamepad2.x;
 
-        if (gamepad2.dpad_up && !lastDpadUpState) {
-            depositTargetVelocity += 5;
-            if (depositActive) {
+        // Handle non-blocking spin-up transition
+        if (depositActive) {
+            if (depositSpinupEndTime > 0) {
+                long nowTs = System.currentTimeMillis();
+                if (nowTs >= depositSpinupEndTime) {
+                    // Spin-up finished: switch to closed-loop velocity control
+                    robot.setDepositVelocity(depositTargetVelocity);
+                    depositSpinupEndTime = -1; // mark finished
+                }
+            } else if (depositSpinupEndTime == -1) {
+                // already in velocity control; ensure velocity command is maintained
                 robot.setDepositVelocity(depositTargetVelocity);
             }
         }
-        lastDpadUpState = gamepad2.dpad_up;
-
-        if (gamepad2.dpad_down && !lastDpadDownState) {
-            depositTargetVelocity -= 5;
-            if (depositTargetVelocity < 0) depositTargetVelocity = 0;
-            if (depositActive) {
-                robot.setDepositVelocity(depositTargetVelocity);
-            }
-        }
-        lastDpadDownState = gamepad2.dpad_down;
-
-        if (gamepad2.dpad_left && !lastDpadLeftState) {
-            depositTargetVelocity -= 50;
-            if (depositTargetVelocity < 0) depositTargetVelocity = 0;
-            if (depositActive) {
-                robot.setDepositVelocity(depositTargetVelocity);
-            }
-        }
-        lastDpadLeftState = gamepad2.dpad_left;
-
-        if (gamepad2.dpad_right && !lastDpadRightState) {
-            depositTargetVelocity += 50;
-            if (depositActive) {
-                robot.setDepositVelocity(depositTargetVelocity);
-            }
-        }
-        lastDpadRightState = gamepad2.dpad_right;
 
         telemetry.addData("=== TEAM & AUTO-TURN ===", "");
         String teamStr = (selectedTeam == Team.BLUE) ? "BLUE" :
@@ -342,6 +425,15 @@ public class TrowelTeleOp extends OpMode {
             telemetry.addData("Deposit RPM", "D1: %.0f, D2: %.0f, Avg: %.0f", robot.getDeposit1RPM(), robot.getDeposit2RPM(), robot.getAverageDepositRPM());
         }
 
+        // Show feedforward factor and contribution for tuning visibility
+        double ffFactor = robot.getDepositFeedforwardFactor();
+        double ffContribution = robot.computeDepositFeedforwardContribution(depositTargetVelocity);
+        telemetry.addData("Deposit/TargetVelocity", "%.1f ticks/s", depositTargetVelocity);
+        telemetry.addData("Deposit/FF Factor", "%.3f", ffFactor);
+        telemetry.addData("Deposit/FF BoostTicks", "%.1f ticks/s", robot.getDepositFeedforwardBoostTicks());
+        telemetry.addData("Deposit/FF Contribution", "%.1f ticks/s", ffContribution);
+        telemetry.addData("Deposit/CommandedVelocity (wFF)", "%.1f ticks/s", depositTargetVelocity + ffContribution);
+
         if (odometryEnabled && odometry != null) {
             Odometry.Position pos = odometry.getPosition();
             telemetry.addData("=== ODOMETRY ===", "");
@@ -364,9 +456,37 @@ public class TrowelTeleOp extends OpMode {
             telemetry.addData("Robot Heading (deg)", "%.2f", visionLocalization.getRobotHeading());
             telemetry.addData("Confidence", "%.2f", visionLocalization.getConfidence());
             telemetry.addData("Recent Detection", visionLocalization.hasRecentDetection() ? "YES" : "NO");
-        } else {
-            telemetry.addData("Vision", "Disabled");
-        }
+
+            // 2D range (ftcPose.range) to the selected tag (if any)
+            double range2d = Double.NaN;
+            if (targetTagId > 0) range2d = visionLocalization.getRangeToTag(targetTagId);
+
+            // 3D euclidean distances (inches)
+            double dist3dTarget = Double.NaN;
+            if (targetTagId > 0) dist3dTarget = visionLocalization.get3dDistanceToTag(targetTagId);
+            double dist3dAvg = visionLocalization.get3dDistanceAvg();
+
+            // Safe formatting using Locale.US to avoid locale issues
+            if (!Double.isNaN(range2d)) {
+                telemetry.addData("Range to Target (2D, in)", String.format(java.util.Locale.US, "%.2f", range2d));
+            } else {
+                telemetry.addData("Range to Target (2D, in)", "N/A");
+            }
+
+            if (!Double.isNaN(dist3dTarget)) {
+                telemetry.addData("3D Distance to Target (in)", String.format(java.util.Locale.US, "%.2f", dist3dTarget));
+            } else {
+                telemetry.addData("3D Distance to Target (in)", "N/A");
+            }
+
+            if (!Double.isNaN(dist3dAvg)) {
+                telemetry.addData("3D Distance Avg (in)", String.format(java.util.Locale.US, "%.2f", dist3dAvg));
+            } else {
+                telemetry.addData("3D Distance Avg (in)", "N/A");
+            }
+         } else {
+             telemetry.addData("Vision", "Disabled");
+         }
 
         telemetry.addLine(robot.getMotorPowers());
         telemetry.addLine(robot.getMotorConfigurations());

@@ -87,7 +87,7 @@ public class VisionLocalization {
         if (!isInitialized || aprilTagProcessor == null) return;
 
         List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
-        detectedTagCount = detections.size();
+        detectedTagCount = detections == null ? 0 : detections.size();
 
         if (detectedTagCount > 0) {
             double sumX = 0, sumY = 0, sumHeading = 0;
@@ -132,6 +132,35 @@ public class VisionLocalization {
         return robotY;
     }
 
+    /**
+     * Returns a best-effort range (in inches) to the nearest/averaged detection.
+     * If detections provide an explicit range (via ftcPose), use the average of those.
+     * Otherwise fall back to computing range from the averaged robot X/Y position.
+     */
+    public double getRobotRange() {
+        if (aprilTagProcessor != null) {
+            List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
+            if (detections != null && !detections.isEmpty()) {
+                double sumRange = 0.0;
+                int count = 0;
+                for (AprilTagDetection d : detections) {
+                    try {
+                        if (d != null && d.ftcPose != null && !Double.isNaN(d.ftcPose.range)) {
+                            sumRange += d.ftcPose.range;
+                            count++;
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+                if (count > 0) {
+                    return sumRange / count; // average range from detections
+                }
+            }
+        }
+        // Fallback: Euclidean distance from origin (0,0) using robotX/Y
+        return Math.hypot(robotX, robotY);
+    }
+
     public double getRobotHeading() {
         return robotHeading;
     }
@@ -169,9 +198,9 @@ public class VisionLocalization {
                 info.append(String.format("\nPos: X=%.1f\" Y=%.1f\" Z=%.1f\"",
                         pos.x, pos.y, pos.z));
                 info.append(String.format("\nYaw=%.1f° Pitch=%.1f° Roll=%.1f°",
-                        orient.getYaw(AngleUnit.DEGREES),
-                        orient.getPitch(AngleUnit.DEGREES),
-                        orient.getRoll(AngleUnit.DEGREES)));
+                         orient.getYaw(AngleUnit.DEGREES),
+                         orient.getPitch(AngleUnit.DEGREES),
+                         orient.getRoll(AngleUnit.DEGREES)));
             }
         }
 
@@ -227,6 +256,19 @@ public class VisionLocalization {
         sb.append(String.format("Position: X=%.1f\" Y=%.1f\"\n", robotX, robotY));
         sb.append(String.format("Heading: %.1f°\n", robotHeading));
         sb.append(String.format("Recent Detection: %s\n", hasRecentDetection() ? "Yes" : "No"));
+
+        // Add explicit range telemetry for commonly used tags (blue=20, red=24)
+        double rangeBlue = getRangeToTag(20);
+        double rangeRed = getRangeToTag(24);
+        sb.append(String.format("Range (avg detections): %.1f\"\n", getRobotRange()));
+        sb.append(String.format("Range to Blue (ID 20): %s\n", Double.isNaN(rangeBlue) ? "N/A" : String.format("%.1f\"", rangeBlue)));
+        sb.append(String.format("Range to Red  (ID 24): %s\n", Double.isNaN(rangeRed) ? "N/A" : String.format("%.1f\"", rangeRed)));
+
+        // Add 3D distance telemetry
+        sb.append(String.format("3D Distance (avg detections): %.1f\"\n", get3dDistanceAvg()));
+        sb.append(String.format("3D Distance to Blue (ID 20): %s\n", Double.isNaN(rangeBlue) ? "N/A" : String.format("%.1f\"", get3dDistanceToTag(20))));
+        sb.append(String.format("3D Distance to Red  (ID 24): %s\n", Double.isNaN(rangeRed) ? "N/A" : String.format("%.1f\"", get3dDistanceToTag(24))));
+
         return sb.toString();
     }
 
@@ -234,6 +276,7 @@ public class VisionLocalization {
         if (aprilTagProcessor == null) return null;
 
         List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
+        if (detections == null) return null;
         for (AprilTagDetection detection : detections) {
             if (detection.id == tagId) {
                 return detection;
@@ -268,5 +311,70 @@ public class VisionLocalization {
 
     public boolean isTagVisible(int tagId) {
         return findTagById(tagId) != null;
+    }
+
+    /**
+     * Returns the 3D euclidean distance (inches) from the camera to the given tag, using the
+     * detection's robotPose position (x,y,z). Falls back to ftcPose.range if robotPose isn't available.
+     */
+    public double get3dDistanceToTag(int tagId) {
+        AprilTagDetection detection = findTagById(tagId);
+        if (detection == null) return Double.NaN;
+
+        try {
+            if (detection.robotPose != null) {
+                Position p = detection.robotPose.getPosition();
+                if (p != null) {
+                    double x = p.x;
+                    double y = p.y;
+                    double z = p.z;
+                    double dist = Math.sqrt(x * x + y * y + z * z);
+                    return dist;
+                }
+            }
+
+            if (detection.ftcPose != null && !Double.isNaN(detection.ftcPose.range)) {
+                // ftcPose.range is a 2D or slant range depending on API; use it as a fallback
+                return detection.ftcPose.range;
+            }
+        } catch (Exception ignored) {
+        }
+
+        return Double.NaN;
+    }
+
+    /**
+     * Average 3D distance across all valid detections (inches). Returns NaN if none available.
+     */
+    public double get3dDistanceAvg() {
+        if (aprilTagProcessor == null) return Double.NaN;
+        List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
+        if (detections == null || detections.isEmpty()) return Double.NaN;
+
+        double sum = 0.0;
+        int count = 0;
+        for (AprilTagDetection d : detections) {
+            double dist = get3dDistanceForDetection(d);
+            if (!Double.isNaN(dist)) {
+                sum += dist;
+                count++;
+            }
+        }
+        return count > 0 ? (sum / count) : Double.NaN;
+    }
+
+    private double get3dDistanceForDetection(AprilTagDetection detection) {
+        if (detection == null) return Double.NaN;
+        try {
+            if (detection.robotPose != null) {
+                Position p = detection.robotPose.getPosition();
+                if (p != null) return Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+            }
+            if (detection.ftcPose != null && !Double.isNaN(detection.ftcPose.range)) {
+                return detection.ftcPose.range;
+            }
+        } catch (Exception ignored) {
+        }
+        return Double.NaN;
     }
 }

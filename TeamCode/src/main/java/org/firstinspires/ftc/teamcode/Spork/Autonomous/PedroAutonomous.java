@@ -35,7 +35,7 @@ public class PedroAutonomous extends OpMode {
 
     // ========== TUNING VARIABLES ==========
     private static final double INTAKE1_POWER = -1.0;   // Full power
-    private static final double INTAKE2_POWER = 1.0;   // Full power
+    private static final double INTAKE2_POWER = 0.6;   // Full power
     private static final double DEPOSIT_CYCLE_TIME_S = 1.25;  // Run both intakes for 1.25 seconds
     private static final double FIRST_SHOT_DELAY_S = 2.5;   // Delay before first shot to prevent overshoot (increased from 1.1)
     private static final double SECOND_SHOT_DELAY_S = 0.5;  // Delay before second shot
