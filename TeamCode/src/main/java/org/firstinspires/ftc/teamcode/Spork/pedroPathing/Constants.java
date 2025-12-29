@@ -75,7 +75,7 @@ public class Constants {
             0.99,   // tValueConstraint
             100,    // timeoutConstraint
             0.7,      // brakingStrength
-            1       // brakingStart
+            1           // brakingStart
     );
 
     public static Follower createFollower(HardwareMap hardwareMap) {

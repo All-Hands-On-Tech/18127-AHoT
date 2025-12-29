@@ -19,7 +19,7 @@ public class TrowelTeleOp extends OpMode {
     public static int BLUE_TAG_ID = 20;
     public static int RED_TAG_ID = 24;
 
-    public static double AUTO_TURN_SPEED = 0.35;
+    public static double AUTO_TURN_SPEED = 0.3;
     public static double YAW_THRESHOLD = 2.0;
     public static double HEADING_RESET_SPEED = 0.4;
     public static double HEADING_THRESHOLD = 2.0;
@@ -27,16 +27,17 @@ public class TrowelTeleOp extends OpMode {
     // Reduced gains and max power to slow down auto-aim speed
     public static double SNAP_KP = 0.035;      // reduced proportional gain
     public static double SNAP_KD = 0.006;      // reduced derivative gain
-    public static double SNAP_MAX_POWER = 0.25; // reduced max rotation power to slow aiming
-    public static double SNAP_DEADZONE_DEG = 0.5; // small deadzone for tighter aiming
+    public static double SNAP_MAX_POWER = 0.15; // Lowered max rotation power
+    public static double SNAP_DEADZONE_DEG = 0.25; // Lowered deadzone for tighter aiming
     // Hardcoded shift magnitude: 2 degrees. Sign will be applied per-team (blue -> left, red -> right)
     public static final double HARD_AIM_SHIFT_DEG = 2.0;
     private double aimLastError = 0.0;
     private long aimLastTime = 0;
+    private int aimLastErrorSign = 0;
     private boolean autoTurnEnabled = false;
     // Deposit spin-up (open-loop) burst to overcome static friction before switching to velocity control
-    public static double DEPOSIT_SPINUP_POWER = 0.8; // open-loop power during spin-up (0-1)
-    public static int DEPOSIT_SPINUP_MS = 75; // duration of open-loop spin-up in milliseconds
+    public static double DEPOSIT_SPINUP_POWER = 1; // open-loop power during spin-up (0-1)
+    public static int DEPOSIT_SPINUP_MS = 365; // duration of open-loop spin-up in milliseconds
     private long depositSpinupEndTime = 0; // 0 means not spinning up; -1 means spin-up finished
 
     private TrowelHardware robot;
@@ -52,6 +53,9 @@ public class TrowelTeleOp extends OpMode {
     private static final double TRANSFER_NEUTRAL = 0.5;
     private boolean transferActive = false;
 
+    // Scale factor for the second-stage intake (intake2). Reduce by 10% as requested.
+    private static final double INTAKE2_SCALE = 1.0;
+
     private double depositTargetVelocity = RandyButterNubs.DEFAULT_DEPOSIT_VELOCITY;
     private boolean depositActive = false;
     private boolean lastXButtonState = false;
@@ -63,13 +67,13 @@ public class TrowelTeleOp extends OpMode {
     // Panels-tunable software feedforward factor (fractional). Keep PIDF constants unchanged.
     public static double DEPOSIT_FF_FACTOR = 0.05; // default small multiplicative FF
     // Panels-tunable absolute feedforward boost in ticks/sec (additive)
-    public static double DEPOSIT_FF_BOOST_TICKS = 120.0; // default additive boost (ticks/sec)
+    public static double DEPOSIT_FF_BOOST_TICKS = 200.0; // default additive boost (ticks/sec)
     // Panels-tunable deposit target velocity so you can tune via the Panels UI
     public static double PANEL_DEPOSIT_TARGET_VELOCITY = RandyButterNubs.DEFAULT_DEPOSIT_VELOCITY;
 
     // ===== Gamepad2 D-Pad tuning constants/vars =====
-    private static final double DEPOSIT_STEP_SMALL = 10.0;
-    private static final double DEPOSIT_STEP_LARGE = 100.0;
+    private static final double DEPOSIT_STEP_SMALL = 5.0;
+    private static final double DEPOSIT_STEP_LARGE = 25.0;
     private static final double DEPOSIT_MIN_VELOCITY = 0.0;
     private static final double DEPOSIT_MAX_VELOCITY = 5000.0;
     private boolean prevGp2DpadUp = false, prevGp2DpadDown = false, prevGp2DpadLeft = false, prevGp2DpadRight = false;
@@ -243,35 +247,30 @@ public class TrowelTeleOp extends OpMode {
             yawToTag = visionLocalization.getYawToTag(targetTagId); // fallback (signed degrees)
             double bearing = visionLocalization.getBearingToTag(targetTagId); // preferred: robot-relative bearing
             rangeToTag = visionLocalization.getRangeToTag(targetTagId);
-            // choose bearing if valid
             double rawError;
             boolean haveBearing = !Double.isNaN(bearing);
             if (haveBearing) rawError = bearing; else rawError = yawToTag;
 
-            // Apply team-specific hard aim shift: Blue -> 2° left, Red -> +2° right (preserve previous right-shift behavior)
+            // Apply team-specific hard aim shift: Blue -> 7° left, Red -> +5° right
             double appliedShiftDeg = HARD_AIM_SHIFT_DEG;
             if (selectedTeam == Team.BLUE) {
-                appliedShiftDeg = -HARD_AIM_SHIFT_DEG; // left shift for blue
+                appliedShiftDeg = 2.0;
             } else if (selectedTeam == Team.RED) {
-                appliedShiftDeg = HARD_AIM_SHIFT_DEG; // right shift for red (unchanged)
+                appliedShiftDeg = -0.5;
             } else {
-                appliedShiftDeg = HARD_AIM_SHIFT_DEG; // default to right if none selected
+                appliedShiftDeg = HARD_AIM_SHIFT_DEG;
             }
-
             rawError += appliedShiftDeg;
             tagVisible = !Double.isNaN(rawError);
 
+            // Only rotate if tag is visible and error is valid
             if (tagVisible) {
-                double error = rawError; // signed degrees: + means tag is to robot's right
-
-                // telemetry for debugging
-                telemetry.addData("Vision Source", haveBearing ? "bearing" : "yaw");
-                if (haveBearing) telemetry.addData("Bearing (deg)", "%.2f", bearing);
-                telemetry.addData("Yaw (deg)", "%.2f", yawToTag);
-                telemetry.addData("Applied Aim Shift (deg)", "%.2f", appliedShiftDeg);
-
-                // deadzone
-                if (Math.abs(error) <= SNAP_DEADZONE_DEG) {
+                double error = rawError;
+                int errorSign = (error > 0) ? 1 : (error < 0) ? -1 : 0;
+                // Prevent oscillation: if error sign changes, stop rotating
+                if (aimLastErrorSign != 0 && errorSign != aimLastErrorSign) {
+                    autoRotate = 0.0;
+                } else if (Math.abs(error) <= SNAP_DEADZONE_DEG) {
                     autoRotate = 0.0;
                 } else {
                     long nowT = System.currentTimeMillis();
@@ -279,20 +278,21 @@ public class TrowelTeleOp extends OpMode {
                     double derivative = 0.0;
                     if (dt > 0) derivative = (error - aimLastError) / dt;
                     double p = SNAP_KP * error + SNAP_KD * derivative;
-                    // clamp
                     if (p > SNAP_MAX_POWER) p = SNAP_MAX_POWER;
                     if (p < -SNAP_MAX_POWER) p = -SNAP_MAX_POWER;
-                    // p is signed (positive means tag is to the right). RandyButterNubs.drive expects positive rotate = clockwise.
-                    // If p has opposite sign, invert here. Empirically invert to correct direction.
                     autoRotate = -p;
-                    aimLastError = error;
-                    aimLastTime = nowT;
                 }
+                aimLastError = error;
+                aimLastTime = System.currentTimeMillis();
+                aimLastErrorSign = errorSign;
+            } else {
+                autoRotate = 0.0;
+                aimLastErrorSign = 0;
             }
         } else {
-            // not auto aiming: clear integrator state
             aimLastError = 0.0;
             aimLastTime = 0;
+            aimLastErrorSign = 0;
         }
 
         // NOTE: autoRotate sign chosen to match drive.rotate sign convention
@@ -300,7 +300,7 @@ public class TrowelTeleOp extends OpMode {
         // Speed scaling: LB = 70% slow, RB = 30% slow. These scale translational and driver rotate input
         double speedScale = 1.0;
         if (gamepad1.left_bumper) speedScale = 0.7; // 70% slow mode
-        else if (gamepad1.right_bumper) speedScale = 0.3; // 30% slow mode
+        else if (gamepad1.right_bumper) speedScale = 0.5; // 30% slow mode
 
         forward *= speedScale;
         strafe *= speedScale;
@@ -316,22 +316,19 @@ public class TrowelTeleOp extends OpMode {
 
         if (driver1IntakeIn) {
             // Driver1 ZL: run intakes IN and set transfers to IN
-            if (robot.transfer1 != null) robot.transfer1.setPosition(TRANSFER_IN);
-            if (robot.transfer2 != null) robot.transfer2.setPosition(TRANSFER_IN);
+            setTransferIn();
             transferActive = true;
             if (robot.intake1 != null) robot.intake1.setPower(1.0);
-            if (robot.intake2 != null) robot.intake2.setPower(-1.0);
+            if (robot.intake2 != null) robot.intake2.setPower(-1.0 * INTAKE2_SCALE);
         } else if (driver1IntakeOut) {
             // Driver1 ZR: run intakes OUT (reverse) and set transfers to OUT
-            if (robot.transfer1 != null) robot.transfer1.setPosition(TRANSFER_OUT);
-            if (robot.transfer2 != null) robot.transfer2.setPosition(TRANSFER_OUT);
+            setTransferOut();
             transferActive = true;
             if (robot.intake1 != null) robot.intake1.setPower(-1.0);
-            if (robot.intake2 != null) robot.intake2.setPower(-1.0);
+            if (robot.intake2 != null) robot.intake2.setPower(-1.0 * INTAKE2_SCALE);
         } else {
             // No driver1 override - transfers go neutral and restore gamepad2 controls (unchanged)
-            if (robot.transfer1 != null) robot.transfer1.setPosition(TRANSFER_NEUTRAL);
-            if (robot.transfer2 != null) robot.transfer2.setPosition(TRANSFER_NEUTRAL);
+            setTransferNeutral();
             transferActive = false;
 
             // Intake1 - controlled by gamepad2 triggers/bumpers: left_trigger = IN, right_trigger = OUT
@@ -348,9 +345,9 @@ public class TrowelTeleOp extends OpMode {
             // Intake2 - controlled by gamepad2 buttons A (IN) and B (OUT)
             if (robot.intake2 != null) {
                 if (gamepad2.a) {
-                    robot.intake2.setPower(1.0);
+                    robot.intake2.setPower(1.0 * INTAKE2_SCALE);
                 } else if (gamepad2.b) {
-                    robot.intake2.setPower(-1.0);
+                    robot.intake2.setPower(-1.0 * INTAKE2_SCALE);
                 } else {
                     robot.intake2.setPower(0.0);
                 }
@@ -488,6 +485,21 @@ public class TrowelTeleOp extends OpMode {
              telemetry.addData("Vision", "Disabled");
          }
 
+        // Add explicit camera/vision diagnostics
+        if (visionLocalization != null) {
+            String camState = visionLocalization.getCameraState();
+            telemetry.addData("=== VISION DIAGNOSTICS ===", "");
+            telemetry.addData("Camera State", camState);
+            telemetry.addData("Vision Initialized", visionLocalization.isReady() ? "YES" : "NO");
+            if (!visionLocalization.isReady()) {
+                telemetry.addLine("WARNING: Vision not initialized or camera not streaming!");
+                telemetry.addLine("Check camera connection and config name (should be 'Webcam 1')");
+            }
+        } else {
+            telemetry.addData("=== VISION DIAGNOSTICS ===", "");
+            telemetry.addLine("VisionLocalization instance is NULL!");
+        }
+
         telemetry.addLine(robot.getMotorPowers());
         telemetry.addLine(robot.getMotorConfigurations());
         telemetry.addLine(robot.getInitializationStatus());
@@ -507,6 +519,71 @@ public class TrowelTeleOp extends OpMode {
         while (a > 180.0) a -= 360.0;
         while (a <= -180.0) a += 360.0;
         return a;
+    }
+
+    // Helper: set transfer actuators to IN (use CRServo.setPower if the hardware is a CRServo; otherwise set Servo position)
+    private void setTransferIn() {
+        try {
+            // Try CRServo first
+            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
+                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(1.0);
+            } else if (robot.transfer1 != null) {
+                robot.transfer1.setPosition(TRANSFER_IN);
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
+                // transfer2 was configured in hardware as reversed direction; send full power forward to match position semantics
+                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(1.0);
+            } else if (robot.transfer2 != null) {
+                robot.transfer2.setPosition(TRANSFER_IN);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    // Helper: set transfer actuators to OUT
+    private void setTransferOut() {
+        try {
+            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
+                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(-1.0);
+            } else if (robot.transfer1 != null) {
+                robot.transfer1.setPosition(TRANSFER_OUT);
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
+                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(-1.0);
+            } else if (robot.transfer2 != null) {
+                robot.transfer2.setPosition(TRANSFER_OUT);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    // Helper: set transfer actuators to neutral/stop
+    private void setTransferNeutral() {
+        try {
+            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
+                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(0.0);
+            } else if (robot.transfer1 != null) {
+                robot.transfer1.setPosition(TRANSFER_NEUTRAL);
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
+                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(0.0);
+            } else if (robot.transfer2 != null) {
+                robot.transfer2.setPosition(TRANSFER_NEUTRAL);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
 }
