@@ -11,7 +11,7 @@ public class RandyButterNubs {
     // Deposit PIDF is centralized in TrowelHardware.DEPOSIT_PIDF
 
     // Default deposit velocity in ticks per second
-    public static final double DEFAULT_DEPOSIT_VELOCITY = 200.0;
+    public static final double DEFAULT_DEPOSIT_VELOCITY = 190.0;
 
     /**
      * Constructor for RandyButterNubs (Mecanum Drive)
@@ -180,5 +180,21 @@ public class RandyButterNubs {
 
     public double getBackRightPower() {
         return backRight != null ? backRight.getPower() : 0;
+    }
+
+    /**
+     * Reinitialize all drive motors and add telemetry for debugging
+     */
+    public void reinitializeMotors() {
+        setupMotor(frontLeft);
+        setupMotor(frontRight);
+        setupMotor(backLeft);
+        setupMotor(backRight);
+
+        // Add telemetry for debugging
+        System.out.println("Front Left Motor Power: " + getFrontLeftPower());
+        System.out.println("Front Right Motor Power: " + getFrontRightPower());
+        System.out.println("Back Left Motor Power: " + getBackLeftPower());
+        System.out.println("Back Right Motor Power: " + getBackRightPower());
     }
 }

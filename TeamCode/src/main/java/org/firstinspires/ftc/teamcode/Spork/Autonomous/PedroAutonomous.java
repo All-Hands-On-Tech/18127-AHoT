@@ -18,7 +18,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "PedroAuto", group = "Autonomous")
+@Autonomous(name = "PedrosdflksdflkjsdflksdfkjbhAuto", group = "Autonomous")
 @Configurable // Panels
 public class PedroAutonomous extends OpMode {
 

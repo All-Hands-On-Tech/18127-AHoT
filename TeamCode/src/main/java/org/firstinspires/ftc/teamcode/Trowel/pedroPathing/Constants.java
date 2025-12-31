@@ -41,11 +41,14 @@ public class Constants {
             ))// TODO: Tune manually
             .centripetalScaling(0.0005);  // TODO: Tune manually
 
-    // Motor correction factors
-    public static final double LEFT_FRONT_POWER = 1.0;
-    public static final double LEFT_REAR_POWER = 1.0;
-    public static final double RIGHT_FRONT_POWER = 1.0;
-    public static final double RIGHT_REAR_POWER = 1.0;
+    // Motor correction factors (multiplicative). Normally set to 1.0.
+    // If a motor needs to be inverted in software instead of changing its hardware direction,
+    // set its multiplier to -1.0 (for example LEFT_FRONT_POWER = -1.0).
+    // These are non-final so you can change them at runtime or via a config panel if desired.
+    public static double LEFT_FRONT_POWER = 1.0;
+    public static double LEFT_REAR_POWER = 1.0;
+    public static double RIGHT_FRONT_POWER = 1.0;
+    public static double RIGHT_REAR_POWER = 1.0;
 
     // ========== Hardware-spec constants (no manual tuning required) ==========
     // Wheel and motor/encoder hardware specifications
@@ -61,16 +64,19 @@ public class Constants {
             .rightRearMotorName("backRight")
             .leftRearMotorName("backLeft")
             .leftFrontMotorName("frontLeft")
-            .leftFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
-            .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
-            .rightFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
-            .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .leftFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .leftRearMotorDirection(DcMotorSimple.Direction.FORWARD)
+            // Match the Spork config: right motors forward, left motors reversed.
+            // Change these directions if your physical wiring/gearbox requires flipping.
+            .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .rightRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             // Use hardware-derived theoretical velocity so no manual tuning required here
             .xVelocity(72.772)
             .yVelocity(68.001);
 
-    public static final GoBildaPinpointDriver.EncoderDirection PINPOINT_FORWARD_DIR = GoBildaPinpointDriver.EncoderDirection.FORWARD;
-    public static final GoBildaPinpointDriver.EncoderDirection PINPOINT_STRAFE_DIR = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+    // Pinpoint/localizer encoder directions — flip if odometry reports reversed axes.
+    public static final GoBildaPinpointDriver.EncoderDirection PINPOINT_FORWARD_DIR = GoBildaPinpointDriver.EncoderDirection.REVERSED;
+    public static final GoBildaPinpointDriver.EncoderDirection PINPOINT_STRAFE_DIR = GoBildaPinpointDriver.EncoderDirection.REVERSED;
 
     public static PinpointConstants localizerConstants = new PinpointConstants()
             .forwardPodY(0.1)  // TODO: Tune manually - Offset of forward pod from center of rotation (in inches)
@@ -94,5 +100,24 @@ public class Constants {
                 .mecanumDrivetrain(driveConstants)
                 .pinpointLocalizer(localizerConstants)
                 .build();
+    }
+
+    public static void setMotorPowerMultiplier(String motor, double multiplier) {
+        switch (motor) {
+            case "LEFT_FRONT":
+                LEFT_FRONT_POWER = multiplier;
+                break;
+            case "LEFT_REAR":
+                LEFT_REAR_POWER = multiplier;
+                break;
+            case "RIGHT_FRONT":
+                RIGHT_FRONT_POWER = multiplier;
+                break;
+            case "RIGHT_REAR":
+                RIGHT_REAR_POWER = multiplier;
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid motor name: " + motor);
+        }
     }
 }

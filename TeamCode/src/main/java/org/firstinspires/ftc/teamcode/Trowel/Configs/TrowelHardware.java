@@ -56,7 +56,6 @@ public class TrowelHardware {
     public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(27.0, 0.0, 0.0, 60.8);
 
     // Standard default deposit velocity (ticks per second)
-    public static final double DEFAULT_DEPOSIT_VELOCITY = 265.0;
 
     // Additional software feedforward multiplier (0.0 = no extra FF). This is separate from the
     // REV PIDF F constant and allows increasing the commanded velocity to drive the motor harder

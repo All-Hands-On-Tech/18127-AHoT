@@ -19,22 +19,13 @@ public class TrowelTeleOp extends OpMode {
     public static int BLUE_TAG_ID = 20;
     public static int RED_TAG_ID = 24;
 
-    public static double AUTO_TURN_SPEED = 0.3;
-    public static double YAW_THRESHOLD = 2.0;
-    public static double HEADING_RESET_SPEED = 0.4;
-    public static double HEADING_THRESHOLD = 2.0;
-    // PD controller settings for vision auto-aim (tuned conservative)
-    // Reduced gains and max power to slow down auto-aim speed
-    public static double SNAP_KP = 0.035;      // reduced proportional gain
-    public static double SNAP_KD = 0.006;      // reduced derivative gain
-    public static double SNAP_MAX_POWER = 0.15; // Lowered max rotation power
-    public static double SNAP_DEADZONE_DEG = 0.25; // Lowered deadzone for tighter aiming
-    // Hardcoded shift magnitude: 2 degrees. Sign will be applied per-team (blue -> left, red -> right)
-    public static final double HARD_AIM_SHIFT_DEG = 2.0;
+    // For auto-aim smoothing
+    private static final int DERIVATIVE_WINDOW = 4;
+    private final double[] derivativeBuffer = new double[DERIVATIVE_WINDOW];
+    private int derivativeIndex = 0;
+    private int derivativeCount = 0;
     private double aimLastError = 0.0;
-    private long aimLastTime = 0;
-    private int aimLastErrorSign = 0;
-    private boolean autoTurnEnabled = false;
+
     // Deposit spin-up (open-loop) burst to overcome static friction before switching to velocity control
     public static double DEPOSIT_SPINUP_POWER = 1; // open-loop power during spin-up (0-1)
     public static int DEPOSIT_SPINUP_MS = 365; // duration of open-loop spin-up in milliseconds
@@ -51,7 +42,6 @@ public class TrowelTeleOp extends OpMode {
     private static final double TRANSFER_IN = 0.0;
     private static final double TRANSFER_OUT = 1.0;
     private static final double TRANSFER_NEUTRAL = 0.5;
-    private boolean transferActive = false;
 
     // Scale factor for the second-stage intake (intake2). Reduce by 10% as requested.
     private static final double INTAKE2_SCALE = 1.0;
@@ -59,10 +49,6 @@ public class TrowelTeleOp extends OpMode {
     private double depositTargetVelocity = RandyButterNubs.DEFAULT_DEPOSIT_VELOCITY;
     private boolean depositActive = false;
     private boolean lastXButtonState = false;
-    private boolean lastDpadUpState = false;
-    private boolean lastDpadDownState = false;
-    private boolean lastDpadLeftState = false;
-    private boolean lastDpadRightState = false;
 
     // Panels-tunable software feedforward factor (fractional). Keep PIDF constants unchanged.
     public static double DEPOSIT_FF_FACTOR = 0.05; // default small multiplicative FF
@@ -209,18 +195,34 @@ public class TrowelTeleOp extends OpMode {
         }
 
         // If deposit is active, ensure robot receives the updated velocity command immediately
-        if (depositActive && depositSpinupEndTime == -1) {
+        if (robot != null && depositActive && depositSpinupEndTime == -1) {
             robot.setDepositVelocity(depositTargetVelocity);
         }
         // ==============================================================
 
         if (odometryEnabled && robot.pinpoint != null) {
             robot.updatePinpoint();
-            if (odometry == null) odometry = new Odometry(robot, robot.pinpoint);
+            if (odometry == null) {
+                odometry = new Odometry(robot, robot.pinpoint);
+                // Set odometry's starting heading to 0 degrees (90 deg left from 90)
+                // Odometry does not have setPosition, so set hRad directly
+                java.lang.reflect.Field hRadField;
+                try {
+                    hRadField = Odometry.class.getDeclaredField("hRad");
+                    hRadField.setAccessible(true);
+                    hRadField.set(odometry, Math.toRadians(0));
+                } catch (Exception ignored) {}
+            }
             odometry.update();
         } else if (odometry == null) {
             // create odometry with robot so IMU fallback works even if pinpoint is not initialized
             odometry = new Odometry(robot, null);
+            // Set odometry's starting heading to 0 degrees (90 deg left from 90)
+            try {
+                java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
+                hRadField.setAccessible(true);
+                hRadField.set(odometry, Math.toRadians(0));
+            } catch (Exception ignored) {}
             // do not call update here until pinpoint or IMU is available
         }
 
@@ -229,70 +231,20 @@ public class TrowelTeleOp extends OpMode {
         }
 
         int targetTagId = (selectedTeam == Team.BLUE) ? BLUE_TAG_ID :
-                          (selectedTeam == Team.RED) ? RED_TAG_ID : -1;
-
-        autoTurnEnabled = gamepad1.left_bumper;
+                (selectedTeam == Team.RED) ? RED_TAG_ID : -1;
 
         double forward = -gamepad1.left_stick_y;
         double strafe = gamepad1.left_stick_x;
         double rotate = gamepad1.right_stick_x;
 
         double autoRotate = 0.0;
-        boolean tagVisible = false;
-        double yawToTag = Double.NaN;
-        double rangeToTag = Double.NaN;
 
-        // Vision-based auto-aim (hold LB): prefer bearing (accounts for tag orientation) but fall back to yaw.
-        if (autoTurnEnabled && visionEnabled && visionLocalization != null && targetTagId > 0) {
-            yawToTag = visionLocalization.getYawToTag(targetTagId); // fallback (signed degrees)
-            double bearing = visionLocalization.getBearingToTag(targetTagId); // preferred: robot-relative bearing
-            rangeToTag = visionLocalization.getRangeToTag(targetTagId);
-            double rawError;
-            boolean haveBearing = !Double.isNaN(bearing);
-            if (haveBearing) rawError = bearing; else rawError = yawToTag;
-
-            // Apply team-specific hard aim shift: Blue -> 7° left, Red -> +5° right
-            double appliedShiftDeg = HARD_AIM_SHIFT_DEG;
-            if (selectedTeam == Team.BLUE) {
-                appliedShiftDeg = 2.0;
-            } else if (selectedTeam == Team.RED) {
-                appliedShiftDeg = -0.5;
-            } else {
-                appliedShiftDeg = HARD_AIM_SHIFT_DEG;
-            }
-            rawError += appliedShiftDeg;
-            tagVisible = !Double.isNaN(rawError);
-
-            // Only rotate if tag is visible and error is valid
-            if (tagVisible) {
-                double error = rawError;
-                int errorSign = (error > 0) ? 1 : (error < 0) ? -1 : 0;
-                // Prevent oscillation: if error sign changes, stop rotating
-                if (aimLastErrorSign != 0 && errorSign != aimLastErrorSign) {
-                    autoRotate = 0.0;
-                } else if (Math.abs(error) <= SNAP_DEADZONE_DEG) {
-                    autoRotate = 0.0;
-                } else {
-                    long nowT = System.currentTimeMillis();
-                    double dt = (aimLastTime > 0) ? (nowT - aimLastTime) / 1000.0 : 0.0;
-                    double derivative = 0.0;
-                    if (dt > 0) derivative = (error - aimLastError) / dt;
-                    double p = SNAP_KP * error + SNAP_KD * derivative;
-                    if (p > SNAP_MAX_POWER) p = SNAP_MAX_POWER;
-                    if (p < -SNAP_MAX_POWER) p = -SNAP_MAX_POWER;
-                    autoRotate = -p;
-                }
-                aimLastError = error;
-                aimLastTime = System.currentTimeMillis();
-                aimLastErrorSign = errorSign;
-            } else {
-                autoRotate = 0.0;
-                aimLastErrorSign = 0;
-            }
-        } else {
-            aimLastError = 0.0;
-            aimLastTime = 0;
-            aimLastErrorSign = 0;
+        // Remove all vision-based auto-aiming logic
+        // Keep the structure for LB (left bumper) pressed
+        if (gamepad1.left_bumper) {
+            // TODO: Insert auto-aiming logic here (currently vision-based code removed)
+            // For now, just indicate LB is pressed
+            telemetry.addLine("LB (auto-aim trigger) is pressed");
         }
 
         // NOTE: autoRotate sign chosen to match drive.rotate sign convention
@@ -317,19 +269,16 @@ public class TrowelTeleOp extends OpMode {
         if (driver1IntakeIn) {
             // Driver1 ZL: run intakes IN and set transfers to IN
             setTransferIn();
-            transferActive = true;
             if (robot.intake1 != null) robot.intake1.setPower(1.0);
-            if (robot.intake2 != null) robot.intake2.setPower(-1.0 * INTAKE2_SCALE);
+            if (robot.intake2 != null) robot.intake2.setPower(-INTAKE2_SCALE);
         } else if (driver1IntakeOut) {
             // Driver1 ZR: run intakes OUT (reverse) and set transfers to OUT
             setTransferOut();
-            transferActive = true;
             if (robot.intake1 != null) robot.intake1.setPower(-1.0);
-            if (robot.intake2 != null) robot.intake2.setPower(-1.0 * INTAKE2_SCALE);
+            if (robot.intake2 != null) robot.intake2.setPower(-INTAKE2_SCALE);
         } else {
             // No driver1 override - transfers go neutral and restore gamepad2 controls (unchanged)
             setTransferNeutral();
-            transferActive = false;
 
             // Intake1 - controlled by gamepad2 triggers/bumpers: left_trigger = IN, right_trigger = OUT
             if (robot.intake1 != null) {
@@ -345,7 +294,7 @@ public class TrowelTeleOp extends OpMode {
             // Intake2 - controlled by gamepad2 buttons A (IN) and B (OUT)
             if (robot.intake2 != null) {
                 if (gamepad2.a) {
-                    robot.intake2.setPower(1.0 * INTAKE2_SCALE);
+                    robot.intake2.setPower(INTAKE2_SCALE);
                 } else if (gamepad2.b) {
                     robot.intake2.setPower(-1.0 * INTAKE2_SCALE);
                 } else {
@@ -385,25 +334,56 @@ public class TrowelTeleOp extends OpMode {
             }
         }
 
+        // Auto-aim using odometry heading (fast, bidirectional) when LB is held
+        if (gamepad1.left_bumper) {
+            double targetAngle = (selectedTeam == Team.RED) ? -135.0 : -45.0;
+            double currentAngle = 0.0;
+            if (odometry != null) {
+                currentAngle = odometry.getPosition().getHeadingDeg();
+            }
+            double error = targetAngle - currentAngle;
+            // Normalize error to [-180, 180]
+            while (error > 180) error -= 360;
+            while (error < -180) error += 360;
+            // Make much faster and responsive
+            double deadzone = 1.0; // smaller deadzone for more responsiveness
+            double kP = 0.025;     // higher proportional gain
+            double kD = 0.002;     // higher derivative gain
+            double staticFriction = 0.12; // higher static friction compensation
+            // Derivative smoothing
+            double rawDerivative = error - aimLastError;
+            derivativeBuffer[derivativeIndex] = rawDerivative;
+            derivativeIndex = (derivativeIndex + 1) % DERIVATIVE_WINDOW;
+            if (derivativeCount < DERIVATIVE_WINDOW) derivativeCount++;
+            double sum = 0.0;
+            for (int i = 0; i < derivativeCount; i++) sum += derivativeBuffer[i];
+            double smoothedDerivative = sum / derivativeCount;
+            double rotationPower = 0.0;
+            if (Math.abs(error) > deadzone) {
+                rotationPower = kP * error + kD * smoothedDerivative;
+                if (Math.abs(rotationPower) < staticFriction) {
+                    rotationPower = staticFriction * Math.signum(rotationPower);
+                }
+                // Clamp for much faster turning
+                rotationPower = Math.max(-0.5, Math.min(0.5, rotationPower));
+                drive.drive(0, 0, rotationPower, false, false);
+            }
+            aimLastError = error;
+            telemetry.addData("AutoAim Target", targetAngle);
+            telemetry.addData("AutoAim Heading", currentAngle);
+            telemetry.addData("AutoAim Error", error);
+            telemetry.addData("AutoAim Power", rotationPower);
+        }
+
         telemetry.addData("=== TEAM & AUTO-TURN ===", "");
         String teamStr = (selectedTeam == Team.BLUE) ? "BLUE" :
-                         (selectedTeam == Team.RED) ? "RED" : "NONE";
+                (selectedTeam == Team.RED) ? "RED" : "NONE";
         telemetry.addData("Team", "%s (Target Tag: %d)", teamStr, targetTagId);
-        telemetry.addData("Auto-Turn", autoTurnEnabled ? "ACTIVE (Hold LB)" : "Hold LB to turn towards tag");
-        if (autoTurnEnabled && targetTagId > 0) {
-            telemetry.addData("Tag Visible", tagVisible ? "YES" : "NO");
-            if (tagVisible) {
-                telemetry.addData("Yaw to Tag", "%.1f deg", yawToTag);
-                telemetry.addData("Range to Tag", "%.1f in", rangeToTag);
-                telemetry.addData("Auto-Rotate Power", "%.2f", autoRotate);
-            }
-        }
 
         telemetry.addData("Final Rotate (driver+auto)", "%.2f", finalRotate);
 
         telemetry.addData("=== DRIVER 1 ===", "");
         telemetry.addData("Drive", "Forward: %.2f, Strafe: %.2f, Rotate: %.2f", forward, strafe, finalRotate);
-        telemetry.addData("Transfer Active", transferActive);
         if (robot.transfer1 != null && robot.transfer2 != null) {
             telemetry.addData("Transfer Positions", "T1: %.2f, T2: %.2f", robot.transfer1.getPosition(), robot.transfer2.getPosition());
         }
@@ -442,8 +422,8 @@ public class TrowelTeleOp extends OpMode {
             telemetry.addData("Y (in)", "%.2f", yIn);
             telemetry.addData("Heading (deg)", "%.1f", headingDeg);
         } else {
-             telemetry.addData("Odometry", "Disabled");
-         }
+            telemetry.addData("Odometry", "Disabled");
+        }
 
         if (visionEnabled && visionLocalization != null) {
             telemetry.addData("=== VISION LOCALIZATION ===", "");
@@ -481,9 +461,9 @@ public class TrowelTeleOp extends OpMode {
             } else {
                 telemetry.addData("3D Distance Avg (in)", "N/A");
             }
-         } else {
-             telemetry.addData("Vision", "Disabled");
-         }
+        } else {
+            telemetry.addData("Vision", "Disabled");
+        }
 
         // Add explicit camera/vision diagnostics
         if (visionLocalization != null) {
@@ -513,13 +493,6 @@ public class TrowelTeleOp extends OpMode {
         robot.stop();
     }
 
-    // Normalize angle difference to range (-180,180]
-    private double normalizeAngleDeg(double angle) {
-        double a = angle;
-        while (a > 180.0) a -= 360.0;
-        while (a <= -180.0) a += 360.0;
-        return a;
-    }
 
     // Helper: set transfer actuators to IN (use CRServo.setPower if the hardware is a CRServo; otherwise set Servo position)
     private void setTransferIn() {
