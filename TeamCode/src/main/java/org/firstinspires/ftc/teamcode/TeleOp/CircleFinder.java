@@ -30,6 +30,9 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.opencv.Circle;
 import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
@@ -74,8 +77,8 @@ import java.util.List;
 @TeleOp(name = "Circle Finder", group = "ZTest")
 public class CircleFinder extends LinearOpMode {
     //camera resolution values
-    private static final double resHorz = 320;
-    private static final double resVert = 240;
+    private static final double resHorz = 640;
+    private static final double resVert = 480;
 
     @Override
     public void runOpMode() {
@@ -250,6 +253,11 @@ public class CircleFinder extends LinearOpMode {
              *   ColorBlobLocatorProcessor.Util.sortByCriteria(
              *      ColorBlobLocatorProcessor.BlobCriteria.BY_CONTOUR_AREA, SortOrder.DESCENDING, blobs);
              */
+
+            //getting the pose of the robot
+            Pose2D currentPose = new Pose2D(DistanceUnit.INCH,0,0, AngleUnit.DEGREES, 0);
+
+
 
             telemetry.addLine("Circularity Radius Center");
 
