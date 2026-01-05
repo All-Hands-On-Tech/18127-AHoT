@@ -12,6 +12,8 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import com.pedropathing.paths.PathChain;
+
 public class Constants {
     public static final double AIM_OFFSET_DEGREES = 2.0; // Hardcoded offset for auto aiming
     public static final double AIM_OFFSET_RADIANS = Math.toRadians(AIM_OFFSET_DEGREES);
@@ -119,5 +121,18 @@ public class Constants {
             default:
                 throw new IllegalArgumentException("Invalid motor name: " + motor);
         }
+    }
+
+    public static PathChain mirror(PathChain chain) {
+        if (chain == null) return null;
+        try {
+            // Pedro Pathing PathChain exposes mirror(); use it when available
+            java.lang.reflect.Method m = chain.getClass().getMethod("mirror");
+            Object mirrored = m.invoke(chain);
+            if (mirrored instanceof PathChain) return (PathChain) mirrored;
+        } catch (Exception ignored) {
+        }
+        // Fallback: return original chain if mirror unavailable
+        return chain;
     }
 }

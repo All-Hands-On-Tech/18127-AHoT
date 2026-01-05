@@ -25,6 +25,22 @@ public class TrowelTeleOp extends OpMode {
     private int derivativeIndex = 0;
     private int derivativeCount = 0;
     private double aimLastError = 0.0;
+    // Auto-aim tunables to smooth oscillation (panels adjustable)
+    public static double AIM_KP = 0.009;       // reduced for slower approach
+    public static double AIM_KI = 0.00025;     // slightly lower integral
+    public static double AIM_KD = 0.0007;      // softer derivative
+    public static double AIM_DEADBAND_DEG = 3.0; // wider deadband to prevent small hunts
+    public static double AIM_STATIC_FF = 0.035;  // lower static kick
+    public static double AIM_MAX_POWER = 0.22;   // clamp peak power to slow turn
+    public static double AIM_MAX_SLEW_PER_LOOP = 0.025; // slower slew per loop
+    public static double AIM_SETTLE_ERR_DEG = 2.0;
+    public static double AIM_SETTLE_DERIV_DEG = 0.30;   // tighter derivative settle
+    public static int AIM_SETTLE_LOOPS = 8;             // require a bit longer settle
+
+    private double aimIntegral = 0.0;
+    private double lastAimOutput = 0.0;
+    private int aimSettledCounter = 0;
+    private boolean prevLeftBumper = false;
 
     // Deposit spin-up (open-loop) burst to overcome static friction before switching to velocity control
     public static double DEPOSIT_SPINUP_POWER = 1; // open-loop power during spin-up (0-1)
@@ -335,6 +351,7 @@ public class TrowelTeleOp extends OpMode {
         }
 
         // Auto-aim using odometry heading (fast, bidirectional) when LB is held
+        double autoRotationPower = 0.0;
         if (gamepad1.left_bumper) {
             double targetAngle = (selectedTeam == Team.RED) ? -135.0 : -45.0;
             double currentAngle = 0.0;
@@ -345,11 +362,7 @@ public class TrowelTeleOp extends OpMode {
             // Normalize error to [-180, 180]
             while (error > 180) error -= 360;
             while (error < -180) error += 360;
-            // Make much faster and responsive
-            double deadzone = 1.0; // smaller deadzone for more responsiveness
-            double kP = 0.025;     // higher proportional gain
-            double kD = 0.002;     // higher derivative gain
-            double staticFriction = 0.12; // higher static friction compensation
+
             // Derivative smoothing
             double rawDerivative = error - aimLastError;
             derivativeBuffer[derivativeIndex] = rawDerivative;
@@ -358,22 +371,59 @@ public class TrowelTeleOp extends OpMode {
             double sum = 0.0;
             for (int i = 0; i < derivativeCount; i++) sum += derivativeBuffer[i];
             double smoothedDerivative = sum / derivativeCount;
-            double rotationPower = 0.0;
-            if (Math.abs(error) > deadzone) {
-                rotationPower = kP * error + kD * smoothedDerivative;
-                if (Math.abs(rotationPower) < staticFriction) {
-                    rotationPower = staticFriction * Math.signum(rotationPower);
-                }
-                // Clamp for much faster turning
-                rotationPower = Math.max(-0.5, Math.min(0.5, rotationPower));
-                drive.drive(0, 0, rotationPower, false, false);
+
+            // Integral with simple anti-windup
+            if (Math.abs(error) <= AIM_DEADBAND_DEG) {
+                aimSettledCounter++;
+                aimIntegral = 0.0;
+            } else {
+                aimSettledCounter = 0;
+                aimIntegral += error;
+                double integralMax = AIM_MAX_POWER / Math.max(1e-6, AIM_KI);
+                aimIntegral = Math.max(-integralMax, Math.min(integralMax, aimIntegral));
             }
+
+            // Compute rotation
+            double rotationCmd = (AIM_KP * error) + (AIM_KD * smoothedDerivative) + (AIM_KI * aimIntegral);
+            if (Math.abs(error) > AIM_DEADBAND_DEG && Math.abs(rotationCmd) < AIM_STATIC_FF) {
+                rotationCmd = AIM_STATIC_FF * Math.signum(rotationCmd == 0 ? error : rotationCmd);
+            }
+            // Deadband clamp
+            if (Math.abs(error) <= AIM_DEADBAND_DEG) {
+                rotationCmd = 0.0;
+            }
+            // Slew limit and clamp
+            double maxStep = AIM_MAX_SLEW_PER_LOOP;
+            rotationCmd = Math.max(lastAimOutput - maxStep, Math.min(lastAimOutput + maxStep, rotationCmd));
+            rotationCmd = Math.max(-AIM_MAX_POWER, Math.min(AIM_MAX_POWER, rotationCmd));
+
+            autoRotationPower = rotationCmd;
+            lastAimOutput = rotationCmd;
             aimLastError = error;
+
+            boolean aimSettled = Math.abs(error) <= AIM_SETTLE_ERR_DEG && Math.abs(smoothedDerivative) <= AIM_SETTLE_DERIV_DEG && aimSettledCounter >= AIM_SETTLE_LOOPS;
             telemetry.addData("AutoAim Target", targetAngle);
             telemetry.addData("AutoAim Heading", currentAngle);
             telemetry.addData("AutoAim Error", error);
-            telemetry.addData("AutoAim Power", rotationPower);
+            telemetry.addData("AutoAim Deriv", smoothedDerivative);
+            telemetry.addData("AutoAim Power", autoRotationPower);
+            telemetry.addData("AutoAim Settled", aimSettled ? "YES" : "NO");
+        } else {
+            // Reset filters when not aiming
+            derivativeCount = 0;
+            derivativeIndex = 0;
+            aimIntegral = 0.0;
+            lastAimOutput = 0.0;
+            aimSettledCounter = 0;
+            aimLastError = 0.0;
         }
+
+        // Apply auto rotation if LB is held, otherwise use driver input
+        if (gamepad1.left_bumper) {
+            drive.drive(0, 0, autoRotationPower, false, false);
+        }
+
+        prevLeftBumper = gamepad1.left_bumper;
 
         telemetry.addData("=== TEAM & AUTO-TURN ===", "");
         String teamStr = (selectedTeam == Team.BLUE) ? "BLUE" :
