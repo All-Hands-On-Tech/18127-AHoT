@@ -73,12 +73,13 @@ import java.util.List;
  */
 
 
-@Disabled
-@TeleOp(name = "Circle Finder", group = "ZTest")
+
+@TeleOp(name = "Circle Finder", group = "ZTesting")
 public class CircleFinder extends LinearOpMode {
     //camera resolution values
     private static final double resHorz = 640;
     private static final double resVert = 480;
+    private static final double diagonalFOV = 78;
 
     @Override
     public void runOpMode() {
@@ -234,11 +235,11 @@ public class CircleFinder extends LinearOpMode {
              */
             ColorBlobLocatorProcessor.Util.filterByCriteria(
                     ColorBlobLocatorProcessor.BlobCriteria.BY_CONTOUR_AREA,
-                    50, 20000, blobs);  // filter out very small blobs.
+                    500, resHorz*resVert*10, blobs);  // filter out very small blobs.
 
             ColorBlobLocatorProcessor.Util.filterByCriteria(
                     ColorBlobLocatorProcessor.BlobCriteria.BY_CIRCULARITY,
-                    0.2, 1, blobs);     /* filter out non-circular blobs.
+                    0.1, 1, blobs);     /* filter out non-circular blobs.
                     * NOTE: You may want to adjust the minimum value depending on your use case.
                     * Circularity values will be affected by shadows, and will therefore vary based
                     * on the location of the camera on your robot and venue lighting. It is strongly
@@ -257,25 +258,32 @@ public class CircleFinder extends LinearOpMode {
             //getting the pose of the robot
             Pose2D currentPose = new Pose2D(DistanceUnit.INCH,0,0, AngleUnit.DEGREES, 0);
 
-
-
             telemetry.addLine("Circularity Radius Center");
 
             blobs.sort(Comparator.comparingDouble(ColorBlobLocatorProcessor.Blob::getContourArea));
-            // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
-            double focalLength = -1; //needs to be measured experimentally
-                                     //f = radius * known distance / 2.5 in
-            double fovHorzontal = 55 * Math.sqrt(1+resVert/resHorz); //for c270 with resolution 320x240 in degrees
+
+            /** needs calibration*/
+            //focal length = apparent radius (px) * known distance
+            double focalLength = 1570;
+            //Field Of View Scaling
+            double fovScaling = diagonalFOV / Math.sqrt(resHorz*resHorz + resVert*resVert);
+
             for (ColorBlobLocatorProcessor.Blob b : blobs) {
 
                 Circle circleFit = b.getCircle();
+                // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
                 telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
                            b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
 
-                double range = 2.5 * focalLength / circleFit.getRadius();
-                double yaw = (circleFit.getX() - 0.5*resHorz) * (fovHorzontal/resHorz);
-                telemetry.addLine(String.format("est. location: (%5.1f,%5.1f)",
-                        Math.cos(yaw)*range, Math.sin(yaw)*range));
+                double range = focalLength / circleFit.getRadius();
+                double theta = 135                                       + ((circleFit.getY() - resVert/2) * fovScaling);
+                double phi   = currentPose.getHeading(AngleUnit.DEGREES) - ((circleFit.getX() - resHorz/2) * fovScaling);
+
+                double blobX = currentPose.getX(DistanceUnit.INCH) + range*Math.sin(Math.toRadians(theta))*Math.cos(Math.toRadians(phi));
+                double blobY = currentPose.getY(DistanceUnit.INCH) + range*Math.sin(Math.toRadians(theta))*Math.sin(Math.toRadians(phi));
+
+                telemetry.addLine(String.format("r theta phi (%5.1f, %5.1f,%5.1f)", range, theta, phi));
+                telemetry.addLine(String.format("est. location: (%5.1f,%5.1f)", blobX, blobY));
             }
 
             telemetry.update();
