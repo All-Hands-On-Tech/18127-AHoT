@@ -32,12 +32,12 @@ public class StraightAuto extends OpMode {
     private static final double FIELD_SIZE = 144.0;
 
     // Auto shooting config (mirrors teleop feedforward + spinup style)
-    public static double AUTO_DEPOSIT_VELOCITY = 170.0; // ticks/s target during auto shooting (reduced to curb overshoot)
+    public static double AUTO_DEPOSIT_VELOCITY = 165.0; // ticks/s target during auto shooting (reduced to curb overshoot)
     public static double AUTO_DEPOSIT_FF_FACTOR = 0.05;
-    public static double AUTO_DEPOSIT_FF_BOOST_TICKS = 219.0;
+    public static double AUTO_DEPOSIT_FF_BOOST_TICKS = 241.0;
     private static final double AUTO_DEPOSIT_SPINUP_POWER = 1.0;
-    private static final long AUTO_DEPOSIT_SPINUP_MS = 385;
-    public static long AUTO_SHOOT_DURATION_MS = 2000;    // shortened hold to reduce overshoot
+    private static final long AUTO_DEPOSIT_SPINUP_MS = 635;
+    public static long AUTO_SHOOT_DURATION_MS = 2100;    // shortened hold to reduce overshoot
     public static long AUTO_SHOOT_RECOVERY_MS = 200;      // optional recovery idle after shot
     public static long PRE_SHOOT_DELAY_MS = 130;          // wait before shooting to stabilize
     private static final double AUTO_INTAKE1_POWER = 1.0;
@@ -83,9 +83,9 @@ public class StraightAuto extends OpMode {
         // Apply starting pose based on selected team
         Pose startPose;
         if (selectedTeam == Team.BLUE) {
-            startPose = new Pose(26.467, 129.584, Math.toRadians(35));
+            startPose = new Pose(26.467, 129.584, Math.toRadians(145));
             panelsTelemetry.debug("Team Selected", "BLUE");
-            panelsTelemetry.debug("StartPose", "BLUE (26.467, 129.584, 35°)");
+            panelsTelemetry.debug("StartPose", "BLUE (26.467, 129.584, 145°)");
         } else {
             startPose = new Pose(117.533, 129.584, Math.toRadians(35));
             panelsTelemetry.debug("Team Selected", "RED");
@@ -205,8 +205,8 @@ public class StraightAuto extends OpMode {
 
     public class Paths {
         public PathChain Depo1;
-        public PathChain IntakeStart;
-        public PathChain IntakeEnd;
+        public PathChain IntakeStart1;
+        public PathChain IntakeEnd1;
         public PathChain Depo2;
         public PathChain IntakeStart2;
         public PathChain IntakeEnd2;
@@ -215,6 +215,7 @@ public class StraightAuto extends OpMode {
         public PathChain IntakeEnd3;
         public PathChain Depo4;
         public PathChain Gate2;
+        public PathChain line12;
 
         public Paths(Follower follower, Team team) {
             if (team == Team.BLUE) {
@@ -232,24 +233,24 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(35), Math.toRadians(45))
                     .build();
-            IntakeStart = follower.pathBuilder().addPath(
+            IntakeStart1 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(86.121, 88.138),
-                                    new Pose(78.904, 85.676),
-                                    new Pose(99.924, 84.540)
+                                    new Pose(83.813, 68.495),
+                                    new Pose(99.924, 85.788)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
                     .build();
-            IntakeEnd = follower.pathBuilder().addPath(
+            IntakeEnd1 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(99.924, 84.540),
-                                    new Pose(126.609, 84.328)
+                                    new Pose(99.924, 85.788),
+                                    new Pose(126.609, 86.823)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
             Depo2 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(126.609, 84.328),
+                                    new Pose(126.609, 86.823),
                                     new Pose(86.190, 88.414)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
@@ -265,13 +266,13 @@ public class StraightAuto extends OpMode {
             IntakeEnd2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(101.241, 59.207),
-                                    new Pose(135.138, 58.201)
+                                    new Pose(135.495, 59.092)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
             Depo3 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(135.138, 58.201),
+                                    new Pose(135.495, 59.092),
                                     new Pose(86.017, 88.466)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
@@ -279,20 +280,20 @@ public class StraightAuto extends OpMode {
             IntakeStart3 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(86.017, 88.466),
-                                    new Pose(102.155, 35.776)
+                                    new Pose(101.977, 38.271)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
                     .build();
             IntakeEnd3 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(102.155, 35.776),
-                                    new Pose(134.225, 35.977)
+                                    new Pose(101.977, 38.271),
+                                    new Pose(134.225, 38.294)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
             Depo4 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(134.225, 35.977),
+                                    new Pose(134.225, 38.294),
                                     new Pose(86.138, 88.517)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
@@ -308,84 +309,91 @@ public class StraightAuto extends OpMode {
 
         private void buildBluePaths(Follower follower) {
             Depo1 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(26.467, 129.584),
-                                    new Pose(57.879, 88.138)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(135))
-                    .build();
-            IntakeStart = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(57.879, 88.138),
-                                    new Pose(65.096, 85.676),
-                                    new Pose(44.076, 84.540)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
-                    .build();
-            IntakeEnd = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(44.076, 84.540),
-                                    new Pose(17.391, 84.328)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
-                    .build();
+                new BezierLine(
+                    new Pose(26.467, 129.584),
+                    new Pose(57.879, 88.138)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(135))
+             .build();
+            IntakeStart1 = follower.pathBuilder().addPath(
+                new BezierCurve(
+                    new Pose(57.879, 88.138),
+                    new Pose(60.187, 68.495),
+                    new Pose(44.076, 85.788)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
+             .build();
+            IntakeEnd1 = follower.pathBuilder().addPath(
+                new BezierLine(
+                    new Pose(44.076, 85.788),
+                    new Pose(17.391, 86.823)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+             .build();
             Depo2 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(17.391, 84.328),
-                                    new Pose(57.810, 88.414)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
-                    .build();
+                new BezierLine(
+                    new Pose(17.391, 86.823),
+                    new Pose(57.810, 88.414)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
+             .build();
             IntakeStart2 = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(57.810, 88.414),
-                                    new Pose(59.276, 83.552),
-                                    new Pose(42.759, 59.207)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(0))
-                    .build();
+                new BezierCurve(
+                    new Pose(57.810, 88.414),
+                    new Pose(59.276, 83.552),
+                    new Pose(42.759, 59.207)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+             .build();
             IntakeEnd2 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(42.759, 59.207),
-                                    new Pose(8.862, 58.201)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
-                    .build();
+                new BezierLine(
+                    new Pose(42.759, 59.207),
+                    new Pose(8.505, 59.092)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+             .build();
             Depo3 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(8.862, 58.201),
-                                    new Pose(57.983, 88.466)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
-                    .build();
+                new BezierLine(
+                    new Pose(8.505, 59.092),
+                    new Pose(57.983, 88.466)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
+             .build();
             IntakeStart3 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(57.983, 88.466),
-                                    new Pose(41.845, 35.776)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
-                    .build();
+                new BezierLine(
+                    new Pose(57.983, 88.466),
+                    new Pose(42.023, 38.271)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
+             .build();
             IntakeEnd3 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(41.845, 35.776),
-                                    new Pose(9.775, 35.977)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
-                    .build();
+                new BezierLine(
+                    new Pose(42.023, 38.271),
+                    new Pose(9.775, 38.294)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+             .build();
             Depo4 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(9.775, 35.977),
-                                    new Pose(57.862, 88.517)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
-                    .build();
+                new BezierLine(
+                    new Pose(9.775, 38.294),
+                    new Pose(57.862, 88.517)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
+             .build();
             Gate2 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(57.862, 88.517),
-                                    new Pose(26.140, 72.035)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(90))
-                    .build();
+                new BezierLine(
+                    new Pose(57.862, 88.517),
+                    new Pose(26.140, 72.035)
+                )
+            ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(90))
+             .build();
+            line12 = follower.pathBuilder().addPath(
+                new BezierLine(
+                    new Pose(26.140, 72.035),
+                    new Pose(96.594, 115.129)
+                )
+            ).setTangentHeadingInterpolation()
+             .build();
         }
     }
 
@@ -407,14 +415,14 @@ public class StraightAuto extends OpMode {
             case 14: // Wait shooting after Depo1
                 if (updateShooting()) {
                     startIntakeSequence();
-                    follower.followPath(paths.IntakeStart);
+                    follower.followPath(paths.IntakeStart1);
                     pathState = 2;
                     panelsTelemetry.debug("Transition", "Started IntakeStart");
                 }
                 break;
             case 2:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.IntakeEnd);
+                    follower.followPath(paths.IntakeEnd1);
                     pathState = 3;
                     panelsTelemetry.debug("Transition", "Started IntakeEnd");
                 }

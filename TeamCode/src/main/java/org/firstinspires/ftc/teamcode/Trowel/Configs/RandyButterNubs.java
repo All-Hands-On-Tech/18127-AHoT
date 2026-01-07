@@ -11,7 +11,7 @@ public class RandyButterNubs {
     // Deposit PIDF is centralized in TrowelHardware.DEPOSIT_PIDF
 
     // Default deposit velocity in ticks per second
-    public static final double DEFAULT_DEPOSIT_VELOCITY = 190.0;
+    public static final double DEFAULT_DEPOSIT_VELOCITY = 175.0;
 
     /**
      * Constructor for RandyButterNubs (Mecanum Drive)

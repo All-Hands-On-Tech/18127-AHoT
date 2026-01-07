@@ -8,6 +8,9 @@ import org.firstinspires.ftc.teamcode.Trowel.Configs.RandyButterNubs;
 import org.firstinspires.ftc.teamcode.Trowel.common.Odometry;
 import org.firstinspires.ftc.teamcode.Trowel.common.VisionLocalization;
 import org.firstinspires.ftc.teamcode.Trowel.Configs.TrowelHardware;
+import org.firstinspires.ftc.teamcode.Trowel.pedroPathing.Constants;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 
 @Configurable
 @TeleOp(name = "Randy Butter Knubs", group = "Trowel")
@@ -26,13 +29,16 @@ public class TrowelTeleOp extends OpMode {
     private int derivativeCount = 0;
     private double aimLastError = 0.0;
     // Auto-aim tunables to smooth oscillation (panels adjustable)
-    public static double AIM_KP = 0.009;       // reduced for slower approach
-    public static double AIM_KI = 0.00025;     // slightly lower integral
-    public static double AIM_KD = 0.0007;      // softer derivative
-    public static double AIM_DEADBAND_DEG = 3.0; // wider deadband to prevent small hunts
-    public static double AIM_STATIC_FF = 0.035;  // lower static kick
-    public static double AIM_MAX_POWER = 0.22;   // clamp peak power to slow turn
-    public static double AIM_MAX_SLEW_PER_LOOP = 0.025; // slower slew per loop
+    // Increased KP/KD and max power/slew to speed up auto-aim while
+    // keeping damping higher to avoid added oscillation. KI slightly
+    // reduced to lower integral windup risk when increasing KP.
+    public static double AIM_KP = 0.014;       // increased for faster response
+    public static double AIM_KI = 0.00020;     // slightly reduced integral to avoid windup
+    public static double AIM_KD = 0.0012;      // increased derivative to add damping
+    public static double AIM_DEADBAND_DEG = 3.0; // keep deadband to prevent small hunts
+    public static double AIM_STATIC_FF = 0.045;  // slightly higher static kick to overcome stiction
+    public static double AIM_MAX_POWER = 0.35;   // allow stronger turns (clamped)
+    public static double AIM_MAX_SLEW_PER_LOOP = 0.05; // allow larger slew per loop for faster change
     public static double AIM_SETTLE_ERR_DEG = 2.0;
     public static double AIM_SETTLE_DERIV_DEG = 0.30;   // tighter derivative settle
     public static int AIM_SETTLE_LOOPS = 8;             // require a bit longer settle
@@ -41,10 +47,12 @@ public class TrowelTeleOp extends OpMode {
     private double lastAimOutput = 0.0;
     private int aimSettledCounter = 0;
     private boolean prevLeftBumper = false;
+    // Track driver1 ZL (left trigger) rising edge to set aim heading
+    private boolean prevDriver1ZL = false;
 
     // Deposit spin-up (open-loop) burst to overcome static friction before switching to velocity control
     public static double DEPOSIT_SPINUP_POWER = 1; // open-loop power during spin-up (0-1)
-    public static int DEPOSIT_SPINUP_MS = 365; // duration of open-loop spin-up in milliseconds
+    public static int DEPOSIT_SPINUP_MS = 645; // duration of open-loop spin-up in milliseconds
     private long depositSpinupEndTime = 0; // 0 means not spinning up; -1 means spin-up finished
 
     private TrowelHardware robot;
@@ -55,9 +63,20 @@ public class TrowelTeleOp extends OpMode {
     private boolean visionEnabled = false;
     private boolean odometryEnabled = false;
 
+    // Transfer positions used by transfer servos (keep original semantics)
     private static final double TRANSFER_IN = 0.0;
     private static final double TRANSFER_OUT = 1.0;
     private static final double TRANSFER_NEUTRAL = 0.5;
+
+    // Pedro Pathing follower instance (optional). If available, we'll use it for teleop drive
+    // and for heading-controlled auto-aim.
+    private Follower follower = null;
+    private boolean followerTeleopStarted = false;
+
+    // Simple follower-based heading controller tunables
+    public static double FOLLOWER_AIM_KP = 0.008; // maps degrees -> rotate input roughly; tune as needed
+    public static double FOLLOWER_AIM_DEADBAND_DEG = 2.0;
+    public static double FOLLOWER_AIM_MAX_ROT = 0.6; // clamp rotate command magnitude
 
     // Scale factor for the second-stage intake (intake2). Reduce by 10% as requested.
     private static final double INTAKE2_SCALE = 1.0;
@@ -69,7 +88,7 @@ public class TrowelTeleOp extends OpMode {
     // Panels-tunable software feedforward factor (fractional). Keep PIDF constants unchanged.
     public static double DEPOSIT_FF_FACTOR = 0.05; // default small multiplicative FF
     // Panels-tunable absolute feedforward boost in ticks/sec (additive)
-    public static double DEPOSIT_FF_BOOST_TICKS = 200.0; // default additive boost (ticks/sec)
+    public static double DEPOSIT_FF_BOOST_TICKS = 240.0; // default additive boost (ticks/sec)
     // Panels-tunable deposit target velocity so you can tune via the Panels UI
     public static double PANEL_DEPOSIT_TARGET_VELOCITY = RandyButterNubs.DEFAULT_DEPOSIT_VELOCITY;
 
@@ -84,10 +103,22 @@ public class TrowelTeleOp extends OpMode {
     private static final long REPEAT_INTERVAL_MS = 120;
     // =================================================
 
+    // Auto-aim reference heading (can be overwritten by driver)
+    private double aimHeadingDeg = 0.0;
+    private boolean prevDriver1Y = false;
+
     @Override
     public void init() {
         robot = new TrowelHardware(hardwareMap);
         drive = new RandyButterNubs(robot.frontLeft, robot.frontRight, robot.backLeft, robot.backRight);
+
+        // Try to create the Pedro Pathing follower. If it fails, we'll silently fall back to
+        // the legacy "drive" object.
+        try {
+            follower = Constants.createFollower(hardwareMap);
+        } catch (Exception ignored) {
+            follower = null;
+        }
 
         // Apply initial feedforward factor (can be tuned via Panels because this class is @Configurable)
         robot.setDepositFeedforwardFactor(DEPOSIT_FF_FACTOR);
@@ -226,7 +257,8 @@ public class TrowelTeleOp extends OpMode {
                 try {
                     hRadField = Odometry.class.getDeclaredField("hRad");
                     hRadField.setAccessible(true);
-                    hRadField.set(odometry, Math.toRadians(0));
+                    // Initialize starting heading rotated 90 degrees counter-clockwise
+                    hRadField.set(odometry, Math.toRadians(90));
                 } catch (Exception ignored) {}
             }
             odometry.update();
@@ -237,7 +269,8 @@ public class TrowelTeleOp extends OpMode {
             try {
                 java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
                 hRadField.setAccessible(true);
-                hRadField.set(odometry, Math.toRadians(0));
+                // Initialize starting heading rotated 90 degrees counter-clockwise
+                hRadField.set(odometry, Math.toRadians(90));
             } catch (Exception ignored) {}
             // do not call update here until pinpoint or IMU is available
         }
@@ -252,6 +285,40 @@ public class TrowelTeleOp extends OpMode {
         double forward = -gamepad1.left_stick_y;
         double strafe = gamepad1.left_stick_x;
         double rotate = gamepad1.right_stick_x;
+
+        // Overwrite aim heading with current odometry heading when driver 1 presses Y (rising edge)
+        boolean driver1Y = gamepad1.y;
+        if (driver1Y && !prevDriver1Y) {
+            if (odometry != null) {
+                aimHeadingDeg = odometry.getPosition().getHeadingDeg();
+            }
+        }
+        prevDriver1Y = driver1Y;
+
+        // Detect rising edge on driver1 ZL (left trigger > 0.5) and set heading instantly to aiming angle
+        boolean driver1ZL = gamepad1.right_trigger > 0.5;
+        if (driver1ZL && !prevDriver1ZL) {
+            double aimAngleDeg = (selectedTeam == Team.RED) ? 45.0 : 135.0;
+            // Set odometry internal heading via reflection
+            try {
+                if (odometry != null) {
+                    java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
+                    hRadField.setAccessible(true);
+                    hRadField.set(odometry, Math.toRadians(aimAngleDeg));
+                }
+            } catch (Exception ignored) {}
+
+            // Update Pedro follower starting pose if available
+            try {
+                if (follower != null) {
+                    follower.update();
+                    Pose p = follower.getPose();
+                    Pose newPose = new Pose(p.getX(), p.getY(), Math.toRadians(aimAngleDeg));
+                    follower.setStartingPose(newPose);
+                }
+            } catch (Exception ignored) {}
+        }
+        prevDriver1ZL = driver1ZL;
 
         double autoRotate = 0.0;
 
@@ -276,7 +343,56 @@ public class TrowelTeleOp extends OpMode {
         rotate *= speedScale;
 
         double finalRotate = rotate + autoRotate;
-        drive.drive(forward, strafe, finalRotate, gamepad1.left_bumper, gamepad1.right_bumper);
+
+        // Drive using the Pedro follower if available; otherwise fall back to RandyButterNubs.
+        if (follower != null) {
+            // Ensure teleop drive mode started once
+            if (!followerTeleopStarted) {
+                try {
+                    follower.startTeleopDrive(true);
+                } catch (Exception ignored) {}
+                followerTeleopStarted = true;
+            }
+
+            try {
+                // When left bumper is held we want auto-aim: keep translational joystick control but
+                // override the rotate input with follower-based heading control (target 45 or 135 deg)
+                if (gamepad1.left_bumper) {
+                    double targetHeading = aimHeadingDeg;
+                    // Make sure follower pose is updated before reading
+                    follower.update();
+                    Pose fPose = follower.getPose();
+                    double currentHeadingDeg = Math.toDegrees(fPose.getHeading());
+                    double error = targetHeading - currentHeadingDeg;
+                    while (error > 180) error -= 360;
+                    while (error < -180) error += 360;
+
+                    double rotCmd = 0.0;
+                    if (Math.abs(error) > FOLLOWER_AIM_DEADBAND_DEG) {
+                        rotCmd = FOLLOWER_AIM_KP * error;
+                        // clamp
+                        rotCmd = Math.max(-FOLLOWER_AIM_MAX_ROT, Math.min(FOLLOWER_AIM_MAX_ROT, rotCmd));
+                    }
+
+                    // NOTE: Tuning.setTeleOpDrive uses: (-forward, -strafe, -rotate) sign convention
+                    // We pass forward as already-negated, but flip strafe/rotate signs to match the follower API.
+                    // Pass rotCmd directly (sign chosen so follower steers toward reducing the heading error).
+                    follower.setTeleOpDrive(forward, -strafe, rotCmd, true);
+                    // Let the follower consume the command and update internal controllers
+                    follower.update();
+                } else {
+                    // Normal teleop: pass driver inputs through to follower
+                    follower.setTeleOpDrive(forward, -strafe, -rotate, true);
+                    follower.update();
+                }
+            } catch (Exception e) {
+                // On any follower error, fall back to legacy drive
+                drive.drive(forward, strafe, finalRotate, gamepad1.left_bumper, gamepad1.right_bumper);
+            }
+
+        } else {
+            drive.drive(forward, strafe, finalRotate, gamepad1.left_bumper, gamepad1.right_bumper);
+        }
 
         // DRIVER1 transfer + intake override: holding gamepad1 triggers runs intakes + sets transfer servos
         boolean driver1IntakeIn = gamepad1.left_trigger > 0.1;
@@ -353,7 +469,9 @@ public class TrowelTeleOp extends OpMode {
         // Auto-aim using odometry heading (fast, bidirectional) when LB is held
         double autoRotationPower = 0.0;
         if (gamepad1.left_bumper) {
-            double targetAngle = (selectedTeam == Team.RED) ? -135.0 : -45.0;
+            // Legacy fallback auto-aim (only used if follower is unavailable). Keep for safety.
+            // Use base angles (negative values) but flip sign for BLUE team only
+            double targetAngle = aimHeadingDeg;
             double currentAngle = 0.0;
             if (odometry != null) {
                 currentAngle = odometry.getPosition().getHeadingDeg();
@@ -419,7 +537,9 @@ public class TrowelTeleOp extends OpMode {
         }
 
         // Apply auto rotation if LB is held, otherwise use driver input
-        if (gamepad1.left_bumper) {
+        // If follower is present we already applied the auto-rotation via follower.setTeleOpDrive above.
+        // If the follower is not present, apply the legacy auto rotation directly to the drive.
+        if (follower == null && gamepad1.left_bumper) {
             drive.drive(0, 0, autoRotationPower, false, false);
         }
 
@@ -429,6 +549,7 @@ public class TrowelTeleOp extends OpMode {
         String teamStr = (selectedTeam == Team.BLUE) ? "BLUE" :
                 (selectedTeam == Team.RED) ? "RED" : "NONE";
         telemetry.addData("Team", "%s (Target Tag: %d)", teamStr, targetTagId);
+        telemetry.addData("Aim Heading (deg)", "%.1f", aimHeadingDeg);
 
         telemetry.addData("Final Rotate (driver+auto)", "%.2f", finalRotate);
 
