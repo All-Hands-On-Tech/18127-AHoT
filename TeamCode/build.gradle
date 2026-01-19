@@ -29,4 +29,5 @@ android {
 dependencies {
     implementation project(':FtcRobotController')
     implementation "com.bylazar:panels:1.0.3"
+    implementation "com.bylazar:configurables:1.0.5"
 }
