@@ -53,7 +53,7 @@ public class TrowelHardware {
     public boolean pinpointBusDowngraded = false;
     public String pinpointRecoveryAction = "";
 
-    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(27.0, 0.0, 0.0, 60.8);
+    public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(2.0, 0.1, 0.5, 20.0);
 
     // Standard default deposit velocity (ticks per second)
 
@@ -64,6 +64,10 @@ public class TrowelHardware {
     // Additional absolute feedforward boost in ticks/sec. This adds a fixed number of ticks/sec
     // to the commanded velocity to help overcome static friction / increase spin-up speed.
     private double depositFeedforwardBoostTicks = 0.0;
+
+    // Minimum effective velocity to command to avoid low-speed hunting/oscillation (ticks/sec)
+    // Lower this to allow motors to reach lower speeds. Set to 0.0 to disable clamping.
+    public static double MIN_EFFECTIVE_DEPOSIT_VELOCITY = 0.0;
 
     /**
      * Constructor - Initialize hardware with HardwareMap
@@ -102,6 +106,8 @@ public class TrowelHardware {
                 transfer1 = hardwareMap.get(Servo.class, config.transfer1Name);
             } catch (Exception ignored) {
             }
+            // Note: transfer2 is optional and may not exist in the robot configuration.
+            // If present, configure it but do not require it for operation.
             try {
                 transfer2 = hardwareMap.get(Servo.class, config.transfer2Name);
             } catch (Exception ignored) {
@@ -188,9 +194,15 @@ public class TrowelHardware {
                 transfer1.scaleRange(0.0, 1.0);
                 // Don't set position here - wait until start
             }
+            // Note: transfer2 is optional and may not exist in the robot configuration.
+            // If present, configure it but do not require it for operation.
             if (transfer2 != null) {
-                transfer2.setDirection(Servo.Direction.REVERSE);
-                transfer2.scaleRange(0.0, 1.0);
+                try {
+                    transfer2.setDirection(Servo.Direction.REVERSE);
+                    transfer2.scaleRange(0.0, 1.0);
+                } catch (Exception ignored) {
+                    // ignore
+                }
                 // Don't set position here - wait until start
             }
 
@@ -203,8 +215,9 @@ public class TrowelHardware {
      * Initialize transfer servo to idle position
      */
     public void initTransferServos() {
+        // Initialize primary transfer servo only. transfer2 is optional and will be left alone
+        // if it is not present.
         if (transfer1 != null) transfer1.setPosition(0.5);
-        if (transfer2 != null) transfer2.setPosition(0.5);
     }
 
     /**
@@ -283,12 +296,24 @@ public class TrowelHardware {
         double ffContribution = computeDepositFeedforwardContribution(velocity);
         double commandedVelocity = velocity + ffContribution;
 
+        // If the requested (raw) velocity is essentially zero, stop the motors
+        if (Math.abs(velocity) < 1e-6) {
+            if (deposit1 != null) deposit1.setPower(0.0);
+            if (deposit2 != null) deposit2.setPower(0.0);
+            return;
+        }
+
+        // Enforce a minimum magnitude to avoid low-speed hunting/oscillation while preserving sign
+        if (Math.abs(commandedVelocity) < MIN_EFFECTIVE_DEPOSIT_VELOCITY) {
+            commandedVelocity = Math.signum(commandedVelocity) * MIN_EFFECTIVE_DEPOSIT_VELOCITY;
+        }
+
+        // Set both motors to the same velocity (no negation)
         if (deposit1 != null) {
-            // keep prior small offset for motor sync
-            deposit1.setVelocity(commandedVelocity + 15);
+            deposit1.setVelocity(commandedVelocity);
         }
         if (deposit2 != null) {
-            deposit2.setVelocity(commandedVelocity);
+            deposit2.setVelocity(commandedVelocity * 1.2);
         }
     }
 
@@ -312,6 +337,20 @@ public class TrowelHardware {
             deposit2.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
             deposit2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
+    }
+
+    /**
+     * Get deposit motor 1 position in encoder ticks
+     */
+    public double getDeposit1Position() {
+        return deposit1 != null ? deposit1.getCurrentPosition() : 0;
+    }
+
+    /**
+     * Get deposit motor 2 position in encoder ticks
+     */
+    public double getDeposit2Position() {
+        return deposit2 != null ? deposit2.getCurrentPosition() : 0;
     }
 
     /**

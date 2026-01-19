@@ -8,10 +8,23 @@ public class RandyButterNubs {
     private DcMotor backLeft;
     private DcMotor backRight;
 
+    // Stabilization / slew-rate limiting state
+    private double lastFL = 0.0, lastFR = 0.0, lastBL = 0.0, lastBR = 0.0;
+    private long lastUpdateNanos = System.nanoTime();
+
+    // Tunables: max change in motor power per second (power units/sec)
+    // Increase to allow more aggressive changes; decrease to smooth more
+    private static final double DEFAULT_SLEW_RATE = 4.0; // power units per second
+    private double slewRatePerSec = DEFAULT_SLEW_RATE;
+
+    // Deadzone and small-change threshold
+    private static final double OUTPUT_DEADBAND = 0.02; // ignore very small commands
+    private static final double APPLY_THRESHOLD = 0.005; // only call setPower if change larger than this
+
     // Deposit PIDF is centralized in TrowelHardware.DEPOSIT_PIDF
 
     // Default deposit velocity in ticks per second
-    public static final double DEFAULT_DEPOSIT_VELOCITY = 175.0;
+    public static final double DEFAULT_DEPOSIT_VELOCITY = 221.0;
 
     /**
      * Constructor for RandyButterNubs (Mecanum Drive)
@@ -28,6 +41,12 @@ public class RandyButterNubs {
         this.backRight = backRight;
 
         // Motors are already configured in TrowelHardware - don't override directions here
+        // Ensure motors use RUN_USING_ENCODER and BRAKE behavior for stronger braking and
+        // improved stability when controlling power.
+        setupMotor(this.frontLeft);
+        setupMotor(this.frontRight);
+        setupMotor(this.backLeft);
+        setupMotor(this.backRight);
     }
 
     /**
@@ -36,7 +55,13 @@ public class RandyButterNubs {
     private void setupMotor(DcMotor motor) {
         if (motor != null) {
             motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            // Use RUN_USING_ENCODER so the motor controller actively regulates speed
+            // which tends to reduce jitter in power output compared to raw open-loop.
+            try {
+                motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            } catch (Exception ignored) {
+                // Not fatal, keep previous mode if unsupported
+            }
         }
     }
 
@@ -66,7 +91,7 @@ public class RandyButterNubs {
             backRightPower /= maxPower;
         }
 
-        // Set motor powers
+        // Set motor powers (with smoothing)
         setMotorPower(frontLeft, frontLeftPower);
         setMotorPower(frontRight, frontRightPower);
         setMotorPower(backLeft, backLeftPower);
@@ -147,9 +172,41 @@ public class RandyButterNubs {
      * Set individual motor power
      */
     private void setMotorPower(DcMotor motor, double power) {
-        if (motor != null) {
-            motor.setPower(power);
-        }
+        if (motor == null) return;
+
+        // Apply deadband to avoid hunting
+        if (Math.abs(power) < OUTPUT_DEADBAND) power = 0.0;
+
+        long now = System.nanoTime();
+        double dt = Math.max(1e-6, (now - lastUpdateNanos) / 1e9);
+        lastUpdateNanos = now;
+
+        double maxDelta = slewRatePerSec * dt;
+
+        // Select proper "last" value by motor identity
+        double last = 0.0;
+        if (motor == frontLeft) last = lastFL;
+        else if (motor == frontRight) last = lastFR;
+        else if (motor == backLeft) last = lastBL;
+        else if (motor == backRight) last = lastBR;
+
+        // Limit change (slew rate)
+        double delta = power - last;
+        if (delta > maxDelta) delta = maxDelta;
+        if (delta < -maxDelta) delta = -maxDelta;
+        double applied = last + delta;
+
+        // Small-change suppression to reduce rapid tiny updates
+        if (Math.abs(applied - last) < APPLY_THRESHOLD) applied = last;
+
+        // Write back last value
+        if (motor == frontLeft) lastFL = applied;
+        else if (motor == frontRight) lastFR = applied;
+        else if (motor == backLeft) lastBL = applied;
+        else if (motor == backRight) lastBR = applied;
+
+        // Finally apply to hardware
+        motor.setPower(applied);
     }
 
     /**
@@ -196,5 +253,18 @@ public class RandyButterNubs {
         System.out.println("Front Right Motor Power: " + getFrontRightPower());
         System.out.println("Back Left Motor Power: " + getBackLeftPower());
         System.out.println("Back Right Motor Power: " + getBackRightPower());
+    }
+
+    /**
+     * Set the brake mode for all motors
+     *
+     * @param brakeMode True to enable BRAKE mode, false for FLOAT mode
+     */
+    public void setBrakeMode(boolean brakeMode) {
+        DcMotor.ZeroPowerBehavior behavior = brakeMode ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT;
+        if (frontLeft != null) frontLeft.setZeroPowerBehavior(behavior);
+        if (frontRight != null) frontRight.setZeroPowerBehavior(behavior);
+        if (backLeft != null) backLeft.setZeroPowerBehavior(behavior);
+        if (backRight != null) backRight.setZeroPowerBehavior(behavior);
     }
 }

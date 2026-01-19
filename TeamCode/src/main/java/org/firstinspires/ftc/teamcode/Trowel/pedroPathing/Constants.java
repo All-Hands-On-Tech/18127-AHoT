@@ -135,4 +135,10 @@ public class Constants {
         // Fallback: return original chain if mirror unavailable
         return chain;
     }
+
+    // Shared follower/aiming constants for TeleOp and Autonomous
+    public static final double AUTO_AIM_KP = 0.008;
+    public static final double AUTO_AIM_DEADBAND_DEG = 2.0;
+    public static final double AUTO_AIM_MAX_ROT = 0.6;
+    // If you want to share other pathing/heading constants, add them here as well
 }

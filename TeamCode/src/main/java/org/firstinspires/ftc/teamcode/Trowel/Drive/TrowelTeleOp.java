@@ -22,38 +22,33 @@ public class TrowelTeleOp extends OpMode {
     public static int BLUE_TAG_ID = 20;
     public static int RED_TAG_ID = 24;
 
-    // For auto-aim smoothing
-    private static final int DERIVATIVE_WINDOW = 4;
-    private final double[] derivativeBuffer = new double[DERIVATIVE_WINDOW];
-    private int derivativeIndex = 0;
-    private int derivativeCount = 0;
-    private double aimLastError = 0.0;
-    // Auto-aim tunables to smooth oscillation (panels adjustable)
-    // Increased KP/KD and max power/slew to speed up auto-aim while
-    // keeping damping higher to avoid added oscillation. KI slightly
-    // reduced to lower integral windup risk when increasing KP.
-    public static double AIM_KP = 0.014;       // increased for faster response
-    public static double AIM_KI = 0.00020;     // slightly reduced integral to avoid windup
-    public static double AIM_KD = 0.0012;      // increased derivative to add damping
-    public static double AIM_DEADBAND_DEG = 3.0; // keep deadband to prevent small hunts
-    public static double AIM_STATIC_FF = 0.045;  // slightly higher static kick to overcome stiction
-    public static double AIM_MAX_POWER = 0.35;   // allow stronger turns (clamped)
-    public static double AIM_MAX_SLEW_PER_LOOP = 0.05; // allow larger slew per loop for faster change
-    public static double AIM_SETTLE_ERR_DEG = 2.0;
-    public static double AIM_SETTLE_DERIV_DEG = 0.30;   // tighter derivative settle
-    public static int AIM_SETTLE_LOOPS = 8;             // require a bit longer settle
+    // PIDF constants for deposit velocity control
+    public static double DEPOSIT_KP = 0.01;
+    public static double DEPOSIT_KI = 0.0;
+    public static double DEPOSIT_KD = 0.0;
+    public static double DEPOSIT_KF = 0.0; // Feedforward constant
+    public static double DEPOSIT_TARGET_VELOCITY = 600.0; // target velocity in ticks/sec
+    public static double DEPOSIT_POWER_MIN = -1.0;
+    public static double DEPOSIT_POWER_MAX = 1.0;
+    public static double DEPOSIT_TOLERANCE = 10.0; // ticks/sec within target to consider "at velocity"
 
-    private double aimIntegral = 0.0;
-    private double lastAimOutput = 0.0;
-    private int aimSettledCounter = 0;
-    private boolean prevLeftBumper = false;
-    // Track driver1 ZL (left trigger) rising edge to set aim heading
-    private boolean prevDriver1ZL = false;
+    // Feedforward boost system
+    public static double BOOST_VELOCITY_BALL_1 = 200.0; // Extra velocity for first ball
+    public static double BOOST_VELOCITY_BALL_2 = 250.0; // Extra velocity for second ball
+    public static double BOOST_VELOCITY_BALL_3 = 200.0; // Extra velocity for third ball
+    public static double BOOST_DURATION_MS = 200.0; // How long each boost lasts
 
-    // Deposit spin-up (open-loop) burst to overcome static friction before switching to velocity control
-    public static double DEPOSIT_SPINUP_POWER = 1; // open-loop power during spin-up (0-1)
-    public static int DEPOSIT_SPINUP_MS = 645; // duration of open-loop spin-up in milliseconds
-    private long depositSpinupEndTime = 0; // 0 means not spinning up; -1 means spin-up finished
+    private boolean isBoosting = false;
+    private long boostStartTime = 0;
+    private int currentBallNumber = 0; // Tracks which ball we're shooting (0-2)
+
+    // Speed curve tuning
+    public static double SPEED_CURVE_EXPONENT = 2.0; // Less aggressive curve for better full-speed response
+
+    // PIDF state variables
+    private double depositIntegral = 0.0;
+    private double depositLastError = 0.0;
+    private long depositLastTime = 0;
 
     private TrowelHardware robot;
     private RandyButterNubs drive;
@@ -63,65 +58,44 @@ public class TrowelTeleOp extends OpMode {
     private boolean visionEnabled = false;
     private boolean odometryEnabled = false;
 
-    // Transfer positions used by transfer servos (keep original semantics)
-    private static final double TRANSFER_IN = 0.0;
-    private static final double TRANSFER_OUT = 1.0;
-    private static final double TRANSFER_NEUTRAL = 0.5;
-
-    // Pedro Pathing follower instance (optional). If available, we'll use it for teleop drive
-    // and for heading-controlled auto-aim.
+    // Pedro Pathing follower instance
     private Follower follower = null;
-    private boolean followerTeleopStarted = false;
 
-    // Simple follower-based heading controller tunables
-    public static double FOLLOWER_AIM_KP = 0.008; // maps degrees -> rotate input roughly; tune as needed
-    public static double FOLLOWER_AIM_DEADBAND_DEG = 2.0;
-    public static double FOLLOWER_AIM_MAX_ROT = 0.6; // clamp rotate command magnitude
-
-    // Scale factor for the second-stage intake (intake2). Reduce by 10% as requested.
+    // Scale factor for the second-stage intake
     private static final double INTAKE2_SCALE = 1.0;
 
-    private double depositTargetVelocity = RandyButterNubs.DEFAULT_DEPOSIT_VELOCITY;
     private boolean depositActive = false;
     private boolean lastXButtonState = false;
 
-    // Panels-tunable software feedforward factor (fractional). Keep PIDF constants unchanged.
-    public static double DEPOSIT_FF_FACTOR = 0.05; // default small multiplicative FF
-    // Panels-tunable absolute feedforward boost in ticks/sec (additive)
-    public static double DEPOSIT_FF_BOOST_TICKS = 240.0; // default additive boost (ticks/sec)
-    // Panels-tunable deposit target velocity so you can tune via the Panels UI
-    public static double PANEL_DEPOSIT_TARGET_VELOCITY = RandyButterNubs.DEFAULT_DEPOSIT_VELOCITY;
-
-    // ===== Gamepad2 D-Pad tuning constants/vars =====
-    private static final double DEPOSIT_STEP_SMALL = 5.0;
-    private static final double DEPOSIT_STEP_LARGE = 25.0;
+    // Gamepad2 D-Pad tuning constants
+    private static final double DEPOSIT_STEP_SMALL = 10.0;
+    private static final double DEPOSIT_STEP_LARGE = 50.0;
     private static final double DEPOSIT_MIN_VELOCITY = 0.0;
-    private static final double DEPOSIT_MAX_VELOCITY = 5000.0;
+    private static final double DEPOSIT_MAX_VELOCITY = 2000.0;
     private boolean prevGp2DpadUp = false, prevGp2DpadDown = false, prevGp2DpadLeft = false, prevGp2DpadRight = false;
     private long lastGp2DpadChange = 0;
     private static final long FIRST_REPEAT_DELAY_MS = 350;
     private static final long REPEAT_INTERVAL_MS = 120;
-    // =================================================
 
-    // Auto-aim reference heading (can be overwritten by driver)
+    // Auto-aim and auto-drive state
     private double aimHeadingDeg = 0.0;
-    private boolean prevDriver1Y = false;
+    private boolean prevDriver1LB = false;
+    private boolean prevDriver1ZL = false;
+    private boolean hasSetScoringPosition = false;
+    private Pose scoringPose = null; // Store the scoring pose (x, y, heading)
+
+    // Add a cached pose field at the class level
+    private Pose lastKnownPose = new Pose(0, 0, 0);
 
     @Override
     public void init() {
         robot = new TrowelHardware(hardwareMap);
         drive = new RandyButterNubs(robot.frontLeft, robot.frontRight, robot.backLeft, robot.backRight);
 
-        // Try to create the Pedro Pathing follower. If it fails, we'll silently fall back to
-        // the legacy "drive" object.
-        try {
-            follower = Constants.createFollower(hardwareMap);
-        } catch (Exception ignored) {
-            follower = null;
-        }
-
-        // Apply initial feedforward factor (can be tuned via Panels because this class is @Configurable)
-        robot.setDepositFeedforwardFactor(DEPOSIT_FF_FACTOR);
+        // Do NOT create the Pedro Pathing follower here. Creating it can initialize the
+        // Pinpoint device early and conflict with hardware initialization. We'll create
+        // the follower lazily when LB is pressed (below) after Pinpoint has been initialized.
+        follower = null;
 
         try {
             robot.initPinpoint();
@@ -142,7 +116,6 @@ public class TrowelTeleOp extends OpMode {
             telemetry.addLine("Vision Not Available - Vision Disabled");
             visionEnabled = false;
         }
-
 
         robot.resetDepositEncoders();
 
@@ -181,29 +154,45 @@ public class TrowelTeleOp extends OpMode {
 
     @Override
     public void start() {
-        if (robot.transfer1 != null) robot.transfer1.setPosition(TRANSFER_OUT);
-        if (robot.transfer2 != null) robot.transfer2.setPosition(TRANSFER_OUT);
+        // Transfer servos disabled for now
+        depositLastTime = System.currentTimeMillis();
+
+        // Set initial aim heading based on team (just heading, no position yet)
+        aimHeadingDeg = (selectedTeam == Team.RED) ? 45.0 : 135.0;
+    }
+
+    /**
+     * Applies an exponential curve to joystick input for finer control at low speeds
+     * @param input Raw joystick value (-1.0 to 1.0)
+     * @return Curved output (-1.0 to 1.0) with more precision at low inputs
+     */
+    private double applyCurve(double input) {
+        // Preserve the sign of the input
+        double sign = Math.signum(input);
+        double magnitude = Math.abs(input);
+
+        // Apply exponential curve: output = input^exponent
+        double curved = Math.pow(magnitude, SPEED_CURVE_EXPONENT);
+
+        return sign * curved;
+    }
+
+    /**
+     * Gets the current boost velocity based on which ball is being shot
+     * @return The boost velocity for the current ball
+     */
+    private double getCurrentBoostVelocity() {
+        return switch (currentBallNumber) {
+            case 0 -> BOOST_VELOCITY_BALL_1;
+            case 1 -> BOOST_VELOCITY_BALL_2;
+            case 2 -> BOOST_VELOCITY_BALL_3;
+            default -> BOOST_VELOCITY_BALL_1;
+        };
     }
 
     @Override
     public void loop() {
-        // If DEPOSIT_FF_FACTOR is changed via panels, propagate it to the robot instance
-        if (robot != null && robot.getDepositFeedforwardFactor() != DEPOSIT_FF_FACTOR) {
-            robot.setDepositFeedforwardFactor(DEPOSIT_FF_FACTOR);
-        }
-        // Propagate absolute boost ticks as well
-        if (robot != null && robot.getDepositFeedforwardBoostTicks() != DEPOSIT_FF_BOOST_TICKS) {
-            robot.setDepositFeedforwardBoostTicks(DEPOSIT_FF_BOOST_TICKS);
-        }
-
-        // Sync panels deposit target velocity to runtime variable. This allows tuning via the Panels UI.
-        if (PANEL_DEPOSIT_TARGET_VELOCITY != depositTargetVelocity) {
-            depositTargetVelocity = PANEL_DEPOSIT_TARGET_VELOCITY;
-            // If deposit is currently active, apply immediately
-            if (depositActive) robot.setDepositVelocity(depositTargetVelocity);
-        }
-
-        // ===== Gamepad2 D-Pad tuning: override/update depositTargetVelocity =====
+        // Gamepad2 D-Pad tuning for deposit target velocity
         boolean gp2Up = gamepad2.dpad_up;
         boolean gp2Down = gamepad2.dpad_down;
         boolean gp2Left = gamepad2.dpad_left;
@@ -211,19 +200,19 @@ public class TrowelTeleOp extends OpMode {
         long now = System.currentTimeMillis();
 
         if (gp2Up && (!prevGp2DpadUp || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
-            depositTargetVelocity = Math.min(DEPOSIT_MAX_VELOCITY, depositTargetVelocity + DEPOSIT_STEP_LARGE);
+            DEPOSIT_TARGET_VELOCITY = Math.min(DEPOSIT_MAX_VELOCITY, DEPOSIT_TARGET_VELOCITY + DEPOSIT_STEP_LARGE);
             lastGp2DpadChange = now;
         }
         if (gp2Down && (!prevGp2DpadDown || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
-            depositTargetVelocity = Math.max(DEPOSIT_MIN_VELOCITY, depositTargetVelocity - DEPOSIT_STEP_LARGE);
+            DEPOSIT_TARGET_VELOCITY = Math.max(DEPOSIT_MIN_VELOCITY, DEPOSIT_TARGET_VELOCITY - DEPOSIT_STEP_LARGE);
             lastGp2DpadChange = now;
         }
         if (gp2Right && (!prevGp2DpadRight || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
-            depositTargetVelocity = Math.min(DEPOSIT_MAX_VELOCITY, depositTargetVelocity + DEPOSIT_STEP_SMALL);
+            DEPOSIT_TARGET_VELOCITY = Math.min(DEPOSIT_MAX_VELOCITY, DEPOSIT_TARGET_VELOCITY + DEPOSIT_STEP_SMALL);
             lastGp2DpadChange = now;
         }
         if (gp2Left && (!prevGp2DpadLeft || now - lastGp2DpadChange > FIRST_REPEAT_DELAY_MS)) {
-            depositTargetVelocity = Math.max(DEPOSIT_MIN_VELOCITY, depositTargetVelocity - DEPOSIT_STEP_SMALL);
+            DEPOSIT_TARGET_VELOCITY = Math.max(DEPOSIT_MIN_VELOCITY, DEPOSIT_TARGET_VELOCITY - DEPOSIT_STEP_SMALL);
             lastGp2DpadChange = now;
         }
 
@@ -236,185 +225,203 @@ public class TrowelTeleOp extends OpMode {
         prevGp2DpadLeft = gp2Left;
         prevGp2DpadRight = gp2Right;
 
-        // Make sure panels UI reflects the runtime change
-        if (PANEL_DEPOSIT_TARGET_VELOCITY != depositTargetVelocity) {
-            PANEL_DEPOSIT_TARGET_VELOCITY = depositTargetVelocity;
-        }
-
-        // If deposit is active, ensure robot receives the updated velocity command immediately
-        if (robot != null && depositActive && depositSpinupEndTime == -1) {
-            robot.setDepositVelocity(depositTargetVelocity);
-        }
-        // ==============================================================
-
         if (odometryEnabled && robot.pinpoint != null) {
             robot.updatePinpoint();
             if (odometry == null) {
                 odometry = new Odometry(robot, robot.pinpoint);
-                // Set odometry's starting heading to 0 degrees (90 deg left from 90)
-                // Odometry does not have setPosition, so set hRad directly
-                java.lang.reflect.Field hRadField;
                 try {
-                    hRadField = Odometry.class.getDeclaredField("hRad");
+                    java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
                     hRadField.setAccessible(true);
-                    // Initialize starting heading rotated 90 degrees counter-clockwise
                     hRadField.set(odometry, Math.toRadians(90));
                 } catch (Exception ignored) {}
             }
             odometry.update();
         } else if (odometry == null) {
-            // create odometry with robot so IMU fallback works even if pinpoint is not initialized
             odometry = new Odometry(robot, null);
-            // Set odometry's starting heading to 0 degrees (90 deg left from 90)
             try {
                 java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
                 hRadField.setAccessible(true);
-                // Initialize starting heading rotated 90 degrees counter-clockwise
                 hRadField.set(odometry, Math.toRadians(90));
             } catch (Exception ignored) {}
-            // do not call update here until pinpoint or IMU is available
         }
 
         if (visionEnabled && visionLocalization != null) {
             visionLocalization.update();
         }
 
+        // Update cached lastKnownPose from the best available source (odometry preferred)
+        try {
+            if (odometry != null) {
+                Odometry.Position pos = odometry.getPosition();
+                lastKnownPose = new Pose(pos.xMm / 25.4, pos.yMm / 25.4, pos.headingRad);
+            } else if (follower != null) {
+                // follower.getPose() returns inches and radians already
+                lastKnownPose = follower.getPose();
+            }
+        } catch (Exception ignored) {}
+
         int targetTagId = (selectedTeam == Team.BLUE) ? BLUE_TAG_ID :
                 (selectedTeam == Team.RED) ? RED_TAG_ID : -1;
 
-        double forward = -gamepad1.left_stick_y;
-        double strafe = gamepad1.left_stick_x;
-        double rotate = gamepad1.right_stick_x;
+        // Apply speed curve to joystick inputs
+        double forward = applyCurve(-gamepad1.left_stick_y);
+        double strafe = applyCurve(gamepad1.left_stick_x);
+        double rotate = applyCurve(gamepad1.right_stick_x);
+        // Reduce turning speed for more precise aiming
+        rotate *= 0.5;
 
-        // Overwrite aim heading with current odometry heading when driver 1 presses Y (rising edge)
-        boolean driver1Y = gamepad1.y;
-        if (driver1Y && !prevDriver1Y) {
-            if (odometry != null) {
-                aimHeadingDeg = odometry.getPosition().getHeadingDeg();
+        // ZL (left trigger) - Set scoring position, trigger shooting, AND run intakes
+        boolean driver1ZL = gamepad1.left_trigger > 0.5;
+        boolean driver1ZLPressed = driver1ZL && !prevDriver1ZL;
+
+        if (driver1ZLPressed) {
+            // Always set/update scoring position from odometry (preferred) or follower (fallback)
+            if (odometryEnabled && odometry != null) {
+                Odometry.Position pos = odometry.getPosition();
+                double headingRad = pos.headingRad;
+                scoringPose = new com.pedropathing.geometry.Pose(pos.xMm / 25.4, pos.yMm / 25.4, headingRad);
+                aimHeadingDeg = Math.toDegrees(headingRad);
+                hasSetScoringPosition = true;
+            } else if (follower != null) {
+                follower.update();
+                Pose pose = follower.getPose();
+                scoringPose = new com.pedropathing.geometry.Pose(pose.getX(), pose.getY(), pose.getHeading());
+                aimHeadingDeg = Math.toDegrees(pose.getHeading());
+                hasSetScoringPosition = true;
+            }
+            // Trigger shooting if deposit is active
+            if (depositActive) {
+                isBoosting = true;
+                boostStartTime = now;
+                currentBallNumber = (currentBallNumber + 1) % 3;
             }
         }
-        prevDriver1Y = driver1Y;
 
-        // Detect rising edge on driver1 ZL (left trigger > 0.5) and set heading instantly to aiming angle
-        boolean driver1ZL = gamepad1.right_trigger > 0.5;
-        if (driver1ZL && !prevDriver1ZL) {
-            double aimAngleDeg = (selectedTeam == Team.RED) ? 45.0 : 135.0;
-            // Set odometry internal heading via reflection
-            try {
-                if (odometry != null) {
-                    java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
-                    hRadField.setAccessible(true);
-                    hRadField.set(odometry, Math.toRadians(aimAngleDeg));
-                }
-            } catch (Exception ignored) {}
-
-            // Update Pedro follower starting pose if available
-            try {
-                if (follower != null) {
-                    follower.update();
-                    Pose p = follower.getPose();
-                    Pose newPose = new Pose(p.getX(), p.getY(), Math.toRadians(aimAngleDeg));
-                    follower.setStartingPose(newPose);
-                }
-            } catch (Exception ignored) {}
+        // While ZL is held, run intakes (FLIPPED INTAKE 2)
+        if (driver1ZL) {
+            if (robot.intake1 != null) robot.intake1.setPower(1.0);
+            if (robot.intake2 != null) robot.intake2.setPower(-INTAKE2_SCALE); // FLIPPED
         }
+
         prevDriver1ZL = driver1ZL;
 
-        double autoRotate = 0.0;
-
-        // Remove all vision-based auto-aiming logic
-        // Keep the structure for LB (left bumper) pressed
-        if (gamepad1.left_bumper) {
-            // TODO: Insert auto-aiming logic here (currently vision-based code removed)
-            // For now, just indicate LB is pressed
-            telemetry.addLine("LB (auto-aim trigger) is pressed");
+        // Ensure manual input always overrides follower control
+        boolean hasManualInput = Math.abs(forward) > 0.05 || Math.abs(strafe) > 0.05 || Math.abs(rotate) > 0.05;
+        if (follower != null && hasManualInput) {
+            follower.breakFollowing();
+            follower = null; // Completely disable the follower
         }
 
-        // NOTE: autoRotate sign chosen to match drive.rotate sign convention
-
-        // Speed scaling: LB = 70% slow, RB = 30% slow. These scale translational and driver rotate input
-        double speedScale = 1.0;
-        if (gamepad1.left_bumper) speedScale = 0.7; // 70% slow mode
-        else if (gamepad1.right_bumper) speedScale = 0.5; // 30% slow mode
-
-        forward *= speedScale;
-        strafe *= speedScale;
-        // Keep vision/heading autoRotate unaffected by scaling; scale only driver rotation input
-        rotate *= speedScale;
-
-        double finalRotate = rotate + autoRotate;
-
-        // Drive using the Pedro follower if available; otherwise fall back to RandyButterNubs.
-        if (follower != null) {
-            // Ensure teleop drive mode started once
-            if (!followerTeleopStarted) {
-                try {
-                    follower.startTeleopDrive(true);
-                } catch (Exception ignored) {}
-                followerTeleopStarted = true;
-            }
-
+        // LB (left bumper) - Auto-drive to scoring position
+        boolean driver1LB = gamepad1.left_bumper;
+        boolean driver1LBPressed = driver1LB && !prevDriver1LB;
+        if (driver1LBPressed && hasSetScoringPosition && scoringPose != null) {
+            // Determine the best starting pose for the follower
+            Pose startPose;
             try {
-                // When left bumper is held we want auto-aim: keep translational joystick control but
-                // override the rotate input with follower-based heading control (target 45 or 135 deg)
-                if (gamepad1.left_bumper) {
-                    double targetHeading = aimHeadingDeg;
-                    // Make sure follower pose is updated before reading
-                    follower.update();
-                    Pose fPose = follower.getPose();
-                    double currentHeadingDeg = Math.toDegrees(fPose.getHeading());
-                    double error = targetHeading - currentHeadingDeg;
-                    while (error > 180) error -= 360;
-                    while (error < -180) error += 360;
+                // Make sure Pinpoint has a fresh reading before we take a pose from it
+                if (odometryEnabled && robot.pinpoint != null) {
+                    try { robot.updatePinpoint(); } catch (Exception ignored) {}
+                }
+                 if (odometryEnabled && odometry != null) {
+                     Odometry.Position pos = odometry.getPosition();
+                     startPose = new Pose(pos.xMm / 25.4, pos.yMm / 25.4, pos.headingRad);
+                     telemetry.addLine("Using odometry for start pose");
+                 } else if (follower != null) {
+                     // If we already have a follower, prefer its pose
+                     follower.update();
+                     startPose = follower.getPose();
+                     telemetry.addLine("Using existing follower pose for start pose");
+                 } else if (lastKnownPose != null) {
+                     startPose = lastKnownPose;
+                     telemetry.addLine("Using cached lastKnownPose for start pose");
+                 } else {
+                     // Fallback to team-based starting poses (same as autonomous)
+                     if (selectedTeam == Team.BLUE) {
+                         startPose = new Pose(26.467, 129.584, Math.toRadians(145));
+                         telemetry.addLine("Fallback: BLUE team start pose");
+                     } else {
+                         startPose = new Pose(117.533, 129.584, Math.toRadians(35));
+                         telemetry.addLine("Fallback: RED team start pose");
+                     }
+                 }
 
-                    double rotCmd = 0.0;
-                    if (Math.abs(error) > FOLLOWER_AIM_DEADBAND_DEG) {
-                        rotCmd = FOLLOWER_AIM_KP * error;
-                        // clamp
-                        rotCmd = Math.max(-FOLLOWER_AIM_MAX_ROT, Math.min(FOLLOWER_AIM_MAX_ROT, rotCmd));
+                 // Initialize or re-create follower and apply start pose
+                if (follower == null) {
+                    try {
+                        // Primary attempt: standard factory method (may create its own localizer)
+                        follower = Constants.createFollower(hardwareMap);
+                    } catch (Exception ePrimary) {
+                        telemetry.addLine("FOLLOWER CREATE ERROR: " + ePrimary.getMessage());
+                        // Fallback: construct follower without the pinpoint localizer to avoid
+                        // conflicts where multiple devices try to initialize the same hardware.
+                        try {
+                            com.pedropathing.ftc.FollowerBuilder fb = new com.pedropathing.ftc.FollowerBuilder(Constants.followerConstants, hardwareMap);
+                            fb.pathConstraints(Constants.pathConstraints);
+                            fb.mecanumDrivetrain(Constants.driveConstants);
+                            follower = fb.build();
+                            telemetry.addLine("FOLLOWER: created fallback without pinpoint localizer");
+                        } catch (Exception eFallback) {
+                            telemetry.addLine("FOLLOWER FALLBACK ERROR: " + eFallback.getMessage());
+                            follower = null;
+                        }
                     }
-
-                    // NOTE: Tuning.setTeleOpDrive uses: (-forward, -strafe, -rotate) sign convention
-                    // We pass forward as already-negated, but flip strafe/rotate signs to match the follower API.
-                    // Pass rotCmd directly (sign chosen so follower steers toward reducing the heading error).
-                    follower.setTeleOpDrive(forward, -strafe, rotCmd, true);
-                    // Let the follower consume the command and update internal controllers
-                    follower.update();
+                }
+                if (follower != null) {
+                    follower.setMaxPower(1.0);
+                    follower.setStartingPose(startPose);
+                    telemetry.addData("FOLLOWER START", "(%.1f, %.1f) @ %.1f°", startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading()));
                 } else {
-                    // Normal teleop: pass driver inputs through to follower
+                    telemetry.addLine("FOLLOWER NOT AVAILABLE - using basic drive");
+                }
+
+                 // If we have a scoring pose, create a simple direct path and follow it
+                 try {
+                     if (scoringPose != null) {
+                        if (follower != null) {
+                            com.pedropathing.paths.PathChain pathToScoring = follower.pathBuilder()
+                                    .addPath(new com.pedropathing.geometry.BezierLine(startPose, scoringPose))
+                                    .setLinearHeadingInterpolation(startPose.getHeading(), scoringPose.getHeading())
+                                    .build();
+                            follower.followPath(pathToScoring);
+                        } else {
+                            telemetry.addLine("SKIPPING PATH: follower null");
+                        }
+                         telemetry.addLine("FOLLOWER: started path to scoring position");
+                     } else {
+                         telemetry.addLine("FOLLOWER: no scoringPose recorded");
+                     }
+                 } catch (Exception e) {
+                     telemetry.addLine("FOLLOWER PATH ERROR: " + e.getMessage());
+                 }
+
+             } catch (Exception e) {
+                 telemetry.addLine("FOLLOWER INIT ERROR: " + e.getMessage());
+             }
+         }
+         prevDriver1LB = driver1LB;
+
+        // Drive using the Pedro follower if available
+        if (follower != null) {
+            try {
+                follower.update();
+                if (!follower.isBusy()) {
                     follower.setTeleOpDrive(forward, -strafe, -rotate, true);
-                    follower.update();
                 }
             } catch (Exception e) {
-                // On any follower error, fall back to legacy drive
-                drive.drive(forward, strafe, finalRotate, gamepad1.left_bumper, gamepad1.right_bumper);
+                telemetry.addLine("FOLLOWER ERROR - using basic drive");
+                drive.drive(forward, strafe, rotate, false, gamepad1.right_bumper);
             }
-
         } else {
-            drive.drive(forward, strafe, finalRotate, gamepad1.left_bumper, gamepad1.right_bumper);
+            // Use basic drive if follower not available
+            drive.drive(forward, strafe, rotate, false, gamepad1.right_bumper);
         }
 
-        // DRIVER1 transfer + intake override: holding gamepad1 triggers runs intakes + sets transfer servos
-        boolean driver1IntakeIn = gamepad1.left_trigger > 0.1;
-        boolean driver1IntakeOut = gamepad1.right_trigger > 0.1;
-
-        if (driver1IntakeIn) {
-            // Driver1 ZL: run intakes IN and set transfers to IN
-            setTransferIn();
-            if (robot.intake1 != null) robot.intake1.setPower(1.0);
-            if (robot.intake2 != null) robot.intake2.setPower(-INTAKE2_SCALE);
-        } else if (driver1IntakeOut) {
-            // Driver1 ZR: run intakes OUT (reverse) and set transfers to OUT
-            setTransferOut();
-            if (robot.intake1 != null) robot.intake1.setPower(-1.0);
-            if (robot.intake2 != null) robot.intake2.setPower(-INTAKE2_SCALE);
-        } else {
-            // No driver1 override - transfers go neutral and restore gamepad2 controls (unchanged)
-            setTransferNeutral();
-
-            // Intake1 - controlled by gamepad2 triggers/bumpers: left_trigger = IN, right_trigger = OUT
+        // Intake control - gamepad2 has priority, but ZL is handled above
+        if (!driver1ZL) {
+            // Intake1 - controlled by gamepad2 triggers when ZL not held
             if (robot.intake1 != null) {
-                if (gamepad2.left_trigger > 0.1 || gamepad2.left_bumper) {
+                if (gamepad2.left_trigger > 0.1) {
                     robot.intake1.setPower(1.0);
                 } else if (gamepad2.right_trigger > 0.1) {
                     robot.intake1.setPower(-1.0);
@@ -423,237 +430,172 @@ public class TrowelTeleOp extends OpMode {
                 }
             }
 
-            // Intake2 - controlled by gamepad2 buttons A (IN) and B (OUT)
+            // Intake2 - controlled by gamepad2 buttons A (IN) and B (OUT) when ZL not held
             if (robot.intake2 != null) {
                 if (gamepad2.a) {
-                    robot.intake2.setPower(INTAKE2_SCALE);
+                    robot.intake2.setPower(-INTAKE2_SCALE); // FLIPPED
                 } else if (gamepad2.b) {
-                    robot.intake2.setPower(-1.0 * INTAKE2_SCALE);
+                    robot.intake2.setPower(INTAKE2_SCALE); // FLIPPED
                 } else {
                     robot.intake2.setPower(0.0);
                 }
             }
         }
 
+        // Toggle deposit active state on gamepad2 X button press
         if (gamepad2.x && !lastXButtonState) {
             depositActive = !depositActive;
-            if (depositActive) {
-                // start open-loop spin-up burst, then we'll switch to velocity control after DEPOSIT_SPINUP_MS
-                depositSpinupEndTime = System.currentTimeMillis() + DEPOSIT_SPINUP_MS;
-                // Apply open-loop power to both deposit motors to get them spinning
-                if (robot.deposit1 != null) robot.deposit1.setPower(DEPOSIT_SPINUP_POWER);
-                if (robot.deposit2 != null) robot.deposit2.setPower(DEPOSIT_SPINUP_POWER);
-            } else {
-                // stopped
-                depositSpinupEndTime = 0;
+            if (!depositActive) {
+                depositIntegral = 0.0;
+                depositLastError = 0.0;
+                currentBallNumber = 0; // Reset ball counter when deposit turns off
+                isBoosting = false;
                 robot.stopDeposit();
             }
         }
         lastXButtonState = gamepad2.x;
 
-        // Handle non-blocking spin-up transition
-        if (depositActive) {
-            if (depositSpinupEndTime > 0) {
-                long nowTs = System.currentTimeMillis();
-                if (nowTs >= depositSpinupEndTime) {
-                    // Spin-up finished: switch to closed-loop velocity control
-                    robot.setDepositVelocity(depositTargetVelocity);
-                    depositSpinupEndTime = -1; // mark finished
-                }
-            } else if (depositSpinupEndTime == -1) {
-                // already in velocity control; ensure velocity command is maintained
-                robot.setDepositVelocity(depositTargetVelocity);
+        // PIDF velocity control with feedforward boost for deposit motors
+        if (depositActive && robot.deposit1 != null && robot.deposit2 != null) {
+            double vel1 = robot.getDeposit1Velocity();
+            double vel2 = robot.getDeposit2Velocity();
+            double currentVelocity = (vel1 + vel2) / 2.0;
+
+            // Determine target velocity (with boost if active)
+            double targetVelocity = DEPOSIT_TARGET_VELOCITY;
+            if (isBoosting) {
+                targetVelocity += getCurrentBoostVelocity();
             }
+
+            double error = targetVelocity - currentVelocity;
+
+            long currentTime = System.currentTimeMillis();
+            double dt = (currentTime - depositLastTime) / 1000.0;
+            if (dt <= 0) dt = 0.02;
+            depositLastTime = currentTime;
+
+            // PID terms
+            double pTerm = DEPOSIT_KP * error;
+
+            depositIntegral += error * dt;
+            double iTerm = DEPOSIT_KI * depositIntegral;
+
+            double derivative = (error - depositLastError) / dt;
+            double dTerm = DEPOSIT_KD * derivative;
+            depositLastError = error;
+
+            // Feedforward term (based on target velocity)
+            double fTerm = DEPOSIT_KF * targetVelocity;
+
+            double power = pTerm + iTerm + dTerm + fTerm;
+
+            power = Math.max(DEPOSIT_POWER_MIN, Math.min(DEPOSIT_POWER_MAX, power));
+
+            robot.deposit1.setPower(power);
+            robot.deposit2.setPower(power);
         }
 
-        // Auto-aim using odometry heading (fast, bidirectional) when LB is held
-        double autoRotationPower = 0.0;
-        if (gamepad1.left_bumper) {
-            // Legacy fallback auto-aim (only used if follower is unavailable). Keep for safety.
-            // Use base angles (negative values) but flip sign for BLUE team only
-            double targetAngle = aimHeadingDeg;
-            double currentAngle = 0.0;
-            if (odometry != null) {
-                currentAngle = odometry.getPosition().getHeadingDeg();
+        // === TELEMETRY ===
+        String teamStr = (selectedTeam == Team.BLUE) ? "BLUE" : (selectedTeam == Team.RED) ? "RED" : "NONE";
+        telemetry.addLine("═══════════════════════════════");
+        telemetry.addData("TEAM", "%s (Tag: %d)", teamStr, targetTagId);
+        telemetry.addData("Aim Heading", "%.1f°", aimHeadingDeg);
+
+        if (!hasSetScoringPosition) {
+            telemetry.addLine("⚠ Press ZL at scoring spot to record");
+        } else if (scoringPose != null) {
+            telemetry.addData("Scoring Position", "✓ (%.1f, %.1f) @ %.1f°",
+                    scoringPose.getX(), scoringPose.getY(), Math.toDegrees(scoringPose.getHeading()));
+        }
+
+        if (follower != null && follower.isBusy() && scoringPose != null) {
+            telemetry.addData("Auto-Drive", "✓ ACTIVE (move stick to cancel)");
+            Pose currentPose = follower.getPose();
+            double distToTarget = Math.sqrt(
+                    Math.pow(scoringPose.getX() - currentPose.getX(), 2) +
+                            Math.pow(scoringPose.getY() - currentPose.getY(), 2)
+            );
+            telemetry.addData("Distance to Target", "%.1f in", distToTarget);
+        }
+        telemetry.addLine("");
+
+        // === DEPOSIT STATUS ===
+        telemetry.addLine("─── DEPOSIT ───");
+        telemetry.addData("Status", depositActive ? "✓ ACTIVE" : "✗ STOPPED");
+
+        if (robot.deposit1 != null && robot.deposit2 != null && depositActive) {
+            double vel1 = robot.getDeposit1Velocity();
+            double vel2 = robot.getDeposit2Velocity();
+            double avgVel = (vel1 + vel2) / 2.0;
+
+            double targetVel = DEPOSIT_TARGET_VELOCITY;
+            if (isBoosting) {
+                targetVel += getCurrentBoostVelocity();
             }
-            double error = targetAngle - currentAngle;
-            // Normalize error to [-180, 180]
-            while (error > 180) error -= 360;
-            while (error < -180) error += 360;
 
-            // Derivative smoothing
-            double rawDerivative = error - aimLastError;
-            derivativeBuffer[derivativeIndex] = rawDerivative;
-            derivativeIndex = (derivativeIndex + 1) % DERIVATIVE_WINDOW;
-            if (derivativeCount < DERIVATIVE_WINDOW) derivativeCount++;
-            double sum = 0.0;
-            for (int i = 0; i < derivativeCount; i++) sum += derivativeBuffer[i];
-            double smoothedDerivative = sum / derivativeCount;
+            double error = targetVel - avgVel;
+            boolean atTarget = Math.abs(error) < DEPOSIT_TOLERANCE;
 
-            // Integral with simple anti-windup
-            if (Math.abs(error) <= AIM_DEADBAND_DEG) {
-                aimSettledCounter++;
-                aimIntegral = 0.0;
+            telemetry.addData("Target Velocity", "%.0f ticks/s", targetVel);
+            telemetry.addData("Current Velocity", "%.0f / %.0f (Avg: %.0f)", vel1, vel2, avgVel);
+            telemetry.addData("Error", "%s%.0f ticks/s", atTarget ? "✓ " : "", error);
+            telemetry.addData("Power", "%.2f / %.2f", robot.deposit1.getPower(), robot.deposit2.getPower());
+
+            if (isBoosting) {
+                telemetry.addData("BOOST", "✓ ACTIVE (Ball %d)", currentBallNumber + 1);
+                long timeRemaining = (long)(BOOST_DURATION_MS - (now - boostStartTime));
+                telemetry.addData("Boost Time Left", "%d ms", timeRemaining);
             } else {
-                aimSettledCounter = 0;
-                aimIntegral += error;
-                double integralMax = AIM_MAX_POWER / Math.max(1e-6, AIM_KI);
-                aimIntegral = Math.max(-integralMax, Math.min(integralMax, aimIntegral));
+                telemetry.addData("Next Ball", "#%d", currentBallNumber + 1);
             }
-
-            // Compute rotation
-            double rotationCmd = (AIM_KP * error) + (AIM_KD * smoothedDerivative) + (AIM_KI * aimIntegral);
-            if (Math.abs(error) > AIM_DEADBAND_DEG && Math.abs(rotationCmd) < AIM_STATIC_FF) {
-                rotationCmd = AIM_STATIC_FF * Math.signum(rotationCmd == 0 ? error : rotationCmd);
-            }
-            // Deadband clamp
-            if (Math.abs(error) <= AIM_DEADBAND_DEG) {
-                rotationCmd = 0.0;
-            }
-            // Slew limit and clamp
-            double maxStep = AIM_MAX_SLEW_PER_LOOP;
-            rotationCmd = Math.max(lastAimOutput - maxStep, Math.min(lastAimOutput + maxStep, rotationCmd));
-            rotationCmd = Math.max(-AIM_MAX_POWER, Math.min(AIM_MAX_POWER, rotationCmd));
-
-            autoRotationPower = rotationCmd;
-            lastAimOutput = rotationCmd;
-            aimLastError = error;
-
-            boolean aimSettled = Math.abs(error) <= AIM_SETTLE_ERR_DEG && Math.abs(smoothedDerivative) <= AIM_SETTLE_DERIV_DEG && aimSettledCounter >= AIM_SETTLE_LOOPS;
-            telemetry.addData("AutoAim Target", targetAngle);
-            telemetry.addData("AutoAim Heading", currentAngle);
-            telemetry.addData("AutoAim Error", error);
-            telemetry.addData("AutoAim Deriv", smoothedDerivative);
-            telemetry.addData("AutoAim Power", autoRotationPower);
-            telemetry.addData("AutoAim Settled", aimSettled ? "YES" : "NO");
-        } else {
-            // Reset filters when not aiming
-            derivativeCount = 0;
-            derivativeIndex = 0;
-            aimIntegral = 0.0;
-            lastAimOutput = 0.0;
-            aimSettledCounter = 0;
-            aimLastError = 0.0;
+        } else if (depositActive) {
+            telemetry.addData("Target Velocity", "%.0f ticks/s", DEPOSIT_TARGET_VELOCITY);
         }
+        telemetry.addLine("");
 
-        // Apply auto rotation if LB is held, otherwise use driver input
-        // If follower is present we already applied the auto-rotation via follower.setTeleOpDrive above.
-        // If the follower is not present, apply the legacy auto rotation directly to the drive.
-        if (follower == null && gamepad1.left_bumper) {
-            drive.drive(0, 0, autoRotationPower, false, false);
+        // === DRIVE DEBUG ===
+        telemetry.addLine("─── DRIVE DEBUG ───");
+        telemetry.addData("Raw Sticks", "LY:%.2f LX:%.2f RX:%.2f",
+                -gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        telemetry.addData("Curved Input", "F:%.2f S:%.2f R:%.2f", forward, strafe, rotate);
+        telemetry.addData("Has Manual Input", hasManualInput ? "YES" : "NO");
+        telemetry.addData("Follower Exists", follower != null ? "YES" : "NO");
+        if (follower != null) {
+            telemetry.addData("Following Path", follower.isBusy() ? "YES ⚠" : "NO ✓");
         }
+        // Debug cached pose
+        try {
+            telemetry.addData("LastKnownPose", "(%.1f, %.1f) @ %.1f°", lastKnownPose.getX(), lastKnownPose.getY(), Math.toDegrees(lastKnownPose.getHeading()));
+        } catch (Exception ignored) {}
+        telemetry.addLine("");
 
-        prevLeftBumper = gamepad1.left_bumper;
-
-        telemetry.addData("=== TEAM & AUTO-TURN ===", "");
-        String teamStr = (selectedTeam == Team.BLUE) ? "BLUE" :
-                (selectedTeam == Team.RED) ? "RED" : "NONE";
-        telemetry.addData("Team", "%s (Target Tag: %d)", teamStr, targetTagId);
-        telemetry.addData("Aim Heading (deg)", "%.1f", aimHeadingDeg);
-
-        telemetry.addData("Final Rotate (driver+auto)", "%.2f", finalRotate);
-
-        telemetry.addData("=== DRIVER 1 ===", "");
-        telemetry.addData("Drive", "Forward: %.2f, Strafe: %.2f, Rotate: %.2f", forward, strafe, finalRotate);
-        if (robot.transfer1 != null && robot.transfer2 != null) {
-            telemetry.addData("Transfer Positions", "T1: %.2f, T2: %.2f", robot.transfer1.getPosition(), robot.transfer2.getPosition());
-        }
-
-        telemetry.addData("=== DRIVER 2 ===", "");
+        // === INTAKES ===
+        telemetry.addLine("─── INTAKES ───");
         if (robot.intake1 != null) {
-            telemetry.addData("Intake 1 Power", "%.2f", robot.intake1.getPower());
+            telemetry.addData("Intake 1", "%.2f", robot.intake1.getPower());
         }
         if (robot.intake2 != null) {
-            telemetry.addData("Intake 2 Power", "%.2f", robot.intake2.getPower());
+            telemetry.addData("Intake 2 (FLIPPED)", "%.2f", robot.intake2.getPower());
         }
-        telemetry.addData("Deposit", "Active: %s, Target Velocity: %.1f", depositActive ? "YES" : "NO", depositTargetVelocity);
-        if (robot.deposit1 != null && robot.deposit2 != null) {
-            telemetry.addData("Deposit Power", "D1: %.2f, D2: %.2f", robot.deposit1.getPower(), robot.deposit2.getPower());
-            telemetry.addData("Deposit Velocity", "D1: %.0f, D2: %.0f ticks/s", robot.getDeposit1Velocity(), robot.getDeposit2Velocity());
-            telemetry.addData("Deposit RPM", "D1: %.0f, D2: %.0f, Avg: %.0f", robot.getDeposit1RPM(), robot.getDeposit2RPM(), robot.getAverageDepositRPM());
-        }
+        telemetry.addLine("");
 
-        // Show feedforward factor and contribution for tuning visibility
-        double ffFactor = robot.getDepositFeedforwardFactor();
-        double ffContribution = robot.computeDepositFeedforwardContribution(depositTargetVelocity);
-        telemetry.addData("Deposit/TargetVelocity", "%.1f ticks/s", depositTargetVelocity);
-        telemetry.addData("Deposit/FF Factor", "%.3f", ffFactor);
-        telemetry.addData("Deposit/FF BoostTicks", "%.1f ticks/s", robot.getDepositFeedforwardBoostTicks());
-        telemetry.addData("Deposit/FF Contribution", "%.1f ticks/s", ffContribution);
-        telemetry.addData("Deposit/CommandedVelocity (wFF)", "%.1f ticks/s", depositTargetVelocity + ffContribution);
-
+        // === ODOMETRY ===
         if (odometryEnabled && odometry != null) {
             Odometry.Position pos = odometry.getPosition();
-            telemetry.addData("=== ODOMETRY ===", "");
-            // Position stores mm internally
-            double xIn = pos.xMm / 25.4;
-            double yIn = pos.yMm / 25.4;
-            double headingDeg = Math.toDegrees(pos.headingRad);
-            telemetry.addData("X (in)", "%.2f", xIn);
-            telemetry.addData("Y (in)", "%.2f", yIn);
-            telemetry.addData("Heading (deg)", "%.1f", headingDeg);
-        } else {
-            telemetry.addData("Odometry", "Disabled");
+            telemetry.addLine("─── POSITION ───");
+            telemetry.addData("X, Y", "%.1f, %.1f in", pos.xMm / 25.4, pos.yMm / 25.4);
+            telemetry.addData("Heading", "%.1f°", Math.toDegrees(pos.headingRad));
+            telemetry.addLine("");
         }
 
-        if (visionEnabled && visionLocalization != null) {
-            telemetry.addData("=== VISION LOCALIZATION ===", "");
-            telemetry.addData("Tags Detected", visionLocalization.getDetectedTagCount());
-            telemetry.addData("Robot X (in)", "%.2f", visionLocalization.getRobotX());
-            telemetry.addData("Robot Y (in)", "%.2f", visionLocalization.getRobotY());
-            telemetry.addData("Robot Heading (deg)", "%.2f", visionLocalization.getRobotHeading());
-            telemetry.addData("Confidence", "%.2f", visionLocalization.getConfidence());
-            telemetry.addData("Recent Detection", visionLocalization.hasRecentDetection() ? "YES" : "NO");
-
-            // 2D range (ftcPose.range) to the selected tag (if any)
-            double range2d = Double.NaN;
-            if (targetTagId > 0) range2d = visionLocalization.getRangeToTag(targetTagId);
-
-            // 3D euclidean distances (inches)
-            double dist3dTarget = Double.NaN;
-            if (targetTagId > 0) dist3dTarget = visionLocalization.get3dDistanceToTag(targetTagId);
-            double dist3dAvg = visionLocalization.get3dDistanceAvg();
-
-            // Safe formatting using Locale.US to avoid locale issues
-            if (!Double.isNaN(range2d)) {
-                telemetry.addData("Range to Target (2D, in)", String.format(java.util.Locale.US, "%.2f", range2d));
-            } else {
-                telemetry.addData("Range to Target (2D, in)", "N/A");
-            }
-
-            if (!Double.isNaN(dist3dTarget)) {
-                telemetry.addData("3D Distance to Target (in)", String.format(java.util.Locale.US, "%.2f", dist3dTarget));
-            } else {
-                telemetry.addData("3D Distance to Target (in)", "N/A");
-            }
-
-            if (!Double.isNaN(dist3dAvg)) {
-                telemetry.addData("3D Distance Avg (in)", String.format(java.util.Locale.US, "%.2f", dist3dAvg));
-            } else {
-                telemetry.addData("3D Distance Avg (in)", "N/A");
-            }
-        } else {
-            telemetry.addData("Vision", "Disabled");
-        }
-
-        // Add explicit camera/vision diagnostics
-        if (visionLocalization != null) {
-            String camState = visionLocalization.getCameraState();
-            telemetry.addData("=== VISION DIAGNOSTICS ===", "");
-            telemetry.addData("Camera State", camState);
-            telemetry.addData("Vision Initialized", visionLocalization.isReady() ? "YES" : "NO");
-            if (!visionLocalization.isReady()) {
-                telemetry.addLine("WARNING: Vision not initialized or camera not streaming!");
-                telemetry.addLine("Check camera connection and config name (should be 'Webcam 1')");
-            }
-        } else {
-            telemetry.addData("=== VISION DIAGNOSTICS ===", "");
-            telemetry.addLine("VisionLocalization instance is NULL!");
-        }
-
-        telemetry.addLine(robot.getMotorPowers());
-        telemetry.addLine(robot.getMotorConfigurations());
-        telemetry.addLine(robot.getInitializationStatus());
+        // === PIDF TUNING INFO ===
+        telemetry.addLine("─── PIDF TUNING ───");
+        telemetry.addData("Kp, Ki, Kd, Kf", "%.3f, %.3f, %.3f, %.3f", DEPOSIT_KP, DEPOSIT_KI, DEPOSIT_KD, DEPOSIT_KF);
+        telemetry.addData("Speed Curve Exp", "%.2f", SPEED_CURVE_EXPONENT);
+        telemetry.addData("Boost Velocities", "%.0f, %.0f, %.0f", BOOST_VELOCITY_BALL_1, BOOST_VELOCITY_BALL_2, BOOST_VELOCITY_BALL_3);
+        telemetry.addData("Boost Duration", "%.0f ms", BOOST_DURATION_MS);
+        telemetry.addLine("ZL: set pos/shoot/intakes | LB: auto-drive");
+        telemetry.addLine("═══════════════════════════════");
 
         telemetry.update();
     }
@@ -662,72 +604,8 @@ public class TrowelTeleOp extends OpMode {
     public void stop() {
         drive.stop();
         robot.stop();
-    }
-
-
-    // Helper: set transfer actuators to IN (use CRServo.setPower if the hardware is a CRServo; otherwise set Servo position)
-    private void setTransferIn() {
-        try {
-            // Try CRServo first
-            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(1.0);
-            } else if (robot.transfer1 != null) {
-                robot.transfer1.setPosition(TRANSFER_IN);
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                // transfer2 was configured in hardware as reversed direction; send full power forward to match position semantics
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(1.0);
-            } else if (robot.transfer2 != null) {
-                robot.transfer2.setPosition(TRANSFER_IN);
-            }
-        } catch (Exception ignored) {
+        if (follower != null) {
+            follower.breakFollowing();
         }
     }
-
-    // Helper: set transfer actuators to OUT
-    private void setTransferOut() {
-        try {
-            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(-1.0);
-            } else if (robot.transfer1 != null) {
-                robot.transfer1.setPosition(TRANSFER_OUT);
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(-1.0);
-            } else if (robot.transfer2 != null) {
-                robot.transfer2.setPosition(TRANSFER_OUT);
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    // Helper: set transfer actuators to neutral/stop
-    private void setTransferNeutral() {
-        try {
-            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(0.0);
-            } else if (robot.transfer1 != null) {
-                robot.transfer1.setPosition(TRANSFER_NEUTRAL);
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(0.0);
-            } else if (robot.transfer2 != null) {
-                robot.transfer2.setPosition(TRANSFER_NEUTRAL);
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
 }

@@ -83,7 +83,12 @@ public class OdometryTest extends OpMode {
         try {
             // Initialize Pedro Pathing follower (which uses Pinpoint)
             follower = Constants.createFollower(hardwareMap);
-            follower.setStartingPose(new Pose(0, 0, 0));
+
+            // Retrieve the robot's current position and heading
+            Pose currentPose = follower.getPose(); // Assuming follower can provide the current pose
+
+            // Initialize Pedro Pathing follower with the current pose
+            follower.setStartingPose(currentPose);
 
             // Try to get direct access to Pinpoint device
             try {
