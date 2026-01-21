@@ -43,7 +43,7 @@ public class StraightAuto extends OpMode {
     private static final double AUTO_INTAKE1_POWER = 1.0;
     private static final double AUTO_INTAKE2_POWER = -1.0;
     private static final double TRANSFER_IN = 0.0;
-    private static final double TRANSFER_OUT = -1.0;   // drive transfers only while shooting
+    private static final double TRANSFER_OUT = 1.0;   // drive transfers only while shooting
     private static final double TRANSFER_NEUTRAL = 0.5; // hold neutral when not shooting
     private static final long INTAKE2_BURST_MS = 1500;
     private long shootHoldEndMs = 0;
@@ -66,17 +66,17 @@ public class StraightAuto extends OpMode {
 
     @Override
     public void start() {
-        // Initialize auxiliary hardware (intakes, deposit, transfer servos)
+        // Initialize auxiliary hardware (intakes, deposit, transfer servo)
         robot = new TrowelHardware(hardwareMap);
         robot.resetDepositEncoders();
-        robot.initTransferServos();
+        robot.initTransferServo();
         robot.setDepositFeedforwardFactor(AUTO_DEPOSIT_FF_FACTOR);
         robot.setDepositFeedforwardBoostTicks(AUTO_DEPOSIT_FF_BOOST_TICKS);
         // Keep deposit running for the entire auto
         robot.setDepositVelocity(AUTO_DEPOSIT_VELOCITY);
         if (robot.intake1 != null) robot.intake1.setPower(0.0);
         if (robot.intake2 != null) robot.intake2.setPower(0.0);
-        // Leave transfers neutral until shooting
+        // Leave transfer neutral until shooting
         setTransferNeutral();
         panelsTelemetry.debug("Aux Init", robot.getInitializationStatus());
 
@@ -526,54 +526,21 @@ public class StraightAuto extends OpMode {
     }
 
     private void setTransferOut() {
-        try {
-            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(1.0);
-            } else if (robot.transfer1 != null) {
-                robot.transfer1.setPosition(TRANSFER_OUT);
-            }
-        } catch (Exception ignored) {}
-        try {
-            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(1.0);
-            } else if (robot.transfer2 != null) {
-                robot.transfer2.setPosition(TRANSFER_OUT);
-            }
-        } catch (Exception ignored) {}
+        if (robot.transferServo != null) {
+            robot.transferServo.setPosition(TRANSFER_OUT);
+        }
     }
 
     private void setTransferNeutral() {
-        try {
-            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(0.0);
-            } else if (robot.transfer1 != null) {
-                robot.transfer1.setPosition(TRANSFER_NEUTRAL);
-            }
-        } catch (Exception ignored) {}
-        try {
-            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(0.0);
-            } else if (robot.transfer2 != null) {
-                robot.transfer2.setPosition(TRANSFER_NEUTRAL);
-            }
-        } catch (Exception ignored) {}
+        if (robot.transferServo != null) {
+            robot.transferServo.setPosition(TRANSFER_NEUTRAL);
+        }
     }
 
     private void setTransferIn() {
-        try {
-            if (robot.transfer1 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer1).setPower(-1.0);
-            } else if (robot.transfer1 != null) {
-                robot.transfer1.setPosition(TRANSFER_IN);
-            }
-        } catch (Exception ignored) {}
-        try {
-            if (robot.transfer2 instanceof com.qualcomm.robotcore.hardware.CRServo) {
-                ((com.qualcomm.robotcore.hardware.CRServo) robot.transfer2).setPower(-1.0);
-            } else if (robot.transfer2 != null) {
-                robot.transfer2.setPosition(TRANSFER_IN);
-            }
-        } catch (Exception ignored) {}
+        if (robot.transferServo != null) {
+            robot.transferServo.setPosition(TRANSFER_IN);
+        }
     }
 
     private void startIntakeSequence() {

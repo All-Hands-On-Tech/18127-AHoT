@@ -20,7 +20,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
  * - 4-wheel mecanum drive motors
  * - Intake motors (intake1 and intake2)
  * - Deposit motors (deposit1 and deposit2)
- * - Transfer servos
+ * - Transfer servo
  * - IMU and Pinpoint odometry
  */
 public class TrowelHardware {
@@ -33,8 +33,8 @@ public class TrowelHardware {
     // Deposit motors with encoder support
     public DcMotorEx deposit1, deposit2;
 
-    // Transfer servos
-    public Servo transfer1, transfer2;
+    // Transfer servo
+    public Servo transferServo;
 
     // Sensors
     public IMU imu;
@@ -54,8 +54,8 @@ public class TrowelHardware {
     public String pinpointRecoveryAction = "";
 
     public static final PIDFCoefficients DEPOSIT_PIDF = new PIDFCoefficients(2.0, 0.1, 0.5, 20.0);
-
-    // Standard default deposit velocity (ticks per second)
+    // Flag to control whether we apply custom PIDF from DepositPIDFConfig
+    public boolean useCustomDepositPIDF = true;
 
     // Additional software feedforward multiplier (0.0 = no extra FF). This is separate from the
     // REV PIDF F constant and allows increasing the commanded velocity to drive the motor harder
@@ -101,15 +101,9 @@ public class TrowelHardware {
             } catch (Exception ignored) {
             }
 
-            // Transfer servos
+            // Transfer servo
             try {
-                transfer1 = hardwareMap.get(Servo.class, config.transfer1Name);
-            } catch (Exception ignored) {
-            }
-            // Note: transfer2 is optional and may not exist in the robot configuration.
-            // If present, configure it but do not require it for operation.
-            try {
-                transfer2 = hardwareMap.get(Servo.class, config.transfer2Name);
+                transferServo = hardwareMap.get(Servo.class, config.transfer1Name);
             } catch (Exception ignored) {
             }
 
@@ -161,13 +155,27 @@ public class TrowelHardware {
                 deposit1.setDirection(DcMotor.Direction.FORWARD);
                 deposit1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 deposit1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                deposit1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, DEPOSIT_PIDF);
+                if (useCustomDepositPIDF) {
+                    applyCustomDepositPIDF(
+                        DepositPIDFConfig.depositKp,
+                        DepositPIDFConfig.depositKi,
+                        DepositPIDFConfig.depositKd,
+                        DepositPIDFConfig.depositKf
+                    );
+                }
             }
             if (deposit2 != null) {
                 deposit2.setDirection(DcMotor.Direction.REVERSE);
                 deposit2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 deposit2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                deposit2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, DEPOSIT_PIDF);
+                if (useCustomDepositPIDF) {
+                    applyCustomDepositPIDF(
+                        DepositPIDFConfig.depositKp,
+                        DepositPIDFConfig.depositKi,
+                        DepositPIDFConfig.depositKd,
+                        DepositPIDFConfig.depositKf
+                    );
+                }
             }
 
             // IMU
@@ -189,20 +197,9 @@ public class TrowelHardware {
                 imuAvailable = false;
             }
 
-            // Configure transfer servos - don't set position during init to prevent movement
-            if (transfer1 != null) {
-                transfer1.scaleRange(0.0, 1.0);
-                // Don't set position here - wait until start
-            }
-            // Note: transfer2 is optional and may not exist in the robot configuration.
-            // If present, configure it but do not require it for operation.
-            if (transfer2 != null) {
-                try {
-                    transfer2.setDirection(Servo.Direction.REVERSE);
-                    transfer2.scaleRange(0.0, 1.0);
-                } catch (Exception ignored) {
-                    // ignore
-                }
+            // Configure transfer servo - don't set position during init to prevent movement
+            if (transferServo != null) {
+                transferServo.scaleRange(0.0, 1.0);
                 // Don't set position here - wait until start
             }
 
@@ -214,10 +211,8 @@ public class TrowelHardware {
     /**
      * Initialize transfer servo to idle position
      */
-    public void initTransferServos() {
-        // Initialize primary transfer servo only. transfer2 is optional and will be left alone
-        // if it is not present.
-        if (transfer1 != null) transfer1.setPosition(0.5);
+    public void initTransferServo() {
+        if (transferServo != null) transferServo.setPosition(0.5);
     }
 
     /**
@@ -392,6 +387,30 @@ public class TrowelHardware {
         return (getDeposit1RPM() + getDeposit2RPM()) / 2.0;
     }
 
+    /**
+     * Apply custom PIDF coefficients to deposit motors
+     */
+    public void applyCustomDepositPIDF(double kp, double ki, double kd, double kf) {
+        if (deposit1 != null && deposit2 != null) {
+            PIDFCoefficients customPIDF = new PIDFCoefficients(kp, ki, kd, kf);
+            deposit1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, customPIDF);
+            deposit2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, customPIDF);
+        }
+    }
+
+    /**
+     * Update deposit PIDF values from configuration (if enabled)
+     */
+    public void updateDepositPIDFFromConfig() {
+        if (useCustomDepositPIDF) {
+            applyCustomDepositPIDF(
+                DepositPIDFConfig.depositKp,
+                DepositPIDFConfig.depositKi,
+                DepositPIDFConfig.depositKd,
+                DepositPIDFConfig.depositKf
+            );
+        }
+    }
 
     /**
      * Get hardware initialization status as a formatted string for telemetry
@@ -412,9 +431,8 @@ public class TrowelHardware {
         status.append("Deposit1: ").append(deposit1 != null ? "OK" : "MISSING").append("\n");
         status.append("Deposit2: ").append(deposit2 != null ? "OK" : "MISSING").append("\n");
 
-        status.append("=== TRANSFER SERVOS ===\n");
-        status.append("Transfer1: ").append(transfer1 != null ? "OK" : "MISSING").append("\n");
-        status.append("Transfer2: ").append(transfer2 != null ? "OK" : "MISSING").append("\n");
+        status.append("=== TRANSFER SERVO ===\n");
+        status.append("TransferServo: ").append(transferServo != null ? "OK" : "MISSING").append("\n");
 
         status.append("=== SENSORS ===\n");
         status.append("IMU: ").append(imu != null ? "OK" : "MISSING").append("\n");
@@ -439,9 +457,8 @@ public class TrowelHardware {
         if (deposit1 != null) config.append("Deposit1 Mode: ").append(deposit1.getMode()).append("\n");
         if (deposit2 != null) config.append("Deposit2 Mode: ").append(deposit2.getMode()).append("\n");
 
-        config.append("=== TRANSFER SERVO POSITIONS ===\n");
-        if (transfer1 != null) config.append("Transfer1 Pos: ").append(String.format("%.2f", transfer1.getPosition())).append("\n");
-        if (transfer2 != null) config.append("Transfer2 Pos: ").append(String.format("%.2f", transfer2.getPosition())).append("\n");
+        config.append("=== TRANSFER SERVO POSITION ===\n");
+        if (transferServo != null) config.append("TransferServo Pos: ").append(String.format("%.2f", transferServo.getPosition())).append("\n");
 
         return config.toString();
     }
@@ -531,4 +548,6 @@ public class TrowelHardware {
         double abs = depositFeedforwardBoostTicks;
         return mult + abs;
     }
+
 }
+

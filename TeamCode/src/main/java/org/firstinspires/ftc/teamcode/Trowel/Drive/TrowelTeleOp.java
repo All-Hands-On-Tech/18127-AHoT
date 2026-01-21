@@ -22,33 +22,22 @@ public class TrowelTeleOp extends OpMode {
     public static int BLUE_TAG_ID = 20;
     public static int RED_TAG_ID = 24;
 
-    // PIDF constants for deposit velocity control
-    public static double DEPOSIT_KP = 0.01;
-    public static double DEPOSIT_KI = 0.0;
-    public static double DEPOSIT_KD = 0.0;
-    public static double DEPOSIT_KF = 0.0; // Feedforward constant
-    public static double DEPOSIT_TARGET_VELOCITY = 600.0; // target velocity in ticks/sec
-    public static double DEPOSIT_POWER_MIN = -1.0;
-    public static double DEPOSIT_POWER_MAX = 1.0;
+    // NOTE: Removed local PIDF coefficients — deposit motor PIDF is managed in TrowelHardware
+    public static double DEPOSIT_TARGET_VELOCITY = 640.0; // target velocity in ticks/sec
     public static double DEPOSIT_TOLERANCE = 10.0; // ticks/sec within target to consider "at velocity"
 
-    // Feedforward boost system
-    public static double BOOST_VELOCITY_BALL_1 = 200.0; // Extra velocity for first ball
-    public static double BOOST_VELOCITY_BALL_2 = 250.0; // Extra velocity for second ball
-    public static double BOOST_VELOCITY_BALL_3 = 200.0; // Extra velocity for third ball
-    public static double BOOST_DURATION_MS = 200.0; // How long each boost lasts
-
-    private boolean isBoosting = false;
-    private long boostStartTime = 0;
-    private int currentBallNumber = 0; // Tracks which ball we're shooting (0-2)
+    // New: drop-detection-based boost curve parameters (tunable)
+    // When the average measured velocity drops below the requested target by at least
+    // BOOST_TRIGGER_THRESHOLD ticks/sec, an additive boost (in ticks/sec) is computed
+    // as: extra = clamp( BOOST_CURVE_MULTIPLIER * (drop ^ BOOST_CURVE_EXPONENT), BOOST_MIN_TICKS, BOOST_MAX_TICKS )
+    public static double BOOST_TRIGGER_THRESHOLD = 50.0; // minimum drop (ticks/sec) to start applying boost
+    public static double BOOST_CURVE_MULTIPLIER = 1.30; // scales the curve output
+    public static double BOOST_CURVE_EXPONENT = 1.57; // curve exponent (1 = linear, >1 = convex)
+    public static double BOOST_MIN_TICKS = 10.0; // minimum additive boost when triggered
+    public static double BOOST_MAX_TICKS = 600.0; // cap on additive boost (ticks/sec)
 
     // Speed curve tuning
     public static double SPEED_CURVE_EXPONENT = 2.0; // Less aggressive curve for better full-speed response
-
-    // PIDF state variables
-    private double depositIntegral = 0.0;
-    private double depositLastError = 0.0;
-    private long depositLastTime = 0;
 
     private TrowelHardware robot;
     private RandyButterNubs drive;
@@ -62,7 +51,7 @@ public class TrowelTeleOp extends OpMode {
     private Follower follower = null;
 
     // Scale factor for the second-stage intake
-    private static final double INTAKE2_SCALE = 1.0;
+    private static final double INTAKE2_SCALE = 0.8;
 
     private boolean depositActive = false;
     private boolean lastXButtonState = false;
@@ -92,10 +81,12 @@ public class TrowelTeleOp extends OpMode {
         robot = new TrowelHardware(hardwareMap);
         drive = new RandyButterNubs(robot.frontLeft, robot.frontRight, robot.backLeft, robot.backRight);
 
-        // Do NOT create the Pedro Pathing follower here. Creating it can initialize the
-        // Pinpoint device early and conflict with hardware initialization. We'll create
-        // the follower lazily when LB is pressed (below) after Pinpoint has been initialized.
-        follower = null;
+        // Only create the Pedro Pathing follower ONCE
+        try {
+            follower = Constants.createFollower(hardwareMap);
+        } catch (Exception ignored) {
+            follower = null;
+        }
 
         try {
             robot.initPinpoint();
@@ -155,7 +146,7 @@ public class TrowelTeleOp extends OpMode {
     @Override
     public void start() {
         // Transfer servos disabled for now
-        depositLastTime = System.currentTimeMillis();
+        // (removed depositLastTime usage - hardware handles PID timing)
 
         // Set initial aim heading based on team (just heading, no position yet)
         aimHeadingDeg = (selectedTeam == Team.RED) ? 45.0 : 135.0;
@@ -175,19 +166,6 @@ public class TrowelTeleOp extends OpMode {
         double curved = Math.pow(magnitude, SPEED_CURVE_EXPONENT);
 
         return sign * curved;
-    }
-
-    /**
-     * Gets the current boost velocity based on which ball is being shot
-     * @return The boost velocity for the current ball
-     */
-    private double getCurrentBoostVelocity() {
-        return switch (currentBallNumber) {
-            case 0 -> BOOST_VELOCITY_BALL_1;
-            case 1 -> BOOST_VELOCITY_BALL_2;
-            case 2 -> BOOST_VELOCITY_BALL_3;
-            default -> BOOST_VELOCITY_BALL_1;
-        };
     }
 
     @Override
@@ -289,12 +267,7 @@ public class TrowelTeleOp extends OpMode {
                 aimHeadingDeg = Math.toDegrees(pose.getHeading());
                 hasSetScoringPosition = true;
             }
-            // Trigger shooting if deposit is active
-            if (depositActive) {
-                isBoosting = true;
-                boostStartTime = now;
-                currentBallNumber = (currentBallNumber + 1) % 3;
-            }
+            // Previously triggered per-ball boosts here; removed in favor of drop-based curve
         }
 
         // While ZL is held, run intakes (FLIPPED INTAKE 2)
@@ -319,87 +292,58 @@ public class TrowelTeleOp extends OpMode {
             // Determine the best starting pose for the follower
             Pose startPose;
             try {
-                // Make sure Pinpoint has a fresh reading before we take a pose from it
-                if (odometryEnabled && robot.pinpoint != null) {
-                    try { robot.updatePinpoint(); } catch (Exception ignored) {}
-                }
-                 if (odometryEnabled && odometry != null) {
-                     Odometry.Position pos = odometry.getPosition();
-                     startPose = new Pose(pos.xMm / 25.4, pos.yMm / 25.4, pos.headingRad);
-                     telemetry.addLine("Using odometry for start pose");
-                 } else if (follower != null) {
-                     // If we already have a follower, prefer its pose
-                     follower.update();
-                     startPose = follower.getPose();
-                     telemetry.addLine("Using existing follower pose for start pose");
-                 } else if (lastKnownPose != null) {
-                     startPose = lastKnownPose;
-                     telemetry.addLine("Using cached lastKnownPose for start pose");
-                 } else {
-                     // Fallback to team-based starting poses (same as autonomous)
-                     if (selectedTeam == Team.BLUE) {
-                         startPose = new Pose(26.467, 129.584, Math.toRadians(145));
-                         telemetry.addLine("Fallback: BLUE team start pose");
-                     } else {
-                         startPose = new Pose(117.533, 129.584, Math.toRadians(35));
-                         telemetry.addLine("Fallback: RED team start pose");
-                     }
-                 }
-
-                 // Initialize or re-create follower and apply start pose
-                if (follower == null) {
-                    try {
-                        // Primary attempt: standard factory method (may create its own localizer)
-                        follower = Constants.createFollower(hardwareMap);
-                    } catch (Exception ePrimary) {
-                        telemetry.addLine("FOLLOWER CREATE ERROR: " + ePrimary.getMessage());
-                        // Fallback: construct follower without the pinpoint localizer to avoid
-                        // conflicts where multiple devices try to initialize the same hardware.
-                        try {
-                            com.pedropathing.ftc.FollowerBuilder fb = new com.pedropathing.ftc.FollowerBuilder(Constants.followerConstants, hardwareMap);
-                            fb.pathConstraints(Constants.pathConstraints);
-                            fb.mecanumDrivetrain(Constants.driveConstants);
-                            follower = fb.build();
-                            telemetry.addLine("FOLLOWER: created fallback without pinpoint localizer");
-                        } catch (Exception eFallback) {
-                            telemetry.addLine("FOLLOWER FALLBACK ERROR: " + eFallback.getMessage());
-                            follower = null;
-                        }
+                if (odometryEnabled && odometry != null) {
+                    Odometry.Position pos = odometry.getPosition();
+                    startPose = new Pose(pos.xMm / 25.4, pos.yMm / 25.4, pos.headingRad);
+                    telemetry.addLine("Using odometry for start pose");
+                } else if (follower != null) {
+                    // If we already have a follower, prefer its pose
+                    follower.update();
+                    startPose = follower.getPose();
+                    telemetry.addLine("Using existing follower pose for start pose");
+                } else if (lastKnownPose != null) {
+                    startPose = lastKnownPose;
+                    telemetry.addLine("Using cached lastKnownPose for start pose");
+                } else {
+                    // Fallback to team-based starting poses (same as autonomous)
+                    if (selectedTeam == Team.BLUE) {
+                        startPose = new Pose(26.467, 129.584, Math.toRadians(145));
+                        telemetry.addLine("Fallback: BLUE team start pose");
+                    } else {
+                        startPose = new Pose(117.533, 129.584, Math.toRadians(35));
+                        telemetry.addLine("Fallback: RED team start pose");
                     }
                 }
-                if (follower != null) {
-                    follower.setMaxPower(1.0);
-                    follower.setStartingPose(startPose);
-                    telemetry.addData("FOLLOWER START", "(%.1f, %.1f) @ %.1f°", startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading()));
-                } else {
-                    telemetry.addLine("FOLLOWER NOT AVAILABLE - using basic drive");
+
+                // Initialize or re-create follower and apply start pose
+                if (follower == null) {
+                    follower = Constants.createFollower(hardwareMap);
+                }
+                follower.setMaxPower(1.0);
+                follower.setStartingPose(startPose);
+                telemetry.addData("FOLLOWER START", "(%.1f, %.1f) @ %.1f°", startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading()));
+
+                // If we have a scoring pose, create a simple direct path and follow it
+                try {
+                    if (scoringPose != null) {
+                        com.pedropathing.paths.PathChain pathToScoring = follower.pathBuilder()
+                                .addPath(new com.pedropathing.geometry.BezierLine(startPose, scoringPose))
+                                .setLinearHeadingInterpolation(startPose.getHeading(), scoringPose.getHeading())
+                                .build();
+                        follower.followPath(pathToScoring);
+                        telemetry.addLine("FOLLOWER: started path to scoring position");
+                    } else {
+                        telemetry.addLine("FOLLOWER: no scoringPose recorded");
+                    }
+                } catch (Exception e) {
+                    telemetry.addLine("FOLLOWER PATH ERROR: " + e.getMessage());
                 }
 
-                 // If we have a scoring pose, create a simple direct path and follow it
-                 try {
-                     if (scoringPose != null) {
-                        if (follower != null) {
-                            com.pedropathing.paths.PathChain pathToScoring = follower.pathBuilder()
-                                    .addPath(new com.pedropathing.geometry.BezierLine(startPose, scoringPose))
-                                    .setLinearHeadingInterpolation(startPose.getHeading(), scoringPose.getHeading())
-                                    .build();
-                            follower.followPath(pathToScoring);
-                        } else {
-                            telemetry.addLine("SKIPPING PATH: follower null");
-                        }
-                         telemetry.addLine("FOLLOWER: started path to scoring position");
-                     } else {
-                         telemetry.addLine("FOLLOWER: no scoringPose recorded");
-                     }
-                 } catch (Exception e) {
-                     telemetry.addLine("FOLLOWER PATH ERROR: " + e.getMessage());
-                 }
-
-             } catch (Exception e) {
-                 telemetry.addLine("FOLLOWER INIT ERROR: " + e.getMessage());
-             }
-         }
-         prevDriver1LB = driver1LB;
+            } catch (Exception e) {
+                telemetry.addLine("FOLLOWER INIT ERROR: " + e.getMessage());
+            }
+        }
+        prevDriver1LB = driver1LB;
 
         // Drive using the Pedro follower if available
         if (follower != null) {
@@ -446,53 +390,38 @@ public class TrowelTeleOp extends OpMode {
         if (gamepad2.x && !lastXButtonState) {
             depositActive = !depositActive;
             if (!depositActive) {
-                depositIntegral = 0.0;
-                depositLastError = 0.0;
-                currentBallNumber = 0; // Reset ball counter when deposit turns off
-                isBoosting = false;
                 robot.stopDeposit();
             }
         }
         lastXButtonState = gamepad2.x;
 
-        // PIDF velocity control with feedforward boost for deposit motors
+        // Deposit velocity control with drop-based boost curve
         if (depositActive && robot.deposit1 != null && robot.deposit2 != null) {
             double vel1 = robot.getDeposit1Velocity();
             double vel2 = robot.getDeposit2Velocity();
-            double currentVelocity = (vel1 + vel2) / 2.0;
+            double avgVel = (vel1 + vel2) / 2.0;
 
-            // Determine target velocity (with boost if active)
             double targetVelocity = DEPOSIT_TARGET_VELOCITY;
-            if (isBoosting) {
-                targetVelocity += getCurrentBoostVelocity();
+
+            // Compute drop below target (positive if we're below desired speed)
+            double drop = Math.max(0.0, targetVelocity - avgVel);
+
+            double appliedBoost = 0.0;
+            if (drop >= BOOST_TRIGGER_THRESHOLD) {
+                appliedBoost = BOOST_CURVE_MULTIPLIER * Math.pow(drop, BOOST_CURVE_EXPONENT);
+                // clamp and enforce minimum
+                if (appliedBoost < BOOST_MIN_TICKS) appliedBoost = BOOST_MIN_TICKS;
+                if (appliedBoost > BOOST_MAX_TICKS) appliedBoost = BOOST_MAX_TICKS;
             }
 
-            double error = targetVelocity - currentVelocity;
+            double commandedVelocity = targetVelocity + appliedBoost;
 
-            long currentTime = System.currentTimeMillis();
-            double dt = (currentTime - depositLastTime) / 1000.0;
-            if (dt <= 0) dt = 0.02;
-            depositLastTime = currentTime;
+            // Delegate velocity control to hardware (hardware-managed PIDF)
+            robot.setDepositVelocity(commandedVelocity);
 
-            // PID terms
-            double pTerm = DEPOSIT_KP * error;
-
-            depositIntegral += error * dt;
-            double iTerm = DEPOSIT_KI * depositIntegral;
-
-            double derivative = (error - depositLastError) / dt;
-            double dTerm = DEPOSIT_KD * derivative;
-            depositLastError = error;
-
-            // Feedforward term (based on target velocity)
-            double fTerm = DEPOSIT_KF * targetVelocity;
-
-            double power = pTerm + iTerm + dTerm + fTerm;
-
-            power = Math.max(DEPOSIT_POWER_MIN, Math.min(DEPOSIT_POWER_MAX, power));
-
-            robot.deposit1.setPower(power);
-            robot.deposit2.setPower(power);
+            // Put the boost/drop info into telemetry below (so operator can tune)
+            telemetry.addData("Deposit Drop", "%.1f ticks/s", drop);
+            telemetry.addData("Applied Boost", "%.1f ticks/s", appliedBoost);
         }
 
         // === TELEMETRY ===
@@ -529,9 +458,6 @@ public class TrowelTeleOp extends OpMode {
             double avgVel = (vel1 + vel2) / 2.0;
 
             double targetVel = DEPOSIT_TARGET_VELOCITY;
-            if (isBoosting) {
-                targetVel += getCurrentBoostVelocity();
-            }
 
             double error = targetVel - avgVel;
             boolean atTarget = Math.abs(error) < DEPOSIT_TOLERANCE;
@@ -541,13 +467,17 @@ public class TrowelTeleOp extends OpMode {
             telemetry.addData("Error", "%s%.0f ticks/s", atTarget ? "✓ " : "", error);
             telemetry.addData("Power", "%.2f / %.2f", robot.deposit1.getPower(), robot.deposit2.getPower());
 
-            if (isBoosting) {
-                telemetry.addData("BOOST", "✓ ACTIVE (Ball %d)", currentBallNumber + 1);
-                long timeRemaining = (long)(BOOST_DURATION_MS - (now - boostStartTime));
-                telemetry.addData("Boost Time Left", "%d ms", timeRemaining);
-            } else {
-                telemetry.addData("Next Ball", "#%d", currentBallNumber + 1);
+            // Show drop and boost if available (these will appear in telemetry when depositActive)
+            double drop = Math.max(0.0, targetVel - avgVel);
+            double displayedBoost = 0.0;
+            if (drop >= BOOST_TRIGGER_THRESHOLD) {
+                displayedBoost = BOOST_CURVE_MULTIPLIER * Math.pow(drop, BOOST_CURVE_EXPONENT);
+                if (displayedBoost < BOOST_MIN_TICKS) displayedBoost = BOOST_MIN_TICKS;
+                if (displayedBoost > BOOST_MAX_TICKS) displayedBoost = BOOST_MAX_TICKS;
             }
+            telemetry.addData("Drop", "%.1f", drop);
+            telemetry.addData("BoostApplied", "%.1f ticks/s", displayedBoost);
+
         } else if (depositActive) {
             telemetry.addData("Target Velocity", "%.0f ticks/s", DEPOSIT_TARGET_VELOCITY);
         }
@@ -590,10 +520,25 @@ public class TrowelTeleOp extends OpMode {
 
         // === PIDF TUNING INFO ===
         telemetry.addLine("─── PIDF TUNING ───");
-        telemetry.addData("Kp, Ki, Kd, Kf", "%.3f, %.3f, %.3f, %.3f", DEPOSIT_KP, DEPOSIT_KI, DEPOSIT_KD, DEPOSIT_KF);
+        // Show the PIDF coefficients that hardware is using
+        try {
+            telemetry.addData("Kp, Ki, Kd, Kf", "%.3f, %.3f, %.3f, %.3f",
+                    TrowelHardware.DEPOSIT_PIDF.p,
+                    TrowelHardware.DEPOSIT_PIDF.i,
+                    TrowelHardware.DEPOSIT_PIDF.d,
+                    TrowelHardware.DEPOSIT_PIDF.f);
+        } catch (Exception e) {
+            // Fallback if PIDF not available in static field
+            telemetry.addData("Kp, Ki, Kd, Kf", "(from hardware)");
+        }
         telemetry.addData("Speed Curve Exp", "%.2f", SPEED_CURVE_EXPONENT);
-        telemetry.addData("Boost Velocities", "%.0f, %.0f, %.0f", BOOST_VELOCITY_BALL_1, BOOST_VELOCITY_BALL_2, BOOST_VELOCITY_BALL_3);
-        telemetry.addData("Boost Duration", "%.0f ms", BOOST_DURATION_MS);
+        telemetry.addData("Boost Curve Mult", "%.3f", BOOST_CURVE_MULTIPLIER);
+        telemetry.addData("Boost Curve Exp", "%.3f", BOOST_CURVE_EXPONENT);
+        telemetry.addData("Boost Trigger Thresh", "%.1f ticks/s", BOOST_TRIGGER_THRESHOLD);
+        telemetry.addData("Boost Min/Max", "%.1f / %.1f ticks", BOOST_MIN_TICKS, BOOST_MAX_TICKS);
+        telemetry.addData("HW UseCustomPIDF", "%s", robot.useCustomDepositPIDF ? "YES" : "NO");
+        telemetry.addData("HW FF Factor", "%.3f", robot.getDepositFeedforwardFactor());
+        telemetry.addData("HW FF Boost (ticks)", "%.1f", robot.getDepositFeedforwardBoostTicks());
         telemetry.addLine("ZL: set pos/shoot/intakes | LB: auto-drive");
         telemetry.addLine("═══════════════════════════════");
 
