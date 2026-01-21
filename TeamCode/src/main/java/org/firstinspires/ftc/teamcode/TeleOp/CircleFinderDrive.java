@@ -21,10 +21,17 @@
 
 package org.firstinspires.ftc.teamcode.TeleOp;
 
+import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
+
 import android.graphics.Color;
 import android.util.Size;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Curve;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.HeadingInterpolator;
+import com.pedropathing.paths.Path;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
@@ -33,6 +40,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.opencv.Circle;
 import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
@@ -73,16 +81,21 @@ import java.util.List;
  */
 
 
-
-@TeleOp(name = "Circle Finder", group = "ZTesting")
-public class CircleFinder extends LinearOpMode {
+@TeleOp(name = "Circle Finder Drive", group = "ZTesting")
+public class CircleFinderDrive extends LinearOpMode {
     //camera resolution values
     private static final double resHorz = 640;
     private static final double resVert = 480;
     private static final double diagonalFOV = 78;
 
+    private static final double webcamX = 6.5;
+    private static final double webcamY = 0;
+    private static final double webcamA = 120;
+    public static Follower follower;
+
     @Override
     public void runOpMode() {
+        follower = Constants.createFollower(hardwareMap);
         /* Build a "Color Locator" vision processor based on the ColorBlobLocatorProcessor class.
          * - Specify the color range you are looking for. Use a predefined color, or create your own
          *
@@ -193,8 +206,16 @@ public class CircleFinder extends LinearOpMode {
         telemetry.setMsTransmissionInterval(100);   // S.addProcessor(colorLocatorPurple)peed up telemetry updates for debugging.
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.MONOSPACE);
 
+        follower.setStartingPose(new Pose(0,0,0));
+
+        follower.startTeleopDrive();
+        follower.update();
+
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
+        waitForStart();
         // WARNING:  To view the stream preview on the Driver Station, this code runs in INIT mode.
-        while (opModeIsActive() || opModeInInit()) {
+        while (opModeIsActive()) {
             telemetry.addData("preview on/off", "... Camera Stream\n");
 
             // Read the current list
@@ -256,35 +277,55 @@ public class CircleFinder extends LinearOpMode {
              */
 
             //getting the pose of the robot
-            Pose2D currentPose = new Pose2D(DistanceUnit.INCH,0,0, AngleUnit.DEGREES, 0);
+            Pose currentPose = follower.getPose();
 
             telemetry.addLine("Circularity Radius Center");
 
             blobs.sort(Comparator.comparingDouble(ColorBlobLocatorProcessor.Blob::getContourArea));
 
-            /** needs calibration*/
             //focal length = apparent radius (px) * known distance
             double focalLength = 1570;
             //Field Of View Scaling
             double fovScaling = diagonalFOV / Math.sqrt(resHorz*resHorz + resVert*resVert);
+            telemetry.addLine(String.format("robot location:    (%5.1f,%5.1f)", currentPose.getX(), currentPose.getY()));
 
-            for (ColorBlobLocatorProcessor.Blob b : blobs) {
-
+            if(!blobs.isEmpty()) {
+                ColorBlobLocatorProcessor.Blob b = blobs.get(0);
                 Circle circleFit = b.getCircle();
                 // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
-                telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
-                           b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
+                //telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
+                //b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
 
                 double range = focalLength / circleFit.getRadius();
-                double theta = 120                                       + ((circleFit.getY() - resVert/2) * fovScaling);
-                double phi   = currentPose.getHeading(AngleUnit.DEGREES) - ((circleFit.getX() - resHorz/2) * fovScaling);
+                double theta = webcamA + ((circleFit.getY() - resVert / 2) * fovScaling);
+                double phi = Math.toDegrees(currentPose.getHeading()) - ((circleFit.getX() - resHorz / 2) * fovScaling);
 
-                double blobX = currentPose.getX(DistanceUnit.INCH) + range*Math.sin(Math.toRadians(theta))*Math.cos(Math.toRadians(phi));
-                double blobY = currentPose.getY(DistanceUnit.INCH) + range*Math.sin(Math.toRadians(theta))*Math.sin(Math.toRadians(phi));
+                double blobX = currentPose.getX() + range * Math.sin(Math.toRadians(theta)) * Math.cos(Math.toRadians(phi));
+                double blobY = currentPose.getY() + range * Math.sin(Math.toRadians(theta)) * Math.sin(Math.toRadians(phi));
 
-                telemetry.addLine(String.format("r theta phi (%5.1f, %5.1f,%5.1f)", range, theta, phi));
-                telemetry.addLine(String.format("est. location: (%5.1f,%5.1f)", blobX, blobY));
+                //telemetry.addLine(String.format("r theta phi (%5.1f, %5.1f,%5.1f)", range, theta, phi));
+                telemetry.addLine(String.format("artifact location: (%5.1f,%5.1f)", blobX, blobY));
+
+
+                if (gamepad1.aWasPressed()) {
+                    Path triangle = new Path(new BezierLine(currentPose, new Pose(blobX, blobY, currentPose.getHeading())));
+                    triangle.setHeadingInterpolation(HeadingInterpolator.facingPoint(blobX, blobY));
+                    triangle.setBrakingStrength(0.75);
+                    triangle.setTValueConstraint(0.9);
+                    follower.followPath(triangle);
+                    telemetry.addLine("following artifact");
+                }
             }
+            if(gamepad1.aWasReleased()) {
+                follower.startTeleopDrive();
+            }
+            if(!gamepad1.a) {
+                follower.setTeleOpDrive(-0.4*gamepad1.left_stick_y, -0.4*gamepad1.left_stick_x, -0.4*gamepad1.right_stick_x, true);
+                telemetry.addLine("following controller");
+            }
+
+            follower.update();
+
 
             telemetry.update();
             sleep(100); // Match the telemetry update interval.
