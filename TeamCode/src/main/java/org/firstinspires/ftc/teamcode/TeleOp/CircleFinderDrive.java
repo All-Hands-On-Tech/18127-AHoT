@@ -21,25 +21,20 @@
 
 package org.firstinspires.ftc.teamcode.TeleOp;
 
-import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
-
 import android.graphics.Color;
 import android.util.Size;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
-import com.pedropathing.geometry.Curve;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.HeadingInterpolator;
 import com.pedropathing.paths.Path;
+import com.pedropathing.paths.PathBuilder;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.opencv.Circle;
@@ -49,6 +44,7 @@ import org.firstinspires.ftc.vision.opencv.ImageRegion;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Vector;
 
 /*
  * This OpMode illustrates how to use a video source (camera) to locate specifically colored regions.
@@ -92,6 +88,9 @@ public class CircleFinderDrive extends LinearOpMode {
     private static final double webcamY = 0;
     private static final double webcamA = 120;
     public static Follower follower;
+
+    private static boolean aPreviousState = false;
+    private static boolean aCurrentState = false;
 
     @Override
     public void runOpMode() {
@@ -216,6 +215,9 @@ public class CircleFinderDrive extends LinearOpMode {
         waitForStart();
         // WARNING:  To view the stream preview on the Driver Station, this code runs in INIT mode.
         while (opModeIsActive()) {
+            aPreviousState = aCurrentState;
+            aCurrentState = gamepad1.a;
+
             telemetry.addData("preview on/off", "... Camera Stream\n");
 
             // Read the current list
@@ -260,7 +262,7 @@ public class CircleFinderDrive extends LinearOpMode {
 
             ColorBlobLocatorProcessor.Util.filterByCriteria(
                     ColorBlobLocatorProcessor.BlobCriteria.BY_CIRCULARITY,
-                    0.1, 1, blobs);     /* filter out non-circular blobs.
+                    0.5, 1, blobs);     /* filter out non-circular blobs.
                     * NOTE: You may want to adjust the minimum value depending on your use case.
                     * Circularity values will be affected by shadows, and will therefore vary based
                     * on the location of the camera on your robot and venue lighting. It is strongly
@@ -287,14 +289,12 @@ public class CircleFinderDrive extends LinearOpMode {
             double focalLength = 1570;
             //Field Of View Scaling
             double fovScaling = diagonalFOV / Math.sqrt(resHorz*resHorz + resVert*resVert);
-            telemetry.addLine(String.format("robot location:    (%5.1f,%5.1f)", currentPose.getX(), currentPose.getY()));
+            telemetry.addLine(String.format("robot location:    (%5.1f,%5.1f, %5.1f)", currentPose.getX(), currentPose.getY(), currentPose.getHeading()));
 
-            if(!blobs.isEmpty()) {
-                ColorBlobLocatorProcessor.Blob b = blobs.get(0);
+            Pose[] artifactPoses = new Pose[blobs.size()];
+            for (int i=0; i>blobs.size(); i++) {
+                ColorBlobLocatorProcessor.Blob b = blobs.get(i);
                 Circle circleFit = b.getCircle();
-                // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
-                //telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
-                //b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
 
                 double range = focalLength / circleFit.getRadius();
                 double theta = webcamA + ((circleFit.getY() - resVert / 2) * fovScaling);
@@ -302,24 +302,26 @@ public class CircleFinderDrive extends LinearOpMode {
 
                 double blobX = currentPose.getX() + range * Math.sin(Math.toRadians(theta)) * Math.cos(Math.toRadians(phi));
                 double blobY = currentPose.getY() + range * Math.sin(Math.toRadians(theta)) * Math.sin(Math.toRadians(phi));
+                artifactPoses[i] = new Pose(blobX, blobY);
 
+                //debugging lines
                 //telemetry.addLine(String.format("r theta phi (%5.1f, %5.1f,%5.1f)", range, theta, phi));
-                telemetry.addLine(String.format("artifact location: (%5.1f,%5.1f)", blobX, blobY));
-
-
-                if (gamepad1.aWasPressed()) {
-                    Path triangle = new Path(new BezierLine(currentPose, new Pose(blobX, blobY, currentPose.getHeading())));
-                    triangle.setHeadingInterpolation(HeadingInterpolator.facingPoint(blobX, blobY));
-                    triangle.setBrakingStrength(0.75);
-                    triangle.setTValueConstraint(0.9);
-                    follower.followPath(triangle);
-                    telemetry.addLine("following artifact");
-                }
+                //telemetry.addLine(String.format("artifact location: (%5.1f,%5.1f)", blobX, blobY));
+                // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
+                //telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
+                //b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
             }
-            if(gamepad1.aWasReleased()) {
+
+            if (!aPreviousState && aCurrentState) { //only runs if a has just been pressed down
+                follower.followPath(pathToArtifacts(artifactPoses));
+                telemetry.addLine("following artifact");
+            }
+
+            if(aPreviousState && !aCurrentState) { //only runs if a has just been released
+                follower.breakFollowing();
                 follower.startTeleopDrive();
             }
-            if(!gamepad1.a) {
+            if(!aCurrentState) { //runs when a is not pressed
                 follower.setTeleOpDrive(-0.4*gamepad1.left_stick_y, -0.4*gamepad1.left_stick_x, -0.4*gamepad1.right_stick_x, true);
                 telemetry.addLine("following controller");
             }
@@ -330,5 +332,56 @@ public class CircleFinderDrive extends LinearOpMode {
             telemetry.update();
             sleep(100); // Match the telemetry update interval.
         }
+    }
+
+    PathChain pathToArtifacts(Pose[] artifactPoses) {
+        Pose[] path = new Pose[4];
+        path[0] = follower.getPose();
+
+        double bestScore = 1000;
+        for (Pose artifact : artifactPoses) {
+            double tryScore = path[0].distanceFrom(artifact);
+            if (tryScore < bestScore) {
+                path[1] = artifact;
+            }
+        }
+        if (artifactPoses.length>=2) {
+            bestScore = 1000;
+            for (Pose artifact : artifactPoses) {
+                com.pedropathing.math.Vector first = path[1].minus(path[0]).getAsVector();
+                com.pedropathing.math.Vector second = artifact.minus(path[1]).getAsVector();
+                double tryDist = second.getMagnitude();
+                double tryAngle = second.dot(first) / (first.getMagnitude() * second.getMagnitude());
+                double tryScore = tryDist + 10 * tryAngle;
+
+                if (tryScore < bestScore) {
+                    path[2] = artifact;
+                }
+            }
+        }
+        if (artifactPoses.length>=3) {
+            bestScore = 1000;
+            for (Pose artifact : artifactPoses) {
+                com.pedropathing.math.Vector first = path[2].minus(path[1]).getAsVector();
+                com.pedropathing.math.Vector second = artifact.minus(path[2]).getAsVector();
+                double tryDist = second.getMagnitude();
+                double tryAngle = second.dot(first) / (first.getMagnitude() * second.getMagnitude());
+                double tryScore = tryDist + 10 * tryAngle;
+
+                if (tryScore < bestScore) {
+                    path[3] = artifact;
+                }
+            }
+        }
+
+        PathBuilder robotPath = new PathBuilder(follower);
+        for (int i=1; i<path.length; i++) {
+            if (path[i].getX() != 0 || path[i].getY() != 0){
+                Path a = new Path(new BezierLine(path[i-1], path[i]));
+                a.setTangentHeadingInterpolation();
+                robotPath.addPath(a);
+            }
+        }
+        return robotPath.build();
     }
 }
