@@ -1,11 +1,13 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.ZSupport.K2Utilities;
 import org.firstinspires.ftc.teamcode.ZSupport.RAndDBotUtilities;
 
+@Disabled
 @TeleOp(name="K2 Drive Debug", group="A")
 public class K2DriveDebug extends LinearOpMode {
     K2Utilities bot = new K2Utilities(this);

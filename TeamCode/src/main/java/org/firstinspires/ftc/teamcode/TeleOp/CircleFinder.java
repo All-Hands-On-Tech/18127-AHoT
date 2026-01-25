@@ -73,7 +73,7 @@ import java.util.List;
  */
 
 
-
+@Disabled
 @TeleOp(name = "Circle Finder", group = "ZTesting")
 public class CircleFinder extends LinearOpMode {
     //camera resolution values
