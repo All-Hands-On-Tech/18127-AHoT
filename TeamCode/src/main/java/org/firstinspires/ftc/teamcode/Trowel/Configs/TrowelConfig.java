@@ -19,7 +19,6 @@ public class TrowelConfig {
 
     // Transfer servos
     public String transfer1Name = "transfer1";
-    public String transfer2Name = "transfer2";
 
     // Device names
     // Standardize on a single IMU name. If your robot config uses a different name change this value.
