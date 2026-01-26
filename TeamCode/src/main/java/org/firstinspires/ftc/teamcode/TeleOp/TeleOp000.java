@@ -11,14 +11,13 @@ import org.firstinspires.ftc.teamcode.ZSupport.K2Utilities;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
 @TeleOp(name="No tune 0-0-0 TeleOp", group="A")
-@Disabled
 public class TeleOp000 extends LinearOpMode {
     Utilities000 bot = new Utilities000(this);
     private ElapsedTime loopTime = new ElapsedTime();
 
     int shotPower = 0;
     double yaw = 0;
-    double pitch = 0;
+    double pitch = 0.6;
 
     @Override
     public void runOpMode() {
@@ -32,34 +31,34 @@ public class TeleOp000 extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            double drive = -gamepad1.left_stick_y;
-            double turn  =  gamepad1.right_stick_x;
-            bot.move(-gamepad1.left_stick_y, -gamepad1.left_stick_x, gamepad1.right_stick_x, 0.6);
+            bot.move(-gamepad1.left_stick_y/3, gamepad1.left_stick_x/3, -gamepad1.right_stick_x/3);
 
-            if(gamepad1.right_bumper) {
+            if(gamepad1.rightBumperWasPressed()) {
                 shotPower += 100;
-            } else if (gamepad1.left_bumper) {
+            } else if (gamepad1.leftBumperWasPressed()) {
                 shotPower -= 100;
             }
             bot.setFlywheelSpeed_DO_NOT_USE(shotPower);
 
             if(gamepad1.dpad_right) {
-                yaw += 100;
+                yaw += 1;
             } else if (gamepad1.dpad_left) {
-                yaw -= 100;
+                yaw -= 1;
             }
             bot.setHoodYawAngle(yaw);
 
             if(gamepad1.dpad_up) {
-                pitch += 0.2;
+                pitch += 0.003;
             } else if (gamepad1.dpad_down) {
-                pitch -= 0.2;
+                pitch -= 0.003;
             }
             bot.setHoodPitchAngle(pitch);
+            //0.61 -> 0.84
 
 
 
             telemetry.addData("Flywheel ticks/s: ", shotPower);
+            telemetry.addData("Flywheel speed: ", bot.getFlywheelSpeed());
             telemetry.addData("Flywheel yaw:     ", yaw);
             telemetry.addData("Flywheel pitch:   ", pitch);
             telemetry.addData("loop time: ", (int)loopTime.milliseconds());

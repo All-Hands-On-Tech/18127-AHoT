@@ -34,15 +34,17 @@ import java.util.List;
 
 public class Utilities000 {
     LinearOpMode linearOpMode;
-    private TelemetryManager telemetryM;
-
-    private Follower follower;
+//    private TelemetryManager telemetryM;
+//    private Follower follower;
 
     private DcMotor intakeMotor;
     private DcMotorEx flywheelR;
     private DcMotorEx flywheelL;
     private DcMotor hoodYawMotor;
     private Servo hoodPitchServo;
+
+    public DcMotor fr, fl, br, bl;
+    public double frPower, flPower, brPower, blPower;
 
 //    private VisionPortal portal;
 //    private static final double resHorz = 640;
@@ -59,24 +61,34 @@ public class Utilities000 {
     }
 
     public void initialize(LinearOpMode l) {
-        follower = Constants000.createFollower(l.hardwareMap);
-        telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
+//        follower = Constants000.createFollower(l.hardwareMap);
+//        telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         List<LynxModule> allHubs = l.hardwareMap.getAll(LynxModule.class);
 
         for (LynxModule hub : allHubs) {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
 
+        fr = l.hardwareMap.get(DcMotor.class, "fr");
+        fl = l.hardwareMap.get(DcMotor.class, "fl");
+        br = l.hardwareMap.get(DcMotor.class, "br");
+        bl = l.hardwareMap.get(DcMotor.class, "bl");
+        fr.setDirection(DcMotorSimple.Direction.REVERSE);
+        fl.setDirection(DcMotorSimple.Direction.REVERSE);
+
         intakeMotor = l.hardwareMap.get(DcMotor.class, "intake");
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
 
         flywheelR   = l.hardwareMap.get(DcMotorEx.class, "flyR");
-        flywheelR.setDirection(DcMotorSimple.Direction.FORWARD);
+        flywheelR.setDirection(DcMotorSimple.Direction.REVERSE);
         flywheelL   = l.hardwareMap.get(DcMotorEx.class, "flyL");
-        flywheelL.setDirection(DcMotorSimple.Direction.REVERSE);
+        flywheelL.setDirection(DcMotorSimple.Direction.FORWARD);
         hoodYawMotor = l.hardwareMap.get(DcMotor.class, "hoodYaw");
         hoodYawMotor.setDirection(DcMotorSimple.Direction.FORWARD);
-        hoodPitchServo = l.hardwareMap.get(Servo.class, "intake");
+        hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
+        hoodYawMotor.setTargetPosition(0);
+        //hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        //hoodYawMotor.setPower(0.5);
 
 //        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
 //        l.telemetry.setMsTransmissionInterval(10);
@@ -131,14 +143,37 @@ public class Utilities000 {
 //        return portalNew;
 //    }
 
+    public void move(double forward, double right, double r) {
+        //represent inputs as 3D vector then normalize to ensure robot translates and turns at max speed if asked to, and if input exceeds possible power, normalize.
+        double mag = Math.sqrt(forward * forward + right * right + r * r);
+
+        if (mag > 1.0) {
+            forward /= mag;
+            right /= mag;
+            r /= mag;
+        }
+        flPower = forward + right - r;
+        frPower = -forward + right - r;
+        blPower = -forward + right + r;
+        brPower = forward + right + r;
+
+
+        applyDrivePower();
+    }
+    public void applyDrivePower() {
+        fl.setPower(flPower);
+        bl.setPower(blPower);
+        br.setPower(brPower);
+        fr.setPower(frPower);
+    }
 
     /**Useable methods*/
-    public void move(double forward, double left, double rotateCounterclockwise, double speed) {
-        forward                = speed * deadZone(forward, 0.05);
-        left                   = speed * deadZone(left, 0.05);
-        rotateCounterclockwise = speed * deadZone(rotateCounterclockwise, 0.05);
-        follower.setTeleOpDrive(forward, left, rotateCounterclockwise);
-    }
+//    public void move(double forward, double left, double rotateCounterclockwise, double speed) {
+//        forward                = speed * deadZone(forward, 0.05);
+//        left                   = speed * deadZone(left, 0.05);
+//        rotateCounterclockwise = speed * deadZone(rotateCounterclockwise, 0.05);
+//        follower.setTeleOpDrive(forward, left, rotateCounterclockwise, false);
+//    }
 
     public void intakePower(double pow) {
         pow = deadZone(pow, 0.05);
@@ -165,7 +200,7 @@ public class Utilities000 {
             setFlywheelVolts(feedForward + p*(targetTicksPerSec-currentTicksPerSec));
         }
     }
-    private double getFlywheelSpeed() {
+    public double getFlywheelSpeed() {
         double average = (flywheelL.getVelocity()+flywheelR.getVelocity()) / 2;
         return average;
     }
@@ -178,12 +213,12 @@ public class Utilities000 {
         flywheelL.setVelocity(tickRate);
         flywheelR.setVelocity(tickRate);
     }
-    public void setPoseEstimate(Pose pose) {
-        follower.setPose(pose);
-    }
-    public void updateFollower() {
-        follower.update();
-    }
+//    public void setPoseEstimate(Pose pose) {
+//        follower.setPose(pose);
+//    }
+//    public void updateFollower() {
+//        follower.update();
+//    }
 
     /**Internal utilities*/
     private double deadZone(double value, double minimum) {
