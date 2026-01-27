@@ -37,6 +37,8 @@ public class Utilities000 {
 //    private TelemetryManager telemetryM;
 //    private Follower follower;
 
+    private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
+
     private DcMotor intakeMotor;
     private DcMotorEx flywheelR;
     private DcMotorEx flywheelL;
@@ -181,6 +183,12 @@ public class Utilities000 {
     }
     public void setHoodYawAngle(double ticks) {
         hoodYawMotor.setTargetPosition((int)ticks);
+    }
+    public void setHoodYawAngleDegrees(double degrees) {
+        hoodYawMotor.setTargetPosition((int)(degrees * YAW_PULSES_PER_DEGREE));
+    }
+    public double getHoodYawAngleDegrees(){
+        return hoodYawMotor.getCurrentPosition() / YAW_PULSES_PER_DEGREE;
     }
     public void setHoodPitchAngle(double pos) {
         hoodPitchServo.setPosition(pos);

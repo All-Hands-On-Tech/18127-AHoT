@@ -56,7 +56,7 @@ public class TeleOp000 extends LinearOpMode {
             //0.61 -> 0.84
 
 
-
+            telemetry.addData("Turret Yaw Deg: ", "%.1", bot.getHoodYawAngleDegrees());
             telemetry.addData("Flywheel ticks/s: ", shotPower);
             telemetry.addData("Flywheel speed: ", bot.getFlywheelSpeed());
             telemetry.addData("Flywheel yaw:     ", yaw);
