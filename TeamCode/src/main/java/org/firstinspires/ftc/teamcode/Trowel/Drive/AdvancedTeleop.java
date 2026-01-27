@@ -4,25 +4,21 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import org.firstinspires.ftc.teamcode.Trowel.Configs.TrowelHardware;
+import org.firstinspires.ftc.teamcode.Trowel.Configs.RandyButterNubs;
+import org.firstinspires.ftc.teamcode.Trowel.common.Odometry;
+import org.firstinspires.ftc.teamcode.Trowel.pedroPathing.Constants;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-/**
- * Neural Network Auto-Tuning Deposit System
- *
- * Uses a 3-layer neural network (Input: 12, Hidden: 10, Output: 13)
- * to learn optimal parameter adjustments in real-time.
- *
- * Configurable at: https://panels.bylazar.com/
- */
 @TeleOp(name = "ML Auto-Tune Deposit", group = "Trowel")
-public class AutomaticDepoTuner extends OpMode {
+public class AdvancedTeleop extends OpMode {
 
     // ============== SERVO CONFIGURATION ==============
     public double SERVO_POSITION_SHOOTING = 0.7;
     public double SERVO_POSITION_IDLE = 0.3;
-    public double servoDelayMs = 200.0;
 
     // ============== DEPOSIT TARGET CONFIGURATION ==============
     public double depositTargetVelocity = 640.0;
@@ -91,6 +87,7 @@ public class AutomaticDepoTuner extends OpMode {
     private SessionAnalysis[] sessionHistory;
 
     private TrowelHardware robot;
+    private RandyButterNubs drive;
     private boolean depositActive = false;
     private boolean lastXState = false;
 
@@ -104,6 +101,19 @@ public class AutomaticDepoTuner extends OpMode {
     private double currentLoss = 0.0;
     private double bestLoss = Double.MAX_VALUE;
     private int trainingIterations = 0;
+
+    // Odometry and Auto-Aiming
+    private Odometry odometry;
+    private boolean odometryEnabled = false;
+    private Follower follower = null;
+
+    // Auto-aim state
+    private boolean hasSetScoringPosition = false;
+    private Pose scoringPose = null;
+    private Pose lastKnownPose = new Pose(0, 0, 0);
+    private boolean prevDriver1LB = false;
+    private boolean prevDriver1ZL = false;
+    private boolean prevDriver1ZR = false;
 
     /**
      * Simple 3-layer Neural Network
@@ -302,12 +312,32 @@ public class AutomaticDepoTuner extends OpMode {
     @Override
     public void init() {
         robot = new TrowelHardware(hardwareMap);
+        drive = new RandyButterNubs(robot.frontLeft, robot.frontRight, robot.backLeft, robot.backRight);
         robot.resetDepositEncoders();
 
         sessionHistory = new SessionAnalysis[MAX_SESSIONS];
 
         // Initialize neural network
         neuralNet = new NeuralNetwork(inputNeurons, hiddenNeurons, outputNeurons);
+
+        // Initialize follower
+        try {
+            follower = Constants.createFollower(hardwareMap);
+        } catch (Exception ignored) {
+            follower = null;
+        }
+
+        // Initialize Pinpoint odometry
+        try {
+            robot.initPinpoint();
+            if (robot.pinpoint != null) {
+                odometryEnabled = true;
+                telemetry.addLine("✓ Pinpoint Odometry Enabled");
+            }
+        } catch (Exception e) {
+            telemetry.addLine("✗ Pinpoint Not Found - Odometry Disabled");
+            odometryEnabled = false;
+        }
 
         if (robot.frontLeft != null) robot.frontLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         if (robot.frontRight != null) robot.frontRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -325,41 +355,177 @@ public class AutomaticDepoTuner extends OpMode {
         telemetry.addLine("═══════════════════════════════");
         telemetry.addLine("");
         telemetry.addLine("Network: 12→10→13 neurons");
-        telemetry.addLine("  Input: 12 state features");
-        telemetry.addLine("  Hidden: 10 neurons (ReLU)");
-        telemetry.addLine("  Output: 13 param adjustments");
         telemetry.addLine("");
-        telemetry.addLine("Configure at:");
-        telemetry.addLine("panels.bylazar.com");
+        telemetry.addLine("CONTROLS:");
+        telemetry.addLine("X = Toggle Deposit");
+        telemetry.addLine("ZL = Set Position + Shoot");
+        telemetry.addLine("ZR = Servo Shooting Position");
+        telemetry.addLine("A = Run Intakes");
+        telemetry.addLine("LB = Auto-drive to position");
+        telemetry.addLine("");
+        telemetry.addLine("Configure: panels.bylazar.com");
         telemetry.addLine("═══════════════════════════════");
         telemetry.update();
     }
 
     @Override
+    public void init_loop() {
+        // No team selection needed
+    }
+
+    @Override
+    public void start() {
+        // No team-specific setup needed
+    }
+
+    @Override
     public void loop() {
-        // ============== DRIVE ==============
+        // ============== UPDATE ODOMETRY ==============
+        if (odometryEnabled && robot.pinpoint != null) {
+            robot.updatePinpoint();
+            if (odometry == null) {
+                odometry = new Odometry(robot, robot.pinpoint);
+                try {
+                    java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
+                    hRadField.setAccessible(true);
+                    hRadField.set(odometry, Math.toRadians(90));
+                } catch (Exception ignored) {}
+            }
+            odometry.update();
+        } else if (odometry == null) {
+            odometry = new Odometry(robot, null);
+            try {
+                java.lang.reflect.Field hRadField = Odometry.class.getDeclaredField("hRad");
+                hRadField.setAccessible(true);
+                hRadField.set(odometry, Math.toRadians(90));
+            } catch (Exception ignored) {}
+        }
+
+        // Update cached lastKnownPose
+        try {
+            if (odometry != null) {
+                Odometry.Position pos = odometry.getPosition();
+                lastKnownPose = new Pose(pos.xMm / 25.4, pos.yMm / 25.4, pos.headingRad);
+            } else if (follower != null) {
+                lastKnownPose = follower.getPose();
+            }
+        } catch (Exception ignored) {}
+
+        // ============== DRIVE INPUT ==============
         double forward = -gamepad1.left_stick_y * DRIVE_POWER_SCALE;
         double strafe = gamepad1.left_stick_x * STRAFE_POWER_SCALE;
         double rotate = gamepad1.right_stick_x * ROTATE_POWER_SCALE;
 
-        double frontLeftPower = forward + strafe + rotate;
-        double frontRightPower = forward - strafe - rotate;
-        double backLeftPower = forward - strafe + rotate;
-        double backRightPower = forward + strafe - rotate;
-
-        double maxPower = Math.max(Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
-                Math.max(Math.abs(backLeftPower), Math.abs(backRightPower)));
-        if (maxPower > 1.0) {
-            frontLeftPower /= maxPower;
-            frontRightPower /= maxPower;
-            backLeftPower /= maxPower;
-            backRightPower /= maxPower;
+        // Manual input override for follower
+        boolean hasManualInput = Math.abs(forward) > 0.05 || Math.abs(strafe) > 0.05 || Math.abs(rotate) > 0.05;
+        if (follower != null && hasManualInput) {
+            follower.breakFollowing();
+            follower = null;
         }
 
-        if (robot.frontLeft != null) robot.frontLeft.setPower(frontLeftPower);
-        if (robot.frontRight != null) robot.frontRight.setPower(frontRightPower);
-        if (robot.backLeft != null) robot.backLeft.setPower(backLeftPower);
-        if (robot.backRight != null) robot.backRight.setPower(backRightPower);
+        // ============== ZL: SET SCORING POSITION (NO SERVO) ==============
+        boolean zlPressed = gamepad1.left_trigger > 0.5;
+        boolean zlJustPressed = zlPressed && !prevDriver1ZL;
+
+        if (zlJustPressed) {
+            // Set/update scoring position
+            if (odometryEnabled && odometry != null) {
+                Odometry.Position pos = odometry.getPosition();
+                double headingRad = pos.headingRad;
+                scoringPose = new Pose(pos.xMm / 25.4, pos.yMm / 25.4, headingRad);
+                hasSetScoringPosition = true;
+            } else if (follower != null) {
+                follower.update();
+                Pose pose = follower.getPose();
+                scoringPose = new Pose(pose.getX(), pose.getY(), pose.getHeading());
+                hasSetScoringPosition = true;
+            }
+        }
+
+        prevDriver1ZL = zlPressed;
+
+        // ============== ZR: SERVO CONTROL (HOLD TO SHOOT) ==============
+        boolean zrPressed = gamepad1.right_trigger > 0.5;
+
+        if (zrPressed) {
+            // Shooting position
+            if (robot.transferServo != null) {
+                robot.transferServo.setPosition(SERVO_POSITION_SHOOTING);
+            }
+        } else {
+            // Idle position
+            if (robot.transferServo != null) {
+                robot.transferServo.setPosition(SERVO_POSITION_IDLE);
+            }
+        }
+
+        prevDriver1ZR = zrPressed;
+
+        // ============== A BUTTON: RUN INTAKES ==============
+        boolean aPressed = gamepad1.a;
+
+        if (aPressed) {
+            if (robot.intake1 != null) robot.intake1.setPower(1.0);
+            if (robot.intake2 != null) robot.intake2.setPower(-INTAKE2_SCALE);
+        } else {
+            if (robot.intake1 != null) robot.intake1.setPower(0.0);
+            if (robot.intake2 != null) robot.intake2.setPower(0.0);
+        }
+
+        // ============== LB: AUTO-DRIVE TO SCORING POSITION ==============
+        boolean lbPressed = gamepad1.left_bumper;
+        boolean lbJustPressed = lbPressed && !prevDriver1LB;
+
+        if (lbJustPressed && hasSetScoringPosition && scoringPose != null) {
+            Pose startPose;
+            try {
+                if (odometryEnabled && odometry != null) {
+                    Odometry.Position pos = odometry.getPosition();
+                    startPose = new Pose(pos.xMm / 25.4, pos.yMm / 25.4, pos.headingRad);
+                } else if (follower != null) {
+                    follower.update();
+                    startPose = follower.getPose();
+                } else if (lastKnownPose != null) {
+                    startPose = lastKnownPose;
+                } else {
+                    // Default start pose (center of field)
+                    startPose = new Pose(72.0, 72.0, 0);
+                }
+
+                if (follower == null) {
+                    follower = Constants.createFollower(hardwareMap);
+                }
+                follower.setMaxPower(1.0);
+                follower.setStartingPose(startPose);
+
+                try {
+                    com.pedropathing.paths.PathChain pathToScoring = follower.pathBuilder()
+                            .addPath(new com.pedropathing.geometry.BezierLine(startPose, scoringPose))
+                            .setLinearHeadingInterpolation(startPose.getHeading(), scoringPose.getHeading())
+                            .build();
+                    follower.followPath(pathToScoring);
+                } catch (Exception e) {
+                    telemetry.addLine("Path error: " + e.getMessage());
+                }
+            } catch (Exception e) {
+                telemetry.addLine("Follower error: " + e.getMessage());
+            }
+        }
+        prevDriver1LB = lbPressed;
+
+        // ============== DRIVE CONTROL ==============
+        if (follower != null) {
+            try {
+                follower.update();
+                if (!follower.isBusy()) {
+                    follower.setTeleOpDrive(forward, -strafe, -rotate, true);
+                }
+            } catch (Exception e) {
+                drive.drive(forward, strafe, rotate, false, gamepad1.right_bumper);
+            }
+        } else {
+            drive.drive(forward, strafe, rotate, false, gamepad1.right_bumper);
+        }
 
         // ============== SPEED ADJUSTMENT ==============
         boolean yPressed = gamepad1.y;
@@ -368,16 +534,7 @@ public class AutomaticDepoTuner extends OpMode {
         boolean dpadLeft = gamepad1.dpad_left;
         boolean dpadRight = gamepad1.dpad_right;
 
-        if (yPressed) {
-            if (dpadUp && !lastDpadUp) {
-                servoDelayMs += 25.0;
-                servoDelayMs = Math.min(1000.0, servoDelayMs);
-            }
-            if (dpadDown && !lastDpadDown) {
-                servoDelayMs -= 25.0;
-                servoDelayMs = Math.max(0.0, servoDelayMs);
-            }
-        } else {
+        if (!yPressed) {
             if (dpadUp && !lastDpadUp) {
                 depositTargetVelocity += SPEED_INCREMENT_SMALL;
                 depositTargetVelocity = Math.min(MAX_DEPOSIT_SPEED, depositTargetVelocity);
@@ -414,31 +571,14 @@ public class AutomaticDepoTuner extends OpMode {
         }
         lastXState = xPressed;
 
-        // ============== SESSION CONTROL ==============
-        boolean zlPressed = gamepad1.left_trigger > 0.5;
-
-        if (zlPressed && !lastZLState && depositActive) {
+        // ============== SESSION RECORDING (removed separate ZL session control) ==============
+        // Session starts/stops with ZL, which now also controls servo and intakes
+        if (zlJustPressed && depositActive) {
             startSession();
-            if (robot.transferServo != null) {
-                robot.transferServo.setPosition(SERVO_POSITION_SHOOTING);
-            }
         } else if (!zlPressed && lastZLState) {
             if (sessionActive) endSession();
-            if (robot.transferServo != null) {
-                robot.transferServo.setPosition(SERVO_POSITION_IDLE);
-            }
         }
         lastZLState = zlPressed;
-
-        // ============== INTAKES ==============
-        boolean aPressed = gamepad1.a;
-        if (aPressed) {
-            if (robot.intake1 != null) robot.intake1.setPower(1.0);
-            if (robot.intake2 != null) robot.intake2.setPower(-INTAKE2_SCALE);
-        } else {
-            if (robot.intake1 != null) robot.intake1.setPower(0.0);
-            if (robot.intake2 != null) robot.intake2.setPower(0.0);
-        }
 
         // ============== DEPOSIT + RECORDING ==============
         if (depositActive && robot.deposit1 != null && robot.deposit2 != null) {
@@ -787,11 +927,31 @@ public class AutomaticDepoTuner extends OpMode {
         telemetry.addLine("═══════════════════════════════");
         telemetry.addLine("");
 
+        // Scoring position status
+        if (!hasSetScoringPosition) {
+            telemetry.addLine("⚠ Press ZL at scoring spot");
+        } else if (scoringPose != null) {
+            telemetry.addData("Scoring Pos", "✓ (%.1f, %.1f) @ %.1f°",
+                    scoringPose.getX(), scoringPose.getY(), Math.toDegrees(scoringPose.getHeading()));
+        }
+
+        if (follower != null && follower.isBusy() && scoringPose != null) {
+            telemetry.addData("Auto-Drive", "✓ ACTIVE");
+            Pose currentPose = follower.getPose();
+            double distToTarget = Math.sqrt(
+                    Math.pow(scoringPose.getX() - currentPose.getX(), 2) +
+                            Math.pow(scoringPose.getY() - currentPose.getY(), 2)
+            );
+            telemetry.addData("Distance", "%.1f in", distToTarget);
+        }
+        telemetry.addLine("");
+
         telemetry.addLine("─── CONTROLS ───");
         telemetry.addData("Deposit (X)", depositActive ? "✓" : "✗");
+        telemetry.addData("Servo (ZR)", (gamepad1.right_trigger > 0.5) ? "SHOOT" : "IDLE");
         telemetry.addData("Intakes (A)", gamepad1.a ? "✓" : "✗");
-        telemetry.addData("Servo (ZL)", (gamepad1.left_trigger > 0.5) ? "SHOOT" : "IDLE");
         telemetry.addData("Speed", "%.0f", depositTargetVelocity);
+        telemetry.addLine("ZL: set pos | LB: auto-drive");
         telemetry.addLine("");
 
         telemetry.addLine("─── SESSION ───");
@@ -838,6 +998,15 @@ public class AutomaticDepoTuner extends OpMode {
         telemetry.addData("PIDF", "%.1f/%.3f/%.2f/%.4f", kP, kI, kD, kF);
         telemetry.addLine("");
 
+        // Odometry position
+        if (odometryEnabled && odometry != null) {
+            Odometry.Position pos = odometry.getPosition();
+            telemetry.addLine("─── POSITION ───");
+            telemetry.addData("X, Y", "%.1f, %.1f in", pos.xMm / 25.4, pos.yMm / 25.4);
+            telemetry.addData("Heading", "%.1f°", Math.toDegrees(pos.headingRad));
+            telemetry.addLine("");
+        }
+
         telemetry.addLine("Configure at:");
         telemetry.addLine("panels.bylazar.com");
         telemetry.addLine("═══════════════════════════════");
@@ -848,6 +1017,10 @@ public class AutomaticDepoTuner extends OpMode {
     @Override
     public void stop() {
         robot.stop();
+        drive.stop();
+        if (follower != null) {
+            follower.breakFollowing();
+        }
 
         telemetry.clearAll();
         telemetry.addLine("═══════════════════════════════");

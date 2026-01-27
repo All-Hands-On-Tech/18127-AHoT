@@ -31,27 +31,57 @@ public class StraightAuto extends OpMode {
     // Pedro field is 144x144; used for alliance mirroring
     private static final double FIELD_SIZE = 144.0;
 
-    // Auto shooting config (mirrors teleop feedforward + spinup style)
-    public static double AUTO_DEPOSIT_VELOCITY = 160.0; // ticks/s target during auto shooting (reduced to curb overshoot)
-    public static double AUTO_DEPOSIT_FF_FACTOR = 0.05;
-    public static double AUTO_DEPOSIT_FF_BOOST_TICKS = 241.0;
-    private static final double AUTO_DEPOSIT_SPINUP_POWER = 1.0;
-    private static final long AUTO_DEPOSIT_SPINUP_MS = 635;
-    public static long AUTO_SHOOT_DURATION_MS = 2100;    // shortened hold to reduce overshoot
+    // ============== TUNED VALUES (placeholders) ==============
+    // Paste numbers from AutomaticDepoTuner here. Keep names short and clear.
+    public static double DEPO_SERVO_POSITION_SHOOTING = 0.0; // paste SERVO_POSITION_SHOOTING
+    public static double DEPO_SERVO_POSITION_IDLE = 0.0;     // paste SERVO_POSITION_IDLE
+
+    public static double DEPO_DEPOSIT_TARGET_VELOCITY = 0.0; // paste depositTargetVelocity
+    public static double DEPO_DEPOSIT_TOLERANCE = 0.0;       // paste DEPOSIT_TOLERANCE
+    public static double DEPO_SPEED_INCREMENT_SMALL = 0.0;   // paste SPEED_INCREMENT_SMALL
+    public static double DEPO_SPEED_INCREMENT_LARGE = 0.0;   // paste SPEED_INCREMENT_LARGE
+    public static double DEPO_MIN_DEPOSIT_SPEED = 0.0;       // paste MIN_DEPOSIT_SPEED
+    public static double DEPO_MAX_DEPOSIT_SPEED = 0.0;       // paste MAX_DEPOSIT_SPEED
+
+    public static double DEPO_DRIVE_POWER_SCALE = 0.0;      // paste DRIVE_POWER_SCALE
+    public static double DEPO_STRAFE_POWER_SCALE = 0.0;     // paste STRAFE_POWER_SCALE
+    public static double DEPO_ROTATE_POWER_SCALE = 0.0;     // paste ROTATE_POWER_SCALE
+    public static double DEPO_INTAKE2_SCALE = 0.0;          // paste INTAKE2_SCALE
+
+    public static double DEPO_BOOST_TRIGGER_THRESHOLD = 0.0; // paste boostTriggerThreshold
+    public static double DEPO_BOOST_MIN_TICKS = 0.0;         // paste boostMinTicks
+    public static double DEPO_BOOST_MAX_TICKS = 0.0;         // paste boostMaxTicks
+
+    public static double DEPO_BALL1_MULTIPLIER = 0.0; // paste ball1Multiplier
+    public static double DEPO_BALL1_EXPONENT = 0.0;   // paste ball1Exponent
+    public static double DEPO_BALL2_MULTIPLIER = 0.0; // paste ball2Multiplier
+    public static double DEPO_BALL2_EXPONENT = 0.0;   // paste ball2Exponent
+    public static double DEPO_BALL3_MULTIPLIER = 0.0; // paste ball3Multiplier
+    public static double DEPO_BALL3_EXPONENT = 0.0;   // paste ball3Exponent
+
+    public static double DEPO_KP = 0.0; // paste kP
+    public static double DEPO_KI = 0.0; // paste kI
+    public static double DEPO_KD = 0.0; // paste kD
+    public static double DEPO_KF = 0.0; // paste kF
+
+    // Additional ML / tuning params are intentionally available here as placeholders
+    public static boolean DEPO_ML_ENABLED = false;
+    public static double DEPO_LEARNING_RATE = 0.0;
+
+    // ============== AUTO shooting defaults (will use tuned values when pasted) ==============
+    // These default values were used previously; paste tuned values above to override
+    public static double AUTO_DEPOSIT_FF_FACTOR = 0.05; // multiplicative FF (kept as default)
+    public static double AUTO_DEPOSIT_FF_BOOST_TICKS = 241.0; // absolute FF boost ticks
+    public static long AUTO_SHOOT_DURATION_MS = 2000;    // tuneable shoot duration (default 2 seconds)
     public static long AUTO_SHOOT_RECOVERY_MS = 200;      // optional recovery idle after shot
     public static long PRE_SHOOT_DELAY_MS = 130;          // wait before shooting to stabilize
     private static final double AUTO_INTAKE1_POWER = 1.0;
     private static final double AUTO_INTAKE2_POWER = -1.0;
-    private static final double TRANSFER_IN = 0.0;
-    private static final double TRANSFER_OUT = 1.0;   // drive transfers only while shooting
-    private static final double TRANSFER_NEUTRAL = 0.5; // hold neutral when not shooting
-    private static final long INTAKE2_BURST_MS = 1500;
+
+    // ============== RUN-TIME STATE ==============
     private long shootHoldEndMs = 0;
-    private long shootSpinupEndMs = 0;
-    private long intake2OffTimeMs = 1000;
     private long preShootEndMs = 0;
     private boolean shooting = false;
-    private boolean shootingSpinup = false;
     private boolean shootingStarted = false;
 
     @Override
@@ -70,10 +100,24 @@ public class StraightAuto extends OpMode {
         robot = new TrowelHardware(hardwareMap);
         robot.resetDepositEncoders();
         robot.initTransferServo();
+
+        // Ensure servo starts at tuned idle position if provided, otherwise keep neutral
+        if (robot.transferServo != null) {
+            if (DEPO_SERVO_POSITION_IDLE != 0.0) robot.transferServo.setPosition(DEPO_SERVO_POSITION_IDLE);
+            else robot.transferServo.setPosition(0.5);
+        }
+
+        // Apply tuned PIDF if user has pasted values
+        updateDepositPIDFCoefficients();
+
+        // Apply feedforward tuning values (these help spin up the deposit faster)
         robot.setDepositFeedforwardFactor(AUTO_DEPOSIT_FF_FACTOR);
         robot.setDepositFeedforwardBoostTicks(AUTO_DEPOSIT_FF_BOOST_TICKS);
-        // Keep deposit running for the entire auto
-        robot.setDepositVelocity(AUTO_DEPOSIT_VELOCITY);
+
+        // Keep deposit running for the entire auto at tuned velocity
+        double targetVel = (DEPO_DEPOSIT_TARGET_VELOCITY != 0.0) ? DEPO_DEPOSIT_TARGET_VELOCITY : 160.0;
+        robot.setDepositVelocity(targetVel);
+
         if (robot.intake1 != null) robot.intake1.setPower(0.0);
         if (robot.intake2 != null) robot.intake2.setPower(0.0);
         // Leave transfer neutral until shooting
@@ -141,11 +185,6 @@ public class StraightAuto extends OpMode {
     @Override
     public void loop() {
         follower.update();
-        // Time out intake2 burst after the window
-        if (intake2OffTimeMs > 0 && System.currentTimeMillis() >= intake2OffTimeMs) {
-            if (robot != null && robot.intake2 != null) robot.intake2.setPower(0.0);
-            intake2OffTimeMs = 0;
-        }
         pathState = autonomousPathUpdate();
 
         panelsTelemetry.debug("Path State", pathState);
@@ -161,40 +200,47 @@ public class StraightAuto extends OpMode {
     private void startShooting() {
         shooting = true;
         shootingStarted = false;
-        shootingSpinup = false; // already running at velocity
         long now = System.currentTimeMillis();
         preShootEndMs = now + PRE_SHOOT_DELAY_MS;
-        shootSpinupEndMs = preShootEndMs; // keep legacy naming; we don't use spinup delay
         shootHoldEndMs = preShootEndMs + AUTO_SHOOT_DURATION_MS;
+
         // Ensure deposit is at target velocity (already spinning in start())
-        robot.setDepositVelocity(AUTO_DEPOSIT_VELOCITY);
+        double targetVel = (DEPO_DEPOSIT_TARGET_VELOCITY != 0.0) ? DEPO_DEPOSIT_TARGET_VELOCITY : 160.0;
+        robot.setDepositVelocity(targetVel);
+
         panelsTelemetry.debug("Shoot", "Waiting " + PRE_SHOOT_DELAY_MS + "ms then holding for " + AUTO_SHOOT_DURATION_MS + "ms");
+
+        // Servo should ALREADY be open from traveling to Depo position
+        // Just ensure it's in shooting position
+        setTransferShooting();
     }
 
     private boolean updateShooting() {
         if (!shooting) return false;
         long now = System.currentTimeMillis();
 
-        // Wait for pre-shoot settle before starting intakes/transfers
+        // Wait for pre-shoot settle before starting intakes
         if (!shootingStarted && now >= preShootEndMs) {
             if (robot.intake1 != null) robot.intake1.setPower(AUTO_INTAKE1_POWER);
             if (robot.intake2 != null) robot.intake2.setPower(AUTO_INTAKE2_POWER);
-            setTransferOut();
             shootingStarted = true;
         }
 
-        // Keep deposit spinning during entire auto; no stop after shooting
+        // Keep deposit spinning during entire auto
         if (shootingStarted && now >= shootHoldEndMs) {
             shooting = false;
-            shootingSpinup = false;
             shootingStarted = false;
-            // stop intakes after shooting, but leave deposit running
+
+            // Stop intakes after shooting
             if (robot.intake1 != null) robot.intake1.setPower(0.0);
             if (robot.intake2 != null) robot.intake2.setPower(0.0);
-            intake2OffTimeMs = 0;
-            setTransferNeutral();
+
+            // Close servo after shooting (go to intake position)
+            setTransferIdle();
+
             panelsTelemetry.debug("Shoot", "Completed");
-            // optional recovery pause before next sequence
+
+            // Optional recovery pause before next sequence
             if (AUTO_SHOOT_RECOVERY_MS > 0) {
                 try { Thread.sleep(AUTO_SHOOT_RECOVERY_MS); } catch (InterruptedException ignored) {}
             }
@@ -205,6 +251,8 @@ public class StraightAuto extends OpMode {
 
     public class Paths {
         public PathChain Depo1;
+        public PathChain Gate1;
+        public PathChain Rotate;
         public PathChain IntakeStart1;
         public PathChain IntakeEnd1;
         public PathChain Depo2;
@@ -215,7 +263,6 @@ public class StraightAuto extends OpMode {
         public PathChain IntakeEnd3;
         public PathChain Depo4;
         public PathChain Gate2;
-        public PathChain line12;
 
         public Paths(Follower follower, Team team) {
             if (team == Team.BLUE) {
@@ -233,21 +280,41 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(35), Math.toRadians(45))
                     .build();
-            IntakeStart1 = follower.pathBuilder().addPath(
+
+            Gate1 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(86.121, 88.138),
-                                    new Pose(83.813, 68.495),
-                                    new Pose(99.924, 85.788)
+                                    new Pose(76.703, 73.739),
+                                    new Pose(127.033, 72.148)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
+                    ).setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(90))
                     .build();
+
+            Rotate = follower.pathBuilder().addPath(
+                            new BezierCurve(
+                                    new Pose(127.033, 72.148),
+                                    new Pose(83.813, 69.774),
+                                    new Pose(97.564, 85.935)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(90))
+                    .build();
+
+            IntakeStart1 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(97.564, 85.935),
+                                    new Pose(102.644, 86.010)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180))
+                    .build();
+
             IntakeEnd1 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(99.924, 85.788),
+                                    new Pose(102.644, 86.010),
                                     new Pose(126.609, 86.823)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
+
             Depo2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(126.609, 86.823),
@@ -255,6 +322,7 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
                     .build();
+
             IntakeStart2 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(86.190, 88.414),
@@ -263,6 +331,7 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(901), Math.toRadians(180))
                     .build();
+
             IntakeEnd2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(101.241, 59.207),
@@ -270,13 +339,16 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
+
             Depo3 = follower.pathBuilder().addPath(
-                            new BezierLine(
+                            new BezierCurve(
                                     new Pose(134.247, 59.092),
+                                    new Pose(90.265, 65.451),
                                     new Pose(86.017, 88.466)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
                     .build();
+
             IntakeStart3 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(86.017, 88.466),
@@ -284,20 +356,23 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
                     .build();
+
             IntakeEnd3 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(102.155, 35.954),
-                                    new Pose(132.264, 36.155)
+                                    new Pose(134.047, 35.442)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
+
             Depo4 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(132.264, 36.155),
+                                    new Pose(134.047, 35.442),
                                     new Pose(86.138, 88.517)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
                     .build();
+
             Gate2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(86.138, 88.517),
@@ -315,21 +390,41 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(135))
                     .build();
-            IntakeStart1 = follower.pathBuilder().addPath(
+
+            Gate1 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(57.879, 88.138),
-                                    new Pose(60.187, 68.495),
-                                    new Pose(44.076, 85.788)
+                                    new Pose(67.297, 73.739),
+                                    new Pose(16.967, 72.148)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
+                    ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(90))
                     .build();
+
+            Rotate = follower.pathBuilder().addPath(
+                            new BezierCurve(
+                                    new Pose(16.967, 72.148),
+                                    new Pose(60.187, 69.774),
+                                    new Pose(46.436, 85.935)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(90))
+                    .build();
+
+            IntakeStart1 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(46.436, 85.935),
+                                    new Pose(41.356, 86.010)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(0))
+                    .build();
+
             IntakeEnd1 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(44.076, 85.788),
+                                    new Pose(41.356, 86.010),
                                     new Pose(17.391, 86.823)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
+
             Depo2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(17.391, 86.823),
@@ -337,6 +432,7 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
                     .build();
+
             IntakeStart2 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(57.810, 88.414),
@@ -345,6 +441,7 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(-721), Math.toRadians(0))
                     .build();
+
             IntakeEnd2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(42.759, 59.207),
@@ -352,13 +449,16 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
+
             Depo3 = follower.pathBuilder().addPath(
-                            new BezierLine(
+                            new BezierCurve(
                                     new Pose(9.753, 59.092),
+                                    new Pose(53.735, 65.451),
                                     new Pose(57.983, 88.466)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
                     .build();
+
             IntakeStart3 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(57.983, 88.466),
@@ -366,33 +466,29 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
                     .build();
+
             IntakeEnd3 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(41.845, 35.954),
-                                    new Pose(11.201, 36.333)
+                                    new Pose(9.953, 35.442)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
+
             Depo4 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(11.201, 36.333),
+                                    new Pose(9.953, 35.442),
                                     new Pose(57.862, 88.517)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(135))
                     .build();
+
             Gate2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(57.862, 88.517),
                                     new Pose(26.140, 72.035)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(90))
-                    .build();
-            line12 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(26.140, 72.035),
-                                    new Pose(96.594, 115.129)
-                            )
-                    ).setTangentHeadingInterpolation()
                     .build();
         }
     }
@@ -401,157 +497,243 @@ public class StraightAuto extends OpMode {
     public int autonomousPathUpdate() {
         switch (pathState) {
             case 0:
+                // Traveling toward Depo1 - OPEN SERVO (servo needs to be out of the way by shooting time)
+                setTransferShooting();
                 follower.followPath(paths.Depo1);
                 pathState = 1;
-                panelsTelemetry.debug("Transition", "Started Depo1");
+                panelsTelemetry.debug("Transition", "Started Depo1 - Servo OPEN");
                 break;
             case 1:
                 if (!follower.isBusy()) {
-                    startShooting();
-                    pathState = 14; // Shoot after Depo1
+                    startShooting(); // Shoot at Depo1 (servo already open)
+                    pathState = 14;
                     panelsTelemetry.debug("Transition", "Shooting after Depo1");
                 }
                 break;
             case 14: // Wait shooting after Depo1
                 if (updateShooting()) {
+                    // After shooting, servo closes automatically in updateShooting()
+                    // Moving to Gate1 - only deposit running, servo closed
+                    follower.followPath(paths.Gate1);
+                    pathState = 15;
+                    panelsTelemetry.debug("Transition", "Started Gate1 - Only deposit running");
+                }
+                break;
+            case 15:
+                if (!follower.isBusy()) {
+                    // Moving to Rotate - only deposit running, servo closed
+                    follower.followPath(paths.Rotate);
+                    pathState = 16;
+                    panelsTelemetry.debug("Transition", "Started Rotate - Only deposit running");
+                }
+                break;
+            case 16:
+                if (!follower.isBusy()) {
+                    // Starting intake sequence - servo MUST be closed, intakes ON
+                    setTransferIdle(); // Ensure servo is closed
                     startIntakeSequence();
                     follower.followPath(paths.IntakeStart1);
                     pathState = 2;
-                    panelsTelemetry.debug("Transition", "Started IntakeStart");
+                    panelsTelemetry.debug("Transition", "Started IntakeStart1 - Intakes ON, Servo CLOSED");
                 }
                 break;
             case 2:
                 if (!follower.isBusy()) {
+                    // Continue intaking - servo stays closed
                     follower.followPath(paths.IntakeEnd1);
                     pathState = 3;
-                    panelsTelemetry.debug("Transition", "Started IntakeEnd");
+                    panelsTelemetry.debug("Transition", "Started IntakeEnd1 - Intakes ON, Servo CLOSED");
                 }
                 break;
             case 3:
                 if (!follower.isBusy()) {
-                    stopIntakes();
+                    stopIntakes(); // Stop intakes
+                    // Heading to Depo2 - OPEN SERVO
+                    setTransferShooting();
                     follower.followPath(paths.Depo2);
                     pathState = 4;
-                    panelsTelemetry.debug("Transition", "Started Depo2");
+                    panelsTelemetry.debug("Transition", "Started Depo2 - Servo OPEN");
                 }
                 break;
             case 4:
                 if (!follower.isBusy()) {
-                    startShooting();
-                    pathState = 15; // Shoot after Depo2
+                    startShooting(); // Shoot at Depo2
+                    pathState = 17;
                     panelsTelemetry.debug("Transition", "Shooting after Depo2");
                 }
                 break;
-            case 15:
+            case 17:
                 if (updateShooting()) {
+                    // Servo closes automatically, start intaking
+                    setTransferIdle();
                     startIntakeSequence();
                     follower.followPath(paths.IntakeStart2);
                     pathState = 6;
-                    panelsTelemetry.debug("Transition", "Started IntakeStart2");
+                    panelsTelemetry.debug("Transition", "Started IntakeStart2 - Intakes ON, Servo CLOSED");
                 }
-                break;
-            case 5:
-                // This case is skipped now since we go directly from case 15 to case 6
                 break;
             case 6:
                 if (!follower.isBusy()) {
                     follower.followPath(paths.IntakeEnd2);
                     pathState = 7;
-                    panelsTelemetry.debug("Transition", "Started IntakeEnd2");
+                    panelsTelemetry.debug("Transition", "Started IntakeEnd2 - Intakes ON, Servo CLOSED");
                 }
                 break;
             case 7:
                 if (!follower.isBusy()) {
                     stopIntakes();
+                    // Heading to Depo3 - OPEN SERVO
+                    setTransferShooting();
                     follower.followPath(paths.Depo3);
                     pathState = 8;
-                    panelsTelemetry.debug("Transition", "Started Depo3");
+                    panelsTelemetry.debug("Transition", "Started Depo3 - Servo OPEN");
                 }
                 break;
             case 8:
                 if (!follower.isBusy()) {
-                    startShooting();
-                    pathState = 16; // Shoot after Depo3
+                    startShooting(); // Shoot at Depo3
+                    pathState = 18;
                     panelsTelemetry.debug("Transition", "Shooting after Depo3");
                 }
                 break;
-            case 16:
+            case 18:
                 if (updateShooting()) {
+                    // Servo closes automatically, start intaking
+                    setTransferIdle();
                     startIntakeSequence();
                     follower.followPath(paths.IntakeStart3);
                     pathState = 9;
-                    panelsTelemetry.debug("Transition", "Started IntakeStart3");
+                    panelsTelemetry.debug("Transition", "Started IntakeStart3 - Intakes ON, Servo CLOSED");
                 }
                 break;
             case 9:
                 if (!follower.isBusy()) {
                     follower.followPath(paths.IntakeEnd3);
                     pathState = 10;
-                    panelsTelemetry.debug("Transition", "Started IntakeEnd3");
+                    panelsTelemetry.debug("Transition", "Started IntakeEnd3 - Intakes ON, Servo CLOSED");
                 }
                 break;
             case 10:
                 if (!follower.isBusy()) {
                     stopIntakes();
+                    // Heading to Depo4 - OPEN SERVO
+                    setTransferShooting();
                     follower.followPath(paths.Depo4);
                     pathState = 11;
-                    panelsTelemetry.debug("Transition", "Started Depo4");
+                    panelsTelemetry.debug("Transition", "Started Depo4 - Servo OPEN");
                 }
                 break;
             case 11:
                 if (!follower.isBusy()) {
-                    startShooting();
-                    pathState = 17; // Shoot after Depo4
+                    startShooting(); // Shoot at Depo4
+                    pathState = 19;
                     panelsTelemetry.debug("Transition", "Shooting after Depo4");
                 }
                 break;
-            case 17:
+            case 19:
                 if (updateShooting()) {
+                    // Servo closes automatically
+                    // Moving to Gate2 - only deposit running
                     follower.followPath(paths.Gate2);
                     pathState = 12;
-                    panelsTelemetry.debug("Transition", "Started Gate2");
+                    panelsTelemetry.debug("Transition", "Started Gate2 - Only deposit running");
                 }
                 break;
             case 12:
                 if (!follower.isBusy()) {
                     pathState = 13; // finished
-                    panelsTelemetry.debug("Transition", "Finished Gate2");
+                    panelsTelemetry.debug("Transition", "Finished Gate2 - Auto Complete");
                 }
                 break;
             case 13:
-                // finished - keep idle
+                // finished - keep deposit running, all else idle
                 break;
         }
         return pathState;
     }
 
+    // Transfer servo helpers use tuned positions when available
     private void setTransferOut() {
         if (robot.transferServo != null) {
-            robot.transferServo.setPosition(TRANSFER_OUT);
+            if (DEPO_SERVO_POSITION_SHOOTING != 0.0) robot.transferServo.setPosition(DEPO_SERVO_POSITION_SHOOTING);
+            else robot.transferServo.setPosition(1.0);
         }
     }
 
     private void setTransferNeutral() {
         if (robot.transferServo != null) {
-            robot.transferServo.setPosition(TRANSFER_NEUTRAL);
+            if (DEPO_SERVO_POSITION_IDLE != 0.0) robot.transferServo.setPosition(DEPO_SERVO_POSITION_IDLE);
+            else robot.transferServo.setPosition(0.5);
         }
     }
 
     private void setTransferIn() {
         if (robot.transferServo != null) {
-            robot.transferServo.setPosition(TRANSFER_IN);
+            if (DEPO_SERVO_POSITION_IDLE != 0.0) robot.transferServo.setPosition(DEPO_SERVO_POSITION_IDLE);
+            else robot.transferServo.setPosition(0.0);
+        }
+    }
+
+    // Explicit named helpers for clarity (shooting vs idle)
+    private void setTransferShooting() {
+        if (robot.transferServo != null) {
+            if (DEPO_SERVO_POSITION_SHOOTING != 0.0) robot.transferServo.setPosition(DEPO_SERVO_POSITION_SHOOTING);
+            else robot.transferServo.setPosition(0.7);
+        }
+    }
+
+    private void setTransferIdle() {
+        if (robot.transferServo != null) {
+            if (DEPO_SERVO_POSITION_IDLE != 0.0) robot.transferServo.setPosition(DEPO_SERVO_POSITION_IDLE);
+            else robot.transferServo.setPosition(0.3);
         }
     }
 
     private void startIntakeSequence() {
+        // Run intakes at full power
         if (robot.intake1 != null) robot.intake1.setPower(AUTO_INTAKE1_POWER);
         if (robot.intake2 != null) robot.intake2.setPower(AUTO_INTAKE2_POWER);
-        intake2OffTimeMs = System.currentTimeMillis() + INTAKE2_BURST_MS;
+
+        // Ensure transfer servo is CLOSED during intake
+        setTransferIdle();
     }
 
     private void stopIntakes() {
+        // Stop both intakes
         if (robot.intake1 != null) robot.intake1.setPower(0.0);
         if (robot.intake2 != null) robot.intake2.setPower(0.0);
-        intake2OffTimeMs = 0;
+
+        // Keep servo in idle/closed position
+        setTransferIdle();
+    }
+
+    // Update deposit PIDF coefficients on the DcMotorEx directly (mirrors AutomaticDepoTuner)
+    private void updateDepositPIDFCoefficients() {
+        try {
+            if (robot != null && robot.deposit1 != null) robot.deposit1.setVelocityPIDFCoefficients(DEPO_KP, DEPO_KI, DEPO_KD, DEPO_KF);
+            if (robot != null && robot.deposit2 != null) robot.deposit2.setVelocityPIDFCoefficients(DEPO_KP, DEPO_KI, DEPO_KD, DEPO_KF);
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Calculate boost based on current ball number and parameters (copied from AutomaticDepoTuner)
+     */
+    private double calculateBoost(double drop, int ballNum) {
+        if (drop < DEPO_BOOST_TRIGGER_THRESHOLD) return 0.0;
+
+        double multiplier, exponent;
+        if (ballNum == 0) {
+            multiplier = DEPO_BALL1_MULTIPLIER;
+            exponent = DEPO_BALL1_EXPONENT;
+        } else if (ballNum == 1) {
+            multiplier = DEPO_BALL2_MULTIPLIER;
+            exponent = DEPO_BALL2_EXPONENT;
+        } else {
+            multiplier = DEPO_BALL3_MULTIPLIER;
+            exponent = DEPO_BALL3_EXPONENT;
+        }
+
+        double boost = multiplier * Math.pow(drop, exponent);
+        return Math.max(DEPO_BOOST_MIN_TICKS, Math.min(DEPO_BOOST_MAX_TICKS, boost));
     }
 }
