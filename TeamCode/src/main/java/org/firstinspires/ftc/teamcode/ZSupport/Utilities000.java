@@ -89,8 +89,8 @@ public class Utilities000 {
         hoodYawMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
         hoodYawMotor.setTargetPosition(0);
-        //hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        //hoodYawMotor.setPower(0.5);
+        hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        hoodYawMotor.setPower(0.5);
 
 //        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
 //        l.telemetry.setMsTransmissionInterval(10);
