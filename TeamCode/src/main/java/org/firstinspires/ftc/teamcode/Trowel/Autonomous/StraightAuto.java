@@ -36,7 +36,8 @@ public class StraightAuto extends OpMode {
     public static double DEPO_SERVO_POSITION_SHOOTING = 0.0; // paste SERVO_POSITION_SHOOTING
     public static double DEPO_SERVO_POSITION_IDLE = 0.0;     // paste SERVO_POSITION_IDLE
 
-    public static double DEPO_DEPOSIT_TARGET_VELOCITY = 0.0; // paste depositTargetVelocity
+    // sensible defaults so auto can run without pasted values
+    public static double DEPO_DEPOSIT_TARGET_VELOCITY = 840.0; // default deposit target velocity (ticks/sec)
     public static double DEPO_DEPOSIT_TOLERANCE = 0.0;       // paste DEPOSIT_TOLERANCE
     public static double DEPO_SPEED_INCREMENT_SMALL = 0.0;   // paste SPEED_INCREMENT_SMALL
     public static double DEPO_SPEED_INCREMENT_LARGE = 0.0;   // paste SPEED_INCREMENT_LARGE
@@ -59,10 +60,10 @@ public class StraightAuto extends OpMode {
     public static double DEPO_BALL3_MULTIPLIER = 0.0; // paste ball3Multiplier
     public static double DEPO_BALL3_EXPONENT = 0.0;   // paste ball3Exponent
 
-    public static double DEPO_KP = 0.0; // paste kP
-    public static double DEPO_KI = 0.0; // paste kI
-    public static double DEPO_KD = 0.0; // paste kD
-    public static double DEPO_KF = 0.0; // paste kF
+    public static double DEPO_KP = 10.0; // default kP
+    public static double DEPO_KI = 0.0;  // default kI
+    public static double DEPO_KD = 0.0;  // default kD
+    public static double DEPO_KF = 0.0;  // default kF (keep manual)
 
     // Additional ML / tuning params are intentionally available here as placeholders
     public static boolean DEPO_ML_ENABLED = false;
@@ -72,9 +73,9 @@ public class StraightAuto extends OpMode {
     // These default values were used previously; paste tuned values above to override
     public static double AUTO_DEPOSIT_FF_FACTOR = 0.05; // multiplicative FF (kept as default)
     public static double AUTO_DEPOSIT_FF_BOOST_TICKS = 241.0; // absolute FF boost ticks
-    public static long AUTO_SHOOT_DURATION_MS = 2000;    // tuneable shoot duration (default 2 seconds)
-    public static long AUTO_SHOOT_RECOVERY_MS = 200;      // optional recovery idle after shot
-    public static long PRE_SHOOT_DELAY_MS = 130;          // wait before shooting to stabilize
+    public static long AUTO_SHOOT_DURATION_MS = 1800;    // tuneable shoot duration (was 2000)
+    public static long AUTO_SHOOT_RECOVERY_MS = 100;     // optional recovery idle after shot (was 200)
+    public static long PRE_SHOOT_DELAY_MS = 100;          // wait before shooting to stabilize (was 130)
     private static final double AUTO_INTAKE1_POWER = 1.0;
     private static final double AUTO_INTAKE2_POWER = -1.0;
 
@@ -136,6 +137,10 @@ public class StraightAuto extends OpMode {
             panelsTelemetry.debug("StartPose", "RED (117.533, 129.584, 35°)");
         }
         follower.setStartingPose(startPose);
+        // Ensure follower internal pose is initialized to match the starting pose
+        try { follower.update(); } catch (Exception ignored) {}
+        // Use full power for both alliances to keep behavior consistent
+        try { follower.setMaxPower(1.0); } catch (Exception ignored) {}
 
         // Build paths for selected team (red paths mirrored for blue)
         paths = new Paths(follower, selectedTeam);
@@ -329,7 +334,7 @@ public class StraightAuto extends OpMode {
                                     new Pose(84.724, 83.552),
                                     new Pose(101.241, 59.207)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(901), Math.toRadians(180))
+                    ).setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(180))
                     .build();
 
             IntakeEnd2 = follower.pathBuilder().addPath(
@@ -380,7 +385,9 @@ public class StraightAuto extends OpMode {
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(90))
                     .build();
-        }
+
+            // No automatic mirroring here; blue/red paths are built explicitly in their respective builders
+         }
 
         private void buildBluePaths(Follower follower) {
             Depo1 = follower.pathBuilder().addPath(
@@ -439,7 +446,7 @@ public class StraightAuto extends OpMode {
                                     new Pose(59.276, 83.552),
                                     new Pose(42.759, 59.207)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(-721), Math.toRadians(0))
+                    ).setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(0))
                     .build();
 
             IntakeEnd2 = follower.pathBuilder().addPath(
@@ -521,10 +528,17 @@ public class StraightAuto extends OpMode {
                 break;
             case 15:
                 if (!follower.isBusy()) {
-                    // Moving to Rotate - only deposit running, servo closed
+                    // Pause briefly at the gate before continuing
+                    timer.reset();
+                    pathState = 150; // gate wait state
+                    panelsTelemetry.debug("Transition", "Reached Gate1 - waiting 0.7s");
+                }
+                break;
+            case 150: // gate wait (0.4s) then continue to Rotate
+                if (timer.seconds() >= 0.4) {
                     follower.followPath(paths.Rotate);
                     pathState = 16;
-                    panelsTelemetry.debug("Transition", "Started Rotate - Only deposit running");
+                    panelsTelemetry.debug("Transition", "Gate1 wait complete - Started Rotate");
                 }
                 break;
             case 16:
@@ -641,8 +655,16 @@ public class StraightAuto extends OpMode {
                 break;
             case 12:
                 if (!follower.isBusy()) {
+                    // Pause at Gate2 for a short duration before finishing
+                    timer.reset();
+                    pathState = 120; // gate2 wait
+                    panelsTelemetry.debug("Transition", "Reached Gate2 - waiting 0.7s before finish");
+                }
+                break;
+            case 120:
+                if (timer.seconds() >= 0.4) {
                     pathState = 13; // finished
-                    panelsTelemetry.debug("Transition", "Finished Gate2 - Auto Complete");
+                    panelsTelemetry.debug("Transition", "Gate2 wait complete - Auto Complete");
                 }
                 break;
             case 13:
@@ -737,3 +759,4 @@ public class StraightAuto extends OpMode {
         return Math.max(DEPO_BOOST_MIN_TICKS, Math.min(DEPO_BOOST_MAX_TICKS, boost));
     }
 }
+
