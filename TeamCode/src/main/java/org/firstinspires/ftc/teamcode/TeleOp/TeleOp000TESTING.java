@@ -1,17 +1,13 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
-import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.teamcode.ZSupport.K2Utilities;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
-@TeleOp(name="0-0-0 TeleOp", group="A")
-public class TeleOp000 extends LinearOpMode {
+@TeleOp(name="0-0-0 TeleOp Manual Control", group="A")
+public class TeleOp000TESTING extends LinearOpMode {
     Utilities000 bot = new Utilities000(this);
     private ElapsedTime loopTime = new ElapsedTime();
 
