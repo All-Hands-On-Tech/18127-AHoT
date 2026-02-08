@@ -32,6 +32,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.firstinspires.ftc.teamcode.TeleOp;
 
+import com.pedropathing.follower.Follower;
+import com.pedropathing.ftc.FTCCoordinates;
+import com.pedropathing.geometry.PedroCoordinates;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.LLStatus;
@@ -40,7 +44,11 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.List;
 
@@ -71,10 +79,12 @@ import java.util.List;
 public class LimelightTesting extends LinearOpMode {
 
     private Limelight3A limelight;
+    public static Follower follower;
 
     @Override
     public void runOpMode() throws InterruptedException
     {
+        follower = Constants.createFollower(hardwareMap);
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
 
         telemetry.setMsTransmissionInterval(11);
@@ -86,43 +96,66 @@ public class LimelightTesting extends LinearOpMode {
          */
         limelight.start();
 
+        follower.setStartingPose(new Pose(72,72,0));
+        follower.startTeleopDrive();
+        follower.update();
+
         telemetry.addData(">", "Robot Ready.  Press Play.");
         telemetry.update();
         waitForStart();
 
         while (opModeIsActive()) {
-            LLStatus status = limelight.getStatus();
-            telemetry.addData("Name", "%s",
-                    status.getName());
-            telemetry.addData("LL", "Temp: %.1fC, CPU: %.1f%%, FPS: %d",
-                    status.getTemp(), status.getCpu(),(int)status.getFps());
-            telemetry.addData("Pipeline", "Index: %d, Type: %s",
-                    status.getPipelineIndex(), status.getPipelineType());
+//            LLStatus status = limelight.getStatus();
+//            telemetry.addData("Name", "%s",
+//                    status.getName());
+//            telemetry.addData("LL", "Temp: %.1fC, CPU: %.1f%%, FPS: %d",
+//                    status.getTemp(), status.getCpu(),(int)status.getFps());
+//            telemetry.addData("Pipeline", "Index: %d, Type: %s",
+//                    status.getPipelineIndex(), status.getPipelineType());
 
             LLResult result = limelight.getLatestResult();
             if (result.isValid()) {
                 // Access general information
                 Pose3D botpose = result.getBotpose();
-                double captureLatency = result.getCaptureLatency();
-                double targetingLatency = result.getTargetingLatency();
-                double parseLatency = result.getParseLatency();
-                telemetry.addData("LL Latency", captureLatency + targetingLatency);
-                telemetry.addData("Parse Latency", parseLatency);
-                telemetry.addData("PythonOutput", java.util.Arrays.toString(result.getPythonOutput()));
-
-                telemetry.addData("Botpose", botpose.toString());
-
-                // Access April Tag results
-                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
-                for (LLResultTypes.FiducialResult fr : fiducialResults) {
-                    telemetry.addData("Fiducial", "ID: %d, Family: %s, X: %.2f, Y: %.2f", fr.getFiducialId(), fr.getFamily(), fr.getTargetXDegrees(), fr.getTargetYDegrees());
-                }
+                Pose tagPose = getRobotPoseFromCamera(botpose);
+                //NEEDS TO BE FIXED ANGLE WRONG
+                telemetry.addLine(String.format("limelight location: (%5.1f,%5.1f,%5.1f)", tagPose.getX(), tagPose.getY(), tagPose.getHeading()));
+//                double captureLatency = result.getCaptureLatency();
+//                double targetingLatency = result.getTargetingLatency();
+////                double parseLatency = result.getParseLatency();
+//                telemetry.addData("LL Latency", captureLatency + targetingLatency);
+//                telemetry.addData("Parse Latency", parseLatency);
+//                telemetry.addData("PythonOutput", java.util.Arrays.toString(result.getPythonOutput()));
+//
+//                telemetry.addData("Botpose", botpose.toString());
+//
+//                // Access April Tag results
+//                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+//                for (LLResultTypes.FiducialResult fr : fiducialResults) {
+//                    telemetry.addData("Fiducial", "ID: %d, Family: %s, X: %.2f, Y: %.2f", fr.getFiducialId(), fr.getFamily(), fr.getTargetXDegrees(), fr.getTargetYDegrees());
+//                }
             } else {
                 telemetry.addData("Limelight", "No data available");
+                telemetry.addData("num tags: ", result.getBotposeTagCount());
             }
+
+            Pose followerPose = follower.getPose();
+            telemetry.addLine(String.format("follower location:  (%5.1f,%5.1f, %5.1f)", followerPose.getX(), followerPose.getY(), followerPose.getHeading()));
+
+
+            //follower.setTeleOpDrive(-0.4*gamepad1.left_stick_y, -0.4*gamepad1.left_stick_x, -0.4*gamepad1.right_stick_x, true);
+            follower.update();
 
             telemetry.update();
         }
         limelight.stop();
+    }
+
+    private Pose getRobotPoseFromCamera(Pose3D limeLightPose) {
+        //Fill this out to get the robot Pose from the camera's output (apply any filters if you need to using follower.getPose() for fusion)
+        //Pedro Pathing has built-in KalmanFilter and LowPassFilter classes you can use for this
+
+        //Use this to convert standard FTC coordinates to standard Pedro Pathing coordinates
+        return new Pose(72+limeLightPose.getPosition().y/0.0254, 72-limeLightPose.getPosition().x/0.0254, limeLightPose.getOrientation().getYaw());
     }
 }
