@@ -1,17 +1,8 @@
 package org.firstinspires.ftc.teamcode.ZSupport;
 
-import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.gamepad1;
-
-import android.graphics.Color;
-import android.util.Size;
-
-import com.pedropathing.follower.Follower;
-import com.bylazar.configurables.annotations.Configurable;
-import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
+import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -20,31 +11,21 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
-import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
-import org.firstinspires.ftc.vision.opencv.ColorRange;
-import org.firstinspires.ftc.vision.opencv.ImageRegion;
-
 import java.util.List;
 
 public class Utilities000 {
     LinearOpMode linearOpMode;
-//    private TelemetryManager telemetryM;
-//    private Follower follower;
+    private TelemetryManager telemetryM;
+    private Follower follower;
 
     private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
+    private static final double PITCH_PULSES_PER_DEGREE = 0;
 
     private DcMotor intakeMotor;
     private DcMotorEx flywheelR;
     private DcMotorEx flywheelL;
     private DcMotor hoodYawMotor;
     private Servo hoodPitchServo;
-
     public DcMotor fr, fl, br, bl;
     public double frPower, flPower, brPower, blPower;
 
@@ -80,17 +61,20 @@ public class Utilities000 {
 
         intakeMotor = l.hardwareMap.get(DcMotor.class, "intake");
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         flywheelR   = l.hardwareMap.get(DcMotorEx.class, "flyR");
-        flywheelR.setDirection(DcMotorSimple.Direction.REVERSE);
+        flywheelR.setDirection(DcMotorSimple.Direction.FORWARD);
+        flywheelR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         flywheelL   = l.hardwareMap.get(DcMotorEx.class, "flyL");
-        flywheelL.setDirection(DcMotorSimple.Direction.FORWARD);
+        flywheelL.setDirection(DcMotorSimple.Direction.REVERSE);
+        flywheelL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         hoodYawMotor = l.hardwareMap.get(DcMotor.class, "hoodYaw");
         hoodYawMotor.setDirection(DcMotorSimple.Direction.FORWARD);
-        hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
+        hoodYawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         hoodYawMotor.setTargetPosition(0);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        hoodYawMotor.setPower(0.5);
+        hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
 
 //        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
 //        l.telemetry.setMsTransmissionInterval(10);
@@ -101,49 +85,6 @@ public class Utilities000 {
 
         voltageSensor = l.hardwareMap.get(VoltageSensor.class, "Control Hub");
     }
-
-//    private VisionPortal initWebcam(LinearOpMode l) {
-//        ColorBlobLocatorProcessor colorLocatorPurple = new ColorBlobLocatorProcessor.Builder()
-//                .setTargetColorRange(ColorRange.ARTIFACT_PURPLE)// Use a predefined color match
-//                .setContourMode(ColorBlobLocatorProcessor.ContourMode.EXTERNAL_ONLY)
-//                .setRoi(ImageRegion.asUnityCenterCoordinates(-1, 1, 1, -1))
-//                .setDrawContours(true)   // Show contours on the Stream Preview
-//                .setBoxFitColor(0)       // Disable the drawing of rectangles
-//                .setCircleFitColor(Color.rgb(255, 255, 0)) // Draw a circle
-//                .setBlurSize(3)          // Smooth the transitions between different colors in image
-//
-//                // the following options have been added to fill in perimeter holes.
-//                .setDilateSize(2)       // Expand blobs to fill any divots on the edges
-//                .setErodeSize(2)        // Shrink blobs back to original size
-//                .setMorphOperationType(ColorBlobLocatorProcessor.MorphOperationType.CLOSING)
-//
-//                .build();
-//
-//        ColorBlobLocatorProcessor colorLocatorGreen = new ColorBlobLocatorProcessor.Builder()
-//                .setTargetColorRange(ColorRange.ARTIFACT_GREEN)   // Use a predefined color match
-//                .setContourMode(ColorBlobLocatorProcessor.ContourMode.EXTERNAL_ONLY)
-//                .setRoi(ImageRegion.asUnityCenterCoordinates(-1, 1, 1, -1))
-//                .setDrawContours(true)   // Show contours on the Stream Preview
-//                .setBoxFitColor(0)       // Disable the drawing of rectangles
-//                .setCircleFitColor(Color.rgb(255, 255, 0)) // Draw a circle
-//                .setBlurSize(3)          // Smooth the transitions between different colors in image
-//
-//                // the following options have been added to fill in perimeter holes.
-//                .setDilateSize(2)       // Expand blobs to fill any divots on the edges
-//                .setErodeSize(2)        // Shrink blobs back to original size
-//                .setMorphOperationType(ColorBlobLocatorProcessor.MorphOperationType.CLOSING)
-//
-//                .build();
-//
-//        VisionPortal portalNew = new VisionPortal.Builder()
-//                .addProcessor(colorLocatorPurple)
-//                .addProcessor(colorLocatorGreen)
-//                .setCameraResolution(new Size((int)resHorz, (int)resVert))
-//                .setCamera(l.hardwareMap.get(WebcamName.class, "Webcam 1"))
-//                .build();
-//
-//        return portalNew;
-//    }
 
     public void move(double forward, double right, double r) {
         //represent inputs as 3D vector then normalize to ensure robot translates and turns at max speed if asked to, and if input exceeds possible power, normalize.
@@ -177,42 +118,23 @@ public class Utilities000 {
 //        follower.setTeleOpDrive(forward, left, rotateCounterclockwise, false);
 //    }
 
-    public void intakePower(double pow) {
-        pow = deadZone(pow, 0.05);
-        intakeMotor.setPower(pow);
-    }
-    public void setHoodYawAngle(double ticks) {
-        hoodYawMotor.setTargetPosition((int)ticks);
-    }
-    public void setHoodYawAngleDegrees(double degrees) {
-        hoodYawMotor.setTargetPosition((int)(degrees * YAW_PULSES_PER_DEGREE));
-    }
-    public double getHoodYawAngleDegrees(){
-        return hoodYawMotor.getCurrentPosition() / YAW_PULSES_PER_DEGREE;
-    }
-    public void setHoodPitchAngle(double pos) {
+    public void intakePower(double pow) {intakeMotor.setPower(deadZone(pow, 0.05));}
+
+    public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
+    public void setHoodYawAngleDegrees(double degrees) {hoodYawMotor.setTargetPosition((int)(degrees * YAW_PULSES_PER_DEGREE));}
+    public double getHoodYawAngleDegrees(){return hoodYawMotor.getCurrentPosition() / YAW_PULSES_PER_DEGREE;}
+    public void setHoodYawPower(double power) {hoodYawMotor.setPower(power);}
+    public void setHoodPitchAngleTicks(double pos) {
         hoodPitchServo.setPosition(pos);
     }
-    public void flywheelController(double targetTicksPerSec) {
-        double currentTicksPerSec = getFlywheelSpeed();
-        double p = 0.5; //these values need to be tuned
-        double m = 0;
-        double b = 0;
-        double feedForward = m*targetTicksPerSec + b;
+    public void setHoodPitchAngleDegrees(double pos) {hoodPitchServo.setPosition(pos * PITCH_PULSES_PER_DEGREE);}
+    public double getHoodPitchAngleDegrees() {return (10000 - hoodPitchServo.getPosition()/ PITCH_PULSES_PER_DEGREE);}
 
-        if (currentTicksPerSec < 0.9*targetTicksPerSec) {
-            setFlywheelVolts(12);
-        } else if (currentTicksPerSec > 1.1*targetTicksPerSec) {
-            setFlywheelVolts(0);
-        } else {
-            setFlywheelVolts(feedForward + p*(targetTicksPerSec-currentTicksPerSec));
-        }
-    }
     public double getFlywheelSpeed() {
         double average = (flywheelL.getVelocity()+flywheelR.getVelocity()) / 2;
         return average;
     }
-    private void setFlywheelVolts(double volts) {
+    public void setFlywheelVolts(double volts) {
         double currentVoltage = voltageSensor.getVoltage();
         flywheelL.setPower(volts/currentVoltage);
         flywheelR.setPower(volts/currentVoltage);
@@ -236,5 +158,26 @@ public class Utilities000 {
             return 0;
         }
     }
+
+    private void flywheelController(double targetTicksPerSec) {
+        double currentTicksPerSec = getFlywheelSpeed();
+        double p = 0.5; //these values need to be tuned
+        double m = 0;
+        double b = 0;
+        double feedForward = m*targetTicksPerSec + b;
+
+        if (currentTicksPerSec < 0.9*targetTicksPerSec) {
+            setFlywheelVolts(12);
+        } else if (currentTicksPerSec > 1.1*targetTicksPerSec) {
+            setFlywheelVolts(0);
+        } else {
+            setFlywheelVolts(feedForward + p*(targetTicksPerSec-currentTicksPerSec));
+        }
+    }
+
+//    private double speedFunction() {
+//        Pose current = follower.getPose();
+//        double distance
+//    }
 
 }

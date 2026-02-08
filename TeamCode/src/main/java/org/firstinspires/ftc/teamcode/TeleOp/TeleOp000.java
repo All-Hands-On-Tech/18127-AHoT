@@ -1,13 +1,9 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
-import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.teamcode.ZSupport.K2Utilities;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
 @TeleOp(name="0-0-0 TeleOp", group="A")
@@ -45,14 +41,14 @@ public class TeleOp000 extends LinearOpMode {
             } else if (gamepad1.dpad_left) {
                 yaw -= 1;
             }
-            bot.setHoodYawAngle(yaw);
+            bot.setHoodYawAngleTicks(yaw);
 
             if(gamepad1.dpad_up) {
                 pitch += 0.003;
             } else if (gamepad1.dpad_down) {
                 pitch -= 0.003;
             }
-            bot.setHoodPitchAngle(pitch);
+            bot.setHoodPitchAngleTicks(pitch);
             //0.61 -> 0.84
 
             if(gamepad1.right_trigger > 0.01){
