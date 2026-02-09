@@ -3,163 +3,124 @@ package org.firstinspires.ftc.teamcode.Trowel.Drive;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.teamcode.Trowel.Configs.TrowelHardware;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Random;
 
 /**
- * DepoTuner v4.0 - Advanced Automatic Deposit Optimization
+ * DepoTuner v5.0 - DRIVER FEEDBACK SYSTEM
  *
- * MAJOR FEATURES:
- *   - Kalman filtered velocity estimation
- *   - Battery voltage compensation
- *   - Servo-triggered predictive boost
- *   - Elite preservation (top 5 param sets)
- *   - Velocity-relative parameter scaling
- *   - Dual motor tracking & balancing
- *   - Oscillation detection & auto-damping
- *   - Outlier rejection & rollback protection
- *   - Confidence scoring (know when you're done)
- *   - Haptic feedback on improvements
+ * ═══════════════════════════════════════════════════════════════
+ *  NEW: DRIVER RATING SYSTEM
+ * ═══════════════════════════════════════════════════════════════
  *
- * PERSISTENCE:
- *   - Auto-saves on stop
- *   - Auto-loads on init
- *   - Y+B for export mode
+ * After each shot sequence, DRIVER 2 rates the result:
+ *   D-Pad UP    = GOOD shot (locks in parameters)
+ *   D-Pad DOWN  = BAD shot (rejects parameters)
+ *   D-Pad LEFT  = OK shot (slight improvement)
+ *   D-Pad RIGHT = PERFECT shot (strongly locks parameters)
+ *
+ * The tuner learns from YOUR feedback, not just sensors!
+ *
+ * ═══════════════════════════════════════════════════════════════
+ *  CONTROLS
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * DRIVER 1 (gamepad1):
+ *   Left Stick     = Drive forward/back, strafe
+ *   Right Stick    = Rotate
+ *   Left Trigger   = Shoot (transfer servo)
+ *   Left Bumper    = 45% speed mode (HOLD)
+ *   Right Bumper   = 70% speed mode (HOLD)
+ *   Y + B          = Export mode
+ *   Back           = Reset all
+ *
+ * DRIVER 2 (gamepad2):
+ *   X              = Toggle deposit motors
+ *   A              = Intake forward
+ *   B              = Intake reverse
+ *   Left Stick Y   = Fine adjust target speed
+ *   D-Pad UP       = Rate GOOD
+ *   D-Pad DOWN     = Rate BAD
+ *   D-Pad LEFT     = Rate OK
+ *   D-Pad RIGHT    = Rate PERFECT
+ *   Left Bumper    = Undo last rating
+ *   Right Bumper   = Lock current params (no more changes)
  */
-@TeleOp(name = "DepoTuner", group = "Tuning")
+@TeleOp(name = "Do not Use 2", group = "Tuning")
 public class DepoTuner extends OpMode {
 
     // ═══════════════════════════════════════════════════════════════
-    //  STATIC PERSISTENCE
+    //  MOTOR CHARACTERIZATION (measure these for your motors!)
     // ═══════════════════════════════════════════════════════════════
 
-    private static double[] staticBestParams = null;
-    private static double staticBestLoss = Double.MAX_VALUE;
-    private static int staticTotalSessions = 0;
-    private static int staticTotalImprovements = 0;
-    private static boolean staticInitialized = false;
-    private static List<EliteEntry> staticElites = null;
+    // GoBILDA 5202/3/4 series typical values
+    private static final double MOTOR_MAX_RPM = 435.0;           // 435 RPM for 5202
+    private static final double MOTOR_TICKS_PER_REV = 384.5;     // Encoder ticks
+    private static final double MOTOR_MAX_TPS = (MOTOR_MAX_RPM / 60.0) * MOTOR_TICKS_PER_REV;  // ~2787 ticks/sec
 
-    // ═══════════════════════════════════════════════════════════════
-    //  FILE PERSISTENCE
-    // ═══════════════════════════════════════════════════════════════
-
-    private static final String SAVE_FOLDER = "/sdcard/FIRST/";
-    private static final String SAVE_FILE = "depotuner_params.txt";
-    private static final String ELITE_FILE = "depotuner_elites.txt";
-
-    // ═══════════════════════════════════════════════════════════════
-    //  TUNABLE PARAMETERS (20 total)
-    // ═══════════════════════════════════════════════════════════════
-
-    // Per-Ball Boost Curves (normalized to reference velocity)
-    private double ball1Mult = 1.0;
-    private double ball1Exp = 1.5;
-    private double ball2Mult = 1.6;
-    private double ball2Exp = 1.6;
-    private double ball3Mult = 1.4;
-    private double ball3Exp = 1.55;
-
-    // Boost Response
-    private double boostTrigger = 45.0;      // Base trigger (scales with velocity)
-    private double boostCap = 320.0;         // Base cap (scales with velocity)
-    private double rampUpRate = 0.4;
-    private double approachDamping = 0.6;
-    private double derivativeGain = 0.06;
-    private double decayRate = 0.015;
-
-    // Hysteresis (different enter/exit thresholds)
-    private double hysteresisRatio = 0.7;    // Exit threshold = trigger * this
-
-    // Predictive Boost
-    private double predictiveBoostFraction = 0.35;
-    private double predictiveWindowMs = 100.0;
-    private double predictiveRampUp = 0.5;   // How fast predictive boost ramps
-
-    // Integral Correction
-    private double integralGain = 0.002;
-    private double integralCap = 30.0;
-
-    // Motor Balance
-    private double motor1Bias = 0.0;
-    private double motor2Bias = 0.0;
+    // Velocity normalization
+    private static final double REFERENCE_VELOCITY = 640.0;      // Your typical target
+    private static final double VELOCITY_TOLERANCE = 0.05;       // 5% tolerance band
 
     // ═══════════════════════════════════════════════════════════════
     //  CONFIGURATION
     // ═══════════════════════════════════════════════════════════════
 
-    private static final int PARAM_COUNT = 20;
-
-    // Reference velocity for parameter normalization
-    private static final double REFERENCE_VELOCITY = 640.0;
-
-    // Voltage compensation
     private static final double NOMINAL_VOLTAGE = 12.5;
-    private static final double MIN_VOLTAGE = 10.0;
-    private static final double MAX_VOLTAGE = 14.0;
+    private static final int MAX_SAMPLES = 200;
 
-    // Kalman filter tuning
-    private static final double KALMAN_PROCESS_NOISE = 100.0;
-    private static final double KALMAN_MEASUREMENT_NOISE = 400.0;
+    // Speed modes
+    private static final double SPEED_FULL = 1.0;
+    private static final double SPEED_70 = 0.70;
+    private static final double SPEED_45 = 0.45;
 
-    // Elite preservation
-    private static final int ELITE_COUNT = 5;
-    private static final double ELITE_CROSSOVER_RATE = 0.3;
+    // Drive scaling
+    private static final double DRIVE_SCALE = 0.85;
+    private static final double STRAFE_SCALE = 0.85;
+    private static final double ROTATE_SCALE = 0.65;
 
-    // Optimizer
-    private static final double INITIAL_TEMP = 1.0;
-    private static final double COOLING_RATE = 0.993;
-    private static final double MIN_TEMP = 0.04;
-    private static final double RESTART_TEMP = 0.45;
-    private static final int RESTART_THRESHOLD = 12;
-
-    // Rollback protection
-    private static final int ROLLBACK_THRESHOLD = 5;
-    private static final double ROLLBACK_LOSS_RATIO = 1.5;
-
-    // Outlier detection
-    private static final double OUTLIER_LOSS_MULTIPLIER = 3.0;
-
-    // Oscillation detection
-    private static final double OSCILLATION_THRESHOLD = 0.15;
-    private static final double OSCILLATION_DAMPING = 0.8;
-
-    // Confidence scoring
-    private static final double CONFIDENCE_LOSS_TARGET = 50.0;
-    private static final double CONFIDENCE_VARIANCE_TARGET = 100.0;
-
-    // Session
-    private static final int MIN_SAMPLES = 30;
-    private static final int MIN_BALLS = 2;
-    private static final int WARMUP_SAMPLES = 15;
-    private static final double DROP_DETECT = 60.0;
-    private static final int MIN_BALL_GAP = 35;
-
-    // Deposit
-    private double targetVelocity = 640.0;
-    private static final double SPEED_STEP = 25.0;
-    private static final double MIN_SPEED = 100.0;
-    private static final double MAX_SPEED = 1500.0;
-
-    // Drive
-    private static final double DRIVE_SCALE = 0.8;
-    private static final double STRAFE_SCALE = 0.8;
-    private static final double ROTATE_SCALE = 0.6;
-
-    // Servo
+    // Servo positions
     private static final double SERVO_SHOOT = 0.7;
     private static final double SERVO_IDLE = 0.3;
+
+    // Session requirements
+    private static final int MIN_SAMPLES = 25;
+    private static final int WARMUP_SAMPLES = 15;
+    private static final double DROP_DETECT_THRESHOLD = 50.0;
+    private static final int MIN_BALL_GAP_SAMPLES = 25;
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TUNING PARAMETERS - STABLE STARTING POINT
+    // ═══════════════════════════════════════════════════════════════
+
+    // Gain curves per ball (ball 1 = conservative)
+    private double[] ballGain = {0.35, 0.55, 0.65};      // Multiplier per ball
+    private double[] ballCurve = {1.15, 1.25, 1.30};     // Exponent per ball
+
+    // Response parameters
+    private double triggerThreshold = 0.08;   // % of target velocity drop to trigger
+    private double maxBoostRatio = 0.25;      // Max boost as % of target
+    private double rampRate = 0.20;           // How fast to ramp up boost
+    private double dampingFactor = 0.70;      // Damping near target
+    private double derivativeGain = 0.08;     // Derivative term strength
+    private double recoveryRate = 0.03;       // How fast boost decays
+
+    // Predictive
+    private double predictiveStrength = 0.12;
+    private double predictiveWindow = 70.0;   // ms
+
+    // Integral (anti-windup)
+    private double integralStrength = 0.0008;
+    private double integralLimit = 0.03;      // As % of target
+
+    // Motor balance
+    private double motor1Trim = 0.0;
+    private double motor2Trim = 0.0;
+
+    private static final int PARAM_COUNT = 16;
 
     // ═══════════════════════════════════════════════════════════════
     //  STATE
@@ -167,164 +128,115 @@ public class DepoTuner extends OpMode {
 
     private TrowelHardware robot;
     private VoltageSensor voltageSensor;
-    private final Random random = new Random();
+    private Random random;
+    private Gamepad gp1, gp2;
 
-    // Kalman filter state
-    private double kalmanVelocity = 0;
-    private double kalmanAccel = 0;
-    private double kalmanP11 = 1, kalmanP12 = 0, kalmanP21 = 0, kalmanP22 = 1;
-    private long lastKalmanTime = 0;
+    // Timing
+    private long startTime = 0;
+    private long lastLoopTime = 0;
+    private int loopCount = 0;
 
-    // Individual motor tracking
-    private double motor1Velocity = 0;
-    private double motor2Velocity = 0;
-    private double motor1Filtered = 0;
-    private double motor2Filtered = 0;
-
-    // Voltage tracking
-    private double currentVoltage = NOMINAL_VOLTAGE;
+    // Voltage compensation
+    private double voltage = NOMINAL_VOLTAGE;
     private double voltageCompensation = 1.0;
+    private long lastVoltageRead = 0;
 
-    // Boost state
+    // Speed mode
+    private double speedMode = SPEED_FULL;
+    private String speedModeLabel = "100%";
+
+    // Target velocity
+    private double baseTargetVelocity = 640.0;
+    private double effectiveTarget = 640.0;
+
+    // Velocity measurement
+    private double rawVelocity = 0;
+    private double filteredVelocity = 0;
+    private double velocityDerivative = 0;
+    private double prevFilteredVelocity = 0;
+
+    // Boost control
     private double currentBoost = 0;
-    private double targetBoost = 0;
-    private double integralError = 0;
+    private double integralAccum = 0;
+    private boolean boostActive = false;
     private long boostStartTime = 0;
-    private boolean inBoostPhase = false;
-    private boolean exitingBoost = false;
 
-    // Predictive boost
+    // Predictive
+    private boolean predictiveActive = false;
     private long servoFireTime = 0;
-    private boolean servoPredictiveActive = false;
-    private double predictiveBoost = 0;
 
-    // Soft landing
-    private double softLandingFactor = 1.0;
-
-    // Oscillation detection
-    private double[] velocityHistory = new double[20];
-    private int velocityHistoryIdx = 0;
-    private double oscillationScore = 0;
-    private double oscillationDamping = 1.0;
-
-    // Phase tracking
-    private long dropDetectedTime = 0;
-    private long boostAppliedTime = 0;
-    private double averagePhaseDelay = 0;
+    // Motor command caching
+    private double lastCmd1 = 0, lastCmd2 = 0;
 
     // Recording
     private boolean recording = false;
-    private final List<Sample> samples = new ArrayList<>();
+    private long[] sampleTimes = new long[MAX_SAMPLES];
+    private double[] sampleVels = new double[MAX_SAMPLES];
+    private int sampleCount = 0;
     private int detectedBalls = 0;
-    private int lastBallIdx = 0;
+    private int lastBallSample = 0;
 
-    // Elite preservation
-    private List<EliteEntry> elites = new ArrayList<>();
-
-    // Optimizer
-    private double[] bestParams = new double[PARAM_COUNT];
-    private double[] currentParams = new double[PARAM_COUNT];
-    private double[] trialParams = new double[PARAM_COUNT];
-    private double bestLoss = Double.MAX_VALUE;
-    private double currentLoss = Double.MAX_VALUE;
-    private double temperature = INITIAL_TEMP;
-    private int sessionsWithoutImprove = 0;
-
-    // Rollback protection
-    private double[] rollbackParams = new double[PARAM_COUNT];
-    private double rollbackLoss = Double.MAX_VALUE;
-    private int degradationCount = 0;
-
-    // Confidence tracking
-    private double confidenceScore = 0;
-    private double lossVariance = 0;
-    private List<Double> recentLosses = new ArrayList<>();
-    private static final int LOSS_HISTORY_SIZE = 20;
-
-    // Stats
-    private int sessions = 0;
-    private int improvements = 0;
-    private int outlierCount = 0;
-    private int rollbackCount = 0;
-    private long startTime = 0;
-    private SessionResult lastResult = null;
+    // Per-ball metrics
+    private double[] ballPeakOver = new double[10];
+    private double[] ballPeakUnder = new double[10];
+    private double[] ballRecoveryTime = new double[10];
 
     // Deposit state
     private boolean depositOn = false;
 
+    // ═══════════════════════════════════════════════════════════════
+    //  OPTIMIZER STATE
+    // ═══════════════════════════════════════════════════════════════
+
+    private double[] currentParams = new double[PARAM_COUNT];
+    private double[] bestParams = new double[PARAM_COUNT];
+    private double[] trialParams = new double[PARAM_COUNT];
+    private double[] lastGoodParams = new double[PARAM_COUNT];
+
+    private double bestScore = 0;
+    private double explorationRate = 0.5;  // How much to explore vs exploit
+    private boolean paramsLocked = false;
+
+    // History for convergence
+    private double[] scoreHistory = new double[20];
+    private int historyIndex = 0;
+    private int historyCount = 0;
+
+    // Stats
+    private int totalShots = 0;
+    private int goodShots = 0;
+    private int perfectShots = 0;
+    private int badShots = 0;
+
+    // Last shot info (for rating)
+    private boolean awaitingRating = false;
+    private double lastShotMaxOver = 0;
+    private double lastShotMaxUnder = 0;
+    private double lastShotStability = 0;
+    private int lastShotBalls = 0;
+    private String lastRating = "-";
+
     // Export mode
     private boolean exportMode = false;
-    private boolean showJavaFormat = false;
-
-    // Edge detection
-    private boolean lastX = false;
-    private boolean lastLT = false;
-    private boolean lastUp = false;
-    private boolean lastDown = false;
-    private boolean lastYB = false;
-    private boolean lastRB = false;
-    private boolean lastLB = false;
-
-    // Rumble state
-    private long lastRumbleTime = 0;
-    private static final long RUMBLE_COOLDOWN = 2000;
+    private boolean javaFormat = false;
 
     // ═══════════════════════════════════════════════════════════════
-    //  DATA STRUCTURES
+    //  BUTTON STATE TRACKING
     // ═══════════════════════════════════════════════════════════════
 
-    private static class Sample {
-        final long time;
-        final double vel1, vel2, velKalman;
-        final double accel;
-        final double boost;
-        final double voltage;
-        final int ball;
+    private boolean prev_gp1_lt = false;
+    private boolean prev_gp1_back = false;
+    private boolean prev_gp1_yb = false;
+    private boolean prev_gp1_dpadL = false;
+    private boolean prev_gp1_dpadR = false;
 
-        Sample(long t, double v1, double v2, double vk, double a, double b, double volt, int ball) {
-            this.time = t; this.vel1 = v1; this.vel2 = v2;
-            this.velKalman = vk; this.accel = a;
-            this.boost = b; this.voltage = volt; this.ball = ball;
-        }
-    }
-
-    private static class BallStats {
-        double maxDrop = 0, maxOver = 0, avgOver = 0;
-        double recoveryMs = 0, rmsError = 0;
-        double motor1Error = 0, motor2Error = 0;
-        double phaseDelay = 0;
-        int count = 0;
-        boolean recovered = false;
-        boolean oscillated = false;
-    }
-
-    private static class SessionResult {
-        final int balls;
-        final double loss, stability, maxOver, avgRecovery;
-        final double oscillationScore, phaseDelay;
-        final double avgVoltage;
-        final BallStats[] stats;
-        final boolean isOutlier;
-
-        SessionResult(int b, double l, double s, double o, double r,
-                      double osc, double phase, double volt, BallStats[] st, boolean outlier) {
-            balls = b; loss = l; stability = s; maxOver = o; avgRecovery = r;
-            oscillationScore = osc; phaseDelay = phase; avgVoltage = volt;
-            stats = st; isOutlier = outlier;
-        }
-    }
-
-    private static class EliteEntry {
-        final double[] params;
-        final double loss;
-        final int sessionNum;
-
-        EliteEntry(double[] p, double l, int s) {
-            params = p.clone();
-            loss = l;
-            sessionNum = s;
-        }
-    }
+    private boolean prev_gp2_x = false;
+    private boolean prev_gp2_dpadU = false;
+    private boolean prev_gp2_dpadD = false;
+    private boolean prev_gp2_dpadL = false;
+    private boolean prev_gp2_dpadR = false;
+    private boolean prev_gp2_lb = false;
+    private boolean prev_gp2_rb = false;
 
     // ═══════════════════════════════════════════════════════════════
     //  INIT
@@ -334,206 +246,66 @@ public class DepoTuner extends OpMode {
     public void init() {
         robot = new TrowelHardware(hardwareMap);
         robot.resetDepositEncoders();
+        random = new Random();
+
+        // Configure motors
         configureMotors();
 
-        // Get voltage sensor
+        // Voltage sensor
         try {
             voltageSensor = hardwareMap.voltageSensor.iterator().next();
+            voltage = voltageSensor.getVoltage();
         } catch (Exception e) {
             voltageSensor = null;
         }
 
-        // Initialize params
+        // Initialize parameters
         syncParamsFromFields();
-        System.arraycopy(currentParams, 0, bestParams, 0, PARAM_COUNT);
-        System.arraycopy(currentParams, 0, rollbackParams, 0, PARAM_COUNT);
+        copyArray(currentParams, bestParams);
+        copyArray(currentParams, lastGoodParams);
 
-        // Load saved data
-        boolean loaded = loadFromFile();
-        if (!loaded && staticInitialized && staticBestParams != null) {
-            loadFromStatic();
-            loaded = true;
-        }
-
-        // Load elites
-        loadElitesFromFile();
-        if (elites.isEmpty() && staticElites != null) {
-            elites.addAll(staticElites);
-        }
-
+        // Servo
         if (robot.transferServo != null) {
             robot.transferServo.setPosition(SERVO_IDLE);
         }
 
         startTime = System.currentTimeMillis();
+        lastLoopTime = startTime;
 
-        showInitTelemetry(loaded);
+        // Init telemetry
+        telemetry.addLine("═══════════════════════════════════════");
+        telemetry.addLine("   DepoTuner v5.0 - DRIVER FEEDBACK");
+        telemetry.addLine("═══════════════════════════════════════");
+        telemetry.addLine("");
+        telemetry.addLine("After each shot, RATE IT:");
+        telemetry.addLine("  GP2 D-Up    = GOOD");
+        telemetry.addLine("  GP2 D-Down  = BAD");
+        telemetry.addLine("  GP2 D-Left  = OK");
+        telemetry.addLine("  GP2 D-Right = PERFECT");
+        telemetry.addLine("");
+        telemetry.addLine("GP1: Drive | LT=Shoot | LB=45% RB=70%");
+        telemetry.addLine("GP2: X=Depo | A/B=Intake | LStick=Speed");
+        telemetry.update();
     }
 
     private void configureMotors() {
+        // Drive motors
         if (robot.frontLeft != null) robot.frontLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         if (robot.frontRight != null) robot.frontRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         if (robot.backLeft != null) robot.backLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         if (robot.backRight != null) robot.backRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
+        // Deposit motors - run with encoder for velocity control
         try {
-            if (robot.deposit1 != null) robot.deposit1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-            if (robot.deposit2 != null) robot.deposit2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        } catch (Exception ignored) {}
-    }
-
-    private void showInitTelemetry(boolean loaded) {
-        telemetry.addLine("════════════════════════════════════════");
-        telemetry.addLine("      DepoTuner v4.0 - ADVANCED");
-        telemetry.addLine("════════════════════════════════════════");
-        telemetry.addLine("");
-
-        if (loaded) {
-            telemetry.addLine("✓ LOADED SAVED PARAMETERS");
-            telemetry.addData("  Best Loss", "%.1f", bestLoss);
-            telemetry.addData("  Sessions", "%d", sessions);
-            telemetry.addData("  Elites", "%d", elites.size());
-            telemetry.addData("  Confidence", "%.0f%%", confidenceScore * 100);
-        } else {
-            telemetry.addLine("Starting fresh");
-        }
-        telemetry.addLine("");
-
-        telemetry.addLine("NEW FEATURES:");
-        telemetry.addLine("  • Kalman filtered velocity");
-        telemetry.addLine("  • Voltage compensation");
-        telemetry.addLine("  • Elite preservation (top 5)");
-        telemetry.addLine("  • Oscillation detection");
-        telemetry.addLine("  • Rollback protection");
-        telemetry.addLine("");
-
-        if (voltageSensor != null) {
-            telemetry.addData("Battery", "%.2fV ✓", voltageSensor.getVoltage());
-        } else {
-            telemetry.addLine("⚠ No voltage sensor");
-        }
-        telemetry.addLine("");
-
-        telemetry.addLine("Controls: X=Deposit, LT=Shoot");
-        telemetry.addLine("Y+B=Export, RB=Save, LB+L3+R3=Reset");
-        telemetry.update();
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  KALMAN FILTER
-    // ═══════════════════════════════════════════════════════════════
-
-    private void updateKalmanFilter(double measuredVel) {
-        long now = System.currentTimeMillis();
-
-        if (lastKalmanTime == 0) {
-            kalmanVelocity = measuredVel;
-            kalmanAccel = 0;
-            lastKalmanTime = now;
-            return;
-        }
-
-        double dt = (now - lastKalmanTime) / 1000.0;
-        if (dt <= 0.001) return;
-        lastKalmanTime = now;
-
-        // Predict step
-        double predVel = kalmanVelocity + kalmanAccel * dt;
-        double predAccel = kalmanAccel;
-
-        // Predict covariance
-        double q = KALMAN_PROCESS_NOISE * dt;
-        double p11 = kalmanP11 + dt * (kalmanP21 + kalmanP12) + dt * dt * kalmanP22 + q;
-        double p12 = kalmanP12 + dt * kalmanP22;
-        double p21 = kalmanP21 + dt * kalmanP22;
-        double p22 = kalmanP22 + q;
-
-        // Update step
-        double r = KALMAN_MEASUREMENT_NOISE;
-        double s = p11 + r;
-        double k1 = p11 / s;
-        double k2 = p21 / s;
-
-        double innovation = measuredVel - predVel;
-        kalmanVelocity = predVel + k1 * innovation;
-        kalmanAccel = predAccel + k2 * innovation;
-
-        // Update covariance
-        kalmanP11 = (1 - k1) * p11;
-        kalmanP12 = (1 - k1) * p12;
-        kalmanP21 = -k2 * p11 + p21;
-        kalmanP22 = -k2 * p12 + p22;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  VOLTAGE COMPENSATION
-    // ═══════════════════════════════════════════════════════════════
-
-    private void updateVoltage() {
-        if (voltageSensor != null) {
-            double v = voltageSensor.getVoltage();
-            // Smooth voltage reading
-            currentVoltage = 0.9 * currentVoltage + 0.1 * v;
-            currentVoltage = clamp(currentVoltage, MIN_VOLTAGE, MAX_VOLTAGE);
-
-            // Calculate compensation factor
-            // Higher voltage = less boost needed, lower voltage = more boost needed
-            voltageCompensation = NOMINAL_VOLTAGE / currentVoltage;
-            voltageCompensation = clamp(voltageCompensation, 0.85, 1.25);
-        } else {
-            voltageCompensation = 1.0;
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  OSCILLATION DETECTION
-    // ═══════════════════════════════════════════════════════════════
-
-    private void updateOscillationDetection(double velocity) {
-        // Store in circular buffer
-        velocityHistory[velocityHistoryIdx] = velocity;
-        velocityHistoryIdx = (velocityHistoryIdx + 1) % velocityHistory.length;
-
-        // Calculate zero-crossing rate (sign changes in error)
-        int crossings = 0;
-        double lastErr = 0;
-        for (int i = 0; i < velocityHistory.length; i++) {
-            double err = velocityHistory[i] - targetVelocity;
-            if (i > 0 && lastErr * err < 0) {
-                crossings++;
+            if (robot.deposit1 != null) {
+                robot.deposit1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                robot.deposit1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             }
-            lastErr = err;
-        }
-
-        // Normalize to 0-1 range
-        double crossingRate = crossings / (double) (velocityHistory.length - 1);
-
-        // Smooth oscillation score
-        oscillationScore = 0.8 * oscillationScore + 0.2 * crossingRate;
-
-        // Apply damping if oscillating
-        if (oscillationScore > OSCILLATION_THRESHOLD) {
-            oscillationDamping = Math.max(0.5, oscillationDamping * OSCILLATION_DAMPING);
-        } else {
-            oscillationDamping = Math.min(1.0, oscillationDamping * 1.02);
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  VELOCITY SCALING
-    // ═══════════════════════════════════════════════════════════════
-
-    private double getVelocityScale() {
-        // Scale parameters relative to reference velocity
-        return targetVelocity / REFERENCE_VELOCITY;
-    }
-
-    private double getScaledTrigger() {
-        return boostTrigger * getVelocityScale();
-    }
-
-    private double getScaledCap() {
-        return boostCap * getVelocityScale();
+            if (robot.deposit2 != null) {
+                robot.deposit2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                robot.deposit2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            }
+        } catch (Exception ignored) {}
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -542,1219 +314,881 @@ public class DepoTuner extends OpMode {
 
     @Override
     public void loop() {
-        updateVoltage();
-        updateMotorVelocities();
-        handleDrive();
-        handleSpeed();
-        handleDeposit();
-        handleSession();
-        handleIntakes();
-        handleExportMode();
-        handleSaveReset();
-        runDeposit();
+        long now = System.currentTimeMillis();
+        double dt = (now - lastLoopTime) / 1000.0;
+        lastLoopTime = now;
+        loopCount++;
 
-        if (exportMode) {
-            showExportTelemetry();
+        // Get gamepad references
+        gp1 = gamepad1;
+        gp2 = gamepad2;
+
+        // === EVERY LOOP ===
+        handleDriver1();
+        handleDriver2();
+        handleDrive();
+        handleIntakes();
+        updateSpeedMode();
+
+        // === PERIODIC (every 4 loops) ===
+        if (loopCount % 4 == 0) {
+            updateVoltage();
+
+            if (depositOn) {
+                updateVelocity(dt);
+                runDepositControl(now);
+            }
+        }
+
+        // === TELEMETRY (every 200ms) ===
+        if (loopCount % 8 == 0) {
+            if (exportMode) {
+                showExportTelemetry();
+            } else {
+                showMainTelemetry();
+            }
+        }
+
+        // Update previous states
+        updatePrevStates();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SPEED MODE (Driver 1 bumpers)
+    // ═══════════════════════════════════════════════════════════════
+
+    private void updateSpeedMode() {
+        // Check bumpers DIRECTLY each loop
+        if (gp1.left_bumper) {
+            speedMode = SPEED_45;
+            speedModeLabel = "45%";
+        } else if (gp1.right_bumper) {
+            speedMode = SPEED_70;
+            speedModeLabel = "70%";
         } else {
-            showTelemetry();
+            speedMode = SPEED_FULL;
+            speedModeLabel = "100%";
+        }
+
+        // Calculate effective target
+        effectiveTarget = baseTargetVelocity * speedMode;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  DRIVER 1 CONTROLS
+    // ═══════════════════════════════════════════════════════════════
+
+    private void handleDriver1() {
+        // Left Trigger - Shoot
+        boolean ltPressed = gp1.left_trigger > 0.5;
+        boolean ltJustPressed = ltPressed && !prev_gp1_lt;
+        boolean ltJustReleased = !ltPressed && prev_gp1_lt;
+
+        if (ltJustPressed && depositOn) {
+            startRecording();
+            if (robot.transferServo != null) {
+                robot.transferServo.setPosition(SERVO_SHOOT);
+                servoFireTime = System.currentTimeMillis();
+                predictiveActive = true;
+            }
+        }
+
+        if (ltJustReleased) {
+            if (recording) {
+                endRecording();
+            }
+            if (robot.transferServo != null) {
+                robot.transferServo.setPosition(SERVO_IDLE);
+            }
+            predictiveActive = false;
+        }
+
+        // Back - Reset
+        boolean backJustPressed = gp1.back && !prev_gp1_back;
+        if (backJustPressed) {
+            resetAll();
+            rumble(gp1, 500);
+        }
+
+        // Y+B - Export mode
+        boolean ybPressed = gp1.y && gp1.b;
+        boolean ybJustPressed = ybPressed && !prev_gp1_yb;
+        if (ybJustPressed) {
+            exportMode = !exportMode;
+            javaFormat = false;
+        }
+
+        // D-pad in export mode - toggle format
+        if (exportMode) {
+            if ((gp1.dpad_left && !prev_gp1_dpadL) || (gp1.dpad_right && !prev_gp1_dpadR)) {
+                javaFormat = !javaFormat;
+            }
         }
     }
 
-    private void updateMotorVelocities() {
-        if (robot.deposit1 == null) return;
+    // ═══════════════════════════════════════════════════════════════
+    //  DRIVER 2 CONTROLS
+    // ═══════════════════════════════════════════════════════════════
 
-        // Read individual motors
-        motor1Velocity = robot.getDeposit1Velocity();
-        motor2Velocity = robot.getDeposit2Velocity();
+    private void handleDriver2() {
+        // X - Toggle deposit
+        if (gp2.x && !prev_gp2_x) {
+            depositOn = !depositOn;
+            if (!depositOn) {
+                robot.stopDeposit();
+                resetBoostState();
+            }
+        }
 
-        // Simple filter for individual motors
-        motor1Filtered = 0.7 * motor1Filtered + 0.3 * motor1Velocity;
-        motor2Filtered = 0.7 * motor2Filtered + 0.3 * motor2Velocity;
+        // Left stick Y - Fine adjust target speed
+        double stickY = -gp2.left_stick_y;
+        if (Math.abs(stickY) > 0.1) {
+            baseTargetVelocity += stickY * 2.0;  // Slow adjustment
+            baseTargetVelocity = clamp(baseTargetVelocity, 200, 1200);
+        }
 
-        // Average for Kalman filter
-        double avgVel = (motor1Velocity + motor2Velocity) / 2.0;
-        updateKalmanFilter(avgVel);
+        // === RATING SYSTEM ===
+        if (awaitingRating) {
+            // D-Pad UP - GOOD
+            if (gp2.dpad_up && !prev_gp2_dpadU) {
+                rateShot(Rating.GOOD);
+            }
+            // D-Pad DOWN - BAD
+            if (gp2.dpad_down && !prev_gp2_dpadD) {
+                rateShot(Rating.BAD);
+            }
+            // D-Pad LEFT - OK
+            if (gp2.dpad_left && !prev_gp2_dpadL) {
+                rateShot(Rating.OK);
+            }
+            // D-Pad RIGHT - PERFECT
+            if (gp2.dpad_right && !prev_gp2_dpadR) {
+                rateShot(Rating.PERFECT);
+            }
+        }
 
-        // Update oscillation detection
-        updateOscillationDetection(kalmanVelocity);
+        // Left Bumper - Undo last rating
+        if (gp2.left_bumper && !prev_gp2_lb) {
+            undoLastRating();
+        }
+
+        // Right Bumper - Lock params
+        if (gp2.right_bumper && !prev_gp2_rb) {
+            paramsLocked = !paramsLocked;
+            rumble(gp2, paramsLocked ? 300 : 100);
+        }
     }
 
-    private void handleDrive() {
-        double fwd = -gamepad1.left_stick_y * DRIVE_SCALE;
-        double str = gamepad1.left_stick_x * STRAFE_SCALE;
-        double rot = gamepad1.right_stick_x * ROTATE_SCALE;
+    // ═══════════════════════════════════════════════════════════════
+    //  RATING SYSTEM
+    // ═══════════════════════════════════════════════════════════════
 
-        double fl = fwd + str + rot;
-        double fr = fwd - str - rot;
-        double bl = fwd - str + rot;
-        double br = fwd + str - rot;
+    private enum Rating { PERFECT, GOOD, OK, BAD }
+
+    private void rateShot(Rating rating) {
+        awaitingRating = false;
+        totalShots++;
+
+        double score;
+        switch (rating) {
+            case PERFECT:
+                score = 100;
+                perfectShots++;
+                lastRating = "★ PERFECT ★";
+                // Strongly lock these params
+                copyArray(currentParams, bestParams);
+                copyArray(currentParams, lastGoodParams);
+                explorationRate = Math.max(0.05, explorationRate * 0.5);
+                rumble(gp2, 400);
+                break;
+
+            case GOOD:
+                score = 75;
+                goodShots++;
+                lastRating = "✓ GOOD";
+                // Lock these params
+                copyArray(currentParams, lastGoodParams);
+                if (score > bestScore) {
+                    bestScore = score;
+                    copyArray(currentParams, bestParams);
+                }
+                explorationRate = Math.max(0.1, explorationRate * 0.7);
+                rumble(gp2, 200);
+                break;
+
+            case OK:
+                score = 50;
+                lastRating = "~ OK";
+                // Slight improvement
+                explorationRate = Math.max(0.15, explorationRate * 0.85);
+                break;
+
+            case BAD:
+            default:
+                score = 0;
+                badShots++;
+                lastRating = "✗ BAD";
+                // Reject these params, go back to last good
+                copyArray(lastGoodParams, currentParams);
+                syncFieldsFromParams();
+                explorationRate = Math.min(0.8, explorationRate * 1.3);
+                rumble(gp2, 100);
+                break;
+        }
+
+        // Update history
+        scoreHistory[historyIndex] = score;
+        historyIndex = (historyIndex + 1) % scoreHistory.length;
+        if (historyCount < scoreHistory.length) historyCount++;
+
+        // Check for convergence
+        checkConvergence();
+    }
+
+    private void undoLastRating() {
+        if (historyCount > 0) {
+            historyCount--;
+            historyIndex = (historyIndex - 1 + scoreHistory.length) % scoreHistory.length;
+            lastRating = "(undone)";
+            rumble(gp2, 50);
+        }
+    }
+
+    private void checkConvergence() {
+        if (historyCount < 5) return;
+
+        // Calculate average recent score
+        double sum = 0;
+        int count = Math.min(historyCount, 10);
+        for (int i = 0; i < count; i++) {
+            int idx = (historyIndex - 1 - i + scoreHistory.length) % scoreHistory.length;
+            sum += scoreHistory[idx];
+        }
+        double avgScore = sum / count;
+
+        // If consistently good, reduce exploration
+        if (avgScore >= 70) {
+            explorationRate = Math.max(0.05, explorationRate * 0.9);
+        }
+        // If consistently bad, increase exploration
+        else if (avgScore < 40) {
+            explorationRate = Math.min(0.7, explorationRate * 1.1);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  DRIVE
+    // ═══════════════════════════════════════════════════════════════
+
+    private void handleDrive() {
+        double forward = -gp1.left_stick_y * DRIVE_SCALE;
+        double strafe = gp1.left_stick_x * STRAFE_SCALE;
+        double rotate = gp1.right_stick_x * ROTATE_SCALE;
+
+        if (Math.abs(forward) < 0.05 && Math.abs(strafe) < 0.05 && Math.abs(rotate) < 0.05) {
+            setDrivePowers(0, 0, 0, 0);
+            return;
+        }
+
+        double fl = forward + strafe + rotate;
+        double fr = forward - strafe - rotate;
+        double bl = forward - strafe + rotate;
+        double br = forward + strafe - rotate;
 
         double max = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
                 Math.max(Math.abs(bl), Math.abs(br))));
 
-        if (robot.frontLeft != null) robot.frontLeft.setPower(fl / max);
-        if (robot.frontRight != null) robot.frontRight.setPower(fr / max);
-        if (robot.backLeft != null) robot.backLeft.setPower(bl / max);
-        if (robot.backRight != null) robot.backRight.setPower(br / max);
+        setDrivePowers(fl/max, fr/max, bl/max, br/max);
     }
 
-    private void handleSpeed() {
-        boolean up = gamepad1.dpad_up;
-        boolean down = gamepad1.dpad_down;
-
-        if (up && !lastUp) targetVelocity = Math.min(MAX_SPEED, targetVelocity + SPEED_STEP);
-        if (down && !lastDown) targetVelocity = Math.max(MIN_SPEED, targetVelocity - SPEED_STEP);
-
-        lastUp = up;
-        lastDown = down;
+    private void setDrivePowers(double fl, double fr, double bl, double br) {
+        if (robot.frontLeft != null) robot.frontLeft.setPower(fl);
+        if (robot.frontRight != null) robot.frontRight.setPower(fr);
+        if (robot.backLeft != null) robot.backLeft.setPower(bl);
+        if (robot.backRight != null) robot.backRight.setPower(br);
     }
 
-    private void handleDeposit() {
-        boolean x = gamepad1.x;
-        if (x && !lastX) {
-            depositOn = !depositOn;
-            if (!depositOn) {
-                robot.stopDeposit();
-                if (recording) endSession();
-                resetBoostState();
-            }
-        }
-        lastX = x;
-    }
-
-    private void handleSession() {
-        boolean lt = gamepad1.left_trigger > 0.5;
-
-        if (lt && !lastLT && depositOn) {
-            startSession();
-            if (robot.transferServo != null) {
-                robot.transferServo.setPosition(SERVO_SHOOT);
-                servoFireTime = System.currentTimeMillis();
-                servoPredictiveActive = true;
-            }
-        } else if (!lt && lastLT) {
-            if (recording) endSession();
-            if (robot.transferServo != null) {
-                robot.transferServo.setPosition(SERVO_IDLE);
-            }
-            servoPredictiveActive = false;
-        }
-
-        lastLT = lt;
-    }
+    // ═══════════════════════════════════════════════════════════════
+    //  INTAKES
+    // ═══════════════════════════════════════════════════════════════
 
     private void handleIntakes() {
         double power = 0;
-        if (gamepad1.a) power = 1.0;
-        else if (gamepad1.b && !exportMode) power = -1.0;
+        if (gp2.a) power = 1.0;
+        else if (gp2.b) power = -1.0;
 
         if (robot.intake1 != null) robot.intake1.setPower(power);
         if (robot.intake2 != null) robot.intake2.setPower(-power);
     }
 
-    private void handleExportMode() {
-        boolean yb = gamepad1.y && gamepad1.b;
-
-        if (yb && !lastYB) {
-            exportMode = !exportMode;
-            showJavaFormat = false;
-        }
-        lastYB = yb;
-
-        if (exportMode && (gamepad1.dpad_left || gamepad1.dpad_right)) {
-            showJavaFormat = !showJavaFormat;
-        }
-    }
-
-    private void handleSaveReset() {
-        boolean rb = gamepad1.right_bumper;
-        boolean lb = gamepad1.left_bumper;
-
-        if (rb && !lastRB) {
-            saveToFile();
-            saveElitesToFile();
-            saveToStatic();
-            rumbleController(200);
-        }
-        lastRB = rb;
-
-        if (lb && gamepad1.left_stick_button && gamepad1.right_stick_button) {
-            resetToDefaults();
-        }
-        lastLB = lb;
-    }
-
     // ═══════════════════════════════════════════════════════════════
-    //  DEPOSIT CONTROL
+    //  VOLTAGE COMPENSATION
     // ═══════════════════════════════════════════════════════════════
 
-    private void runDeposit() {
-        if (!depositOn || robot.deposit1 == null) return;
-
+    private void updateVoltage() {
         long now = System.currentTimeMillis();
-        double drop = targetVelocity - kalmanVelocity;
-        double scaledTrigger = getScaledTrigger();
-        double scaledCap = getScaledCap();
-        double velScale = getVelocityScale();
+        if (now - lastVoltageRead < 500) return;
+        lastVoltageRead = now;
 
-        targetBoost = 0;
-
-        // ─── PREDICTIVE BOOST (servo-triggered) ───
-        if (servoPredictiveActive) {
-            double elapsed = now - servoFireTime;
-            if (elapsed < predictiveWindowMs) {
-                // Ramp up predictive boost
-                double rampProgress = Math.min(1.0, elapsed / (predictiveWindowMs * predictiveRampUp));
-                double predDrop = scaledTrigger * 1.5;  // Anticipate medium drop
-                double predBase = getBaseBoost(predDrop, detectedBalls, velScale);
-                predictiveBoost = predBase * predictiveBoostFraction * rampProgress;
-                targetBoost = predictiveBoost;
-
-                if (boostAppliedTime == 0) {
-                    boostAppliedTime = now;
-                }
-            } else {
-                predictiveBoost *= 0.9;  // Decay predictive boost
-            }
+        if (voltageSensor != null) {
+            double v = voltageSensor.getVoltage();
+            voltage = voltage * 0.7 + v * 0.3;  // Smooth
+            voltageCompensation = NOMINAL_VOLTAGE / clamp(voltage, 10.0, 14.0);
         }
-
-        // ─── REACTIVE BOOST (drop-triggered) ───
-        double effectiveTrigger = inBoostPhase ?
-                (scaledTrigger * hysteresisRatio) : scaledTrigger;
-
-        if (drop >= effectiveTrigger) {
-            if (!inBoostPhase) {
-                inBoostPhase = true;
-                exitingBoost = false;
-                boostStartTime = now;
-                dropDetectedTime = now;
-            }
-
-            double baseBoost = getBaseBoost(drop, detectedBalls, velScale);
-
-            // Apply approach damping (soft landing)
-            double dampingRange = scaledTrigger * 2.5;
-            if (drop < dampingRange) {
-                double t = drop / dampingRange;
-                softLandingFactor = approachDamping + (1 - approachDamping) * t * t;
-            } else {
-                softLandingFactor = 1.0;
-            }
-            baseBoost *= softLandingFactor;
-
-            // Apply derivative damping
-            if (kalmanAccel > 0) {
-                baseBoost -= derivativeGain * kalmanAccel * velScale;
-            }
-
-            // Apply time decay (anti-windup)
-            double dur = (now - boostStartTime) / 1000.0;
-            baseBoost *= Math.exp(-decayRate * dur * 10);
-
-            // Apply oscillation damping
-            baseBoost *= oscillationDamping;
-
-            // Apply voltage compensation
-            baseBoost *= voltageCompensation;
-
-            targetBoost = Math.max(targetBoost, baseBoost);
-        } else {
-            if (inBoostPhase) {
-                exitingBoost = true;
-            }
-            if (exitingBoost && drop < scaledTrigger * 0.3) {
-                inBoostPhase = false;
-                exitingBoost = false;
-            }
-        }
-
-        // ─── RAMP BOOST ───
-        if (targetBoost > currentBoost) {
-            currentBoost += (targetBoost - currentBoost) * rampUpRate;
-        } else {
-            // Slower ramp down for soft landing
-            double rampDown = exitingBoost ? 0.15 : 0.25;
-            currentBoost += (targetBoost - currentBoost) * rampDown;
-        }
-        currentBoost = clamp(currentBoost, 0, scaledCap);
-
-        // ─── INTEGRAL CORRECTION ───
-        double error = targetVelocity - kalmanVelocity;
-        if (Math.abs(error) < scaledTrigger * 0.4) {
-            integralError += error * integralGain;
-            integralError = clamp(integralError, -integralCap * velScale, integralCap * velScale);
-        } else if (Math.abs(error) > scaledTrigger) {
-            // Reset integral on large errors
-            integralError *= 0.9;
-        }
-
-        // ─── APPLY TO MOTORS ───
-        double totalBoost = currentBoost + integralError;
-        double vel1 = (targetVelocity + totalBoost + motor1Bias * velScale) * voltageCompensation;
-        double vel2 = (targetVelocity + totalBoost + motor2Bias * velScale) * voltageCompensation;
-
-        robot.deposit1.setVelocity(vel1);
-        robot.deposit2.setVelocity(vel2);
-
-        // ─── RECORD ───
-        if (recording && samples.size() >= WARMUP_SAMPLES) {
-            samples.add(new Sample(now, motor1Filtered, motor2Filtered, kalmanVelocity,
-                    kalmanAccel, currentBoost, currentVoltage, detectedBalls));
-        } else if (recording) {
-            // Still in warmup - add but mark
-            samples.add(new Sample(now, motor1Filtered, motor2Filtered, kalmanVelocity,
-                    kalmanAccel, currentBoost, currentVoltage, -1));
-        }
-
-        if (recording) detectBall();
     }
 
-    private double getBaseBoost(double drop, int ball, double velScale) {
-        double mult, exp;
-        switch (ball) {
-            case 0:  mult = ball1Mult; exp = ball1Exp; break;
-            case 1:  mult = ball2Mult; exp = ball2Exp; break;
-            default: mult = ball3Mult; exp = ball3Exp; break;
+    // ═══════════════════════════════════════════════════════════════
+    //  VELOCITY MEASUREMENT (Standardized)
+    // ═══════════════════════════════════════════════════════════════
+
+    private void updateVelocity(double dt) {
+        if (robot.deposit1 == null) return;
+
+        // Get raw velocities
+        double v1 = robot.getDeposit1Velocity();
+        double v2 = robot.getDeposit2Velocity();
+        rawVelocity = (v1 + v2) * 0.5;
+
+        // Apply standardized filter (2nd order for stability)
+        double alpha = 0.25;
+        prevFilteredVelocity = filteredVelocity;
+        filteredVelocity = filteredVelocity * (1 - alpha) + rawVelocity * alpha;
+
+        // Calculate derivative (smoothed)
+        if (dt > 0.001) {
+            double rawDerivative = (filteredVelocity - prevFilteredVelocity) / dt;
+            velocityDerivative = velocityDerivative * 0.6 + rawDerivative * 0.4;
         }
-        // Scale boost with velocity
-        return mult * Math.pow(Math.max(0, drop), exp) * Math.sqrt(velScale);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  DEPOSIT CONTROL (Standardized)
+    // ═══════════════════════════════════════════════════════════════
+
+    private void runDepositControl(long now) {
+        if (robot.deposit1 == null) return;
+
+        // Normalized error (as fraction of target)
+        double error = (effectiveTarget - filteredVelocity) / effectiveTarget;
+        double absError = Math.abs(error);
+
+        // Normalized derivative
+        double normDerivative = velocityDerivative / effectiveTarget;
+
+        double targetBoost = 0;
+
+        // === PREDICTIVE BOOST ===
+        if (predictiveActive) {
+            double elapsed = now - servoFireTime;
+            if (elapsed < predictiveWindow) {
+                double ramp = Math.min(1.0, elapsed / (predictiveWindow * 0.5));
+                targetBoost = effectiveTarget * predictiveStrength * ramp;
+
+                // Less for first ball
+                if (detectedBalls == 0) {
+                    targetBoost *= 0.5;
+                }
+            }
+        }
+
+        // === REACTIVE BOOST ===
+        double triggerLevel = boostActive ? (triggerThreshold * 0.7) : triggerThreshold;
+
+        if (error >= triggerLevel) {
+            if (!boostActive) {
+                boostActive = true;
+                boostStartTime = now;
+            }
+
+            // Get ball-specific gain
+            int ballIdx = Math.min(detectedBalls, 2);
+            double gain = ballGain[ballIdx];
+            double curve = ballCurve[ballIdx];
+
+            // Calculate boost (normalized then scaled)
+            double normBoost = gain * Math.pow(error / triggerThreshold, curve);
+
+            // Cap at max ratio
+            normBoost = Math.min(normBoost, maxBoostRatio);
+
+            // Apply damping when approaching target
+            if (absError < triggerThreshold * 2) {
+                double dampT = absError / (triggerThreshold * 2);
+                normBoost *= dampingFactor + (1 - dampingFactor) * dampT;
+            }
+
+            // Derivative damping (if recovering, reduce boost)
+            if (normDerivative > 0) {
+                normBoost -= derivativeGain * normDerivative * 10;
+                normBoost = Math.max(0, normBoost);
+            }
+
+            // Time decay
+            double duration = (now - boostStartTime) / 1000.0;
+            normBoost *= Math.exp(-recoveryRate * duration * 15);
+
+            // Scale to actual velocity
+            double reactiveBoost = normBoost * effectiveTarget;
+            targetBoost = Math.max(targetBoost, reactiveBoost);
+
+        } else if (error < triggerThreshold * 0.25) {
+            boostActive = false;
+        }
+
+        // === ANTI-OVERSHOOT ===
+        if (filteredVelocity > effectiveTarget * 1.01) {
+            targetBoost = 0;
+            currentBoost *= 0.3;
+            integralAccum *= 0.5;
+        }
+
+        // === RAMP BOOST ===
+        double rampSpeed = (targetBoost > currentBoost) ? rampRate : 0.4;
+        currentBoost += (targetBoost - currentBoost) * rampSpeed;
+        currentBoost = clamp(currentBoost, 0, effectiveTarget * maxBoostRatio);
+
+        // === INTEGRAL (conservative) ===
+        if (absError < triggerThreshold * 0.5 && filteredVelocity <= effectiveTarget) {
+            integralAccum += error * integralStrength;
+            double maxIntegral = effectiveTarget * integralLimit;
+            integralAccum = clamp(integralAccum, -maxIntegral, maxIntegral);
+        } else if (filteredVelocity > effectiveTarget) {
+            integralAccum = Math.min(0, integralAccum * 0.8);
+        }
+
+        // === CALCULATE COMMANDS ===
+        double totalBoost = currentBoost + integralAccum;
+
+        double cmd1 = (effectiveTarget + totalBoost) * voltageCompensation;
+        double cmd2 = (effectiveTarget + totalBoost) * voltageCompensation;
+
+        // Apply motor trims
+        cmd1 *= (1.0 + motor1Trim);
+        cmd2 *= (1.0 + motor2Trim);
+
+        // === WRITE TO MOTORS (with caching) ===
+        if (Math.abs(cmd1 - lastCmd1) > 2.0) {
+            robot.deposit1.setVelocity(cmd1);
+            lastCmd1 = cmd1;
+        }
+        if (Math.abs(cmd2 - lastCmd2) > 2.0) {
+            robot.deposit2.setVelocity(cmd2);
+            lastCmd2 = cmd2;
+        }
+
+        // === RECORD SAMPLES ===
+        if (recording && sampleCount < MAX_SAMPLES) {
+            sampleTimes[sampleCount] = now;
+            sampleVels[sampleCount] = filteredVelocity;
+            sampleCount++;
+
+            // Track per-ball metrics
+            if (sampleCount > WARMUP_SAMPLES && detectedBalls < 10) {
+                double over = filteredVelocity - effectiveTarget;
+                double under = effectiveTarget - filteredVelocity;
+
+                if (over > ballPeakOver[detectedBalls]) {
+                    ballPeakOver[detectedBalls] = over;
+                }
+                if (under > ballPeakUnder[detectedBalls]) {
+                    ballPeakUnder[detectedBalls] = under;
+                }
+            }
+
+            detectBallDrop();
+        }
     }
 
     private void resetBoostState() {
         currentBoost = 0;
-        targetBoost = 0;
-        integralError = 0;
-        inBoostPhase = false;
-        exitingBoost = false;
-        predictiveBoost = 0;
-        softLandingFactor = 1.0;
-        boostAppliedTime = 0;
-        dropDetectedTime = 0;
+        integralAccum = 0;
+        boostActive = false;
+        predictiveActive = false;
     }
 
     // ═══════════════════════════════════════════════════════════════
     //  BALL DETECTION
     // ═══════════════════════════════════════════════════════════════
 
-    private void detectBall() {
-        int n = samples.size();
-        if (n < 25 || n - lastBallIdx < MIN_BALL_GAP) return;
+    private void detectBallDrop() {
+        if (sampleCount < WARMUP_SAMPLES + 15) return;
+        if (sampleCount - lastBallSample < MIN_BALL_GAP_SAMPLES) return;
 
-        double prev = 0, curr = 0;
-        for (int i = 10; i <= 14; i++) prev += samples.get(n - i).velKalman;
-        for (int i = 1; i <= 5; i++) curr += samples.get(n - i).velKalman;
-        prev /= 5; curr /= 5;
+        // Compare recent vs slightly older samples
+        double older = 0, newer = 0;
+        for (int i = 0; i < 5; i++) {
+            older += sampleVels[sampleCount - 12 - i];
+            newer += sampleVels[sampleCount - 2 - i];
+        }
+        older /= 5;
+        newer /= 5;
 
-        double dropAmount = prev - curr;
-        double scaledDetect = DROP_DETECT * getVelocityScale();
+        double drop = older - newer;
+        double threshold = effectiveTarget * 0.08;  // 8% drop
 
-        if (dropAmount > scaledDetect) {
-            boolean stable = true;
-            double scaledTrigger = getScaledTrigger();
-            for (int i = 16; i <= 22 && n - i >= 0; i++) {
-                if (samples.get(n - i).ball < 0) continue;  // Skip warmup
-                if (Math.abs(samples.get(n - i).velKalman - targetVelocity) > scaledTrigger * 0.6) {
-                    stable = false;
-                    break;
-                }
-            }
-            if (stable) {
-                detectedBalls++;
-                lastBallIdx = n;
-                dropDetectedTime = System.currentTimeMillis();
+        if (drop > threshold) {
+            detectedBalls++;
+            lastBallSample = sampleCount;
+
+            // Initialize next ball tracking
+            if (detectedBalls < 10) {
+                ballPeakOver[detectedBalls] = 0;
+                ballPeakUnder[detectedBalls] = 0;
             }
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  SESSION MANAGEMENT
+    //  RECORDING SESSION
     // ═══════════════════════════════════════════════════════════════
 
-    private void startSession() {
+    private void startRecording() {
         recording = true;
-        samples.clear();
+        sampleCount = 0;
         detectedBalls = 0;
-        lastBallIdx = 0;
+        lastBallSample = 0;
+
+        for (int i = 0; i < 10; i++) {
+            ballPeakOver[i] = 0;
+            ballPeakUnder[i] = 0;
+            ballRecoveryTime[i] = 0;
+        }
+
         resetBoostState();
 
-        // Reset Kalman
-        kalmanVelocity = 0;
-        kalmanAccel = 0;
-        lastKalmanTime = 0;
-
-        // Reset oscillation
-        Arrays.fill(velocityHistory, 0);
-        oscillationScore = 0;
-        oscillationDamping = 1.0;
-
-        // Generate trial params from elites or best
-        generateTrialParams();
-        System.arraycopy(trialParams, 0, currentParams, 0, PARAM_COUNT);
-        syncFieldsFromParams();
+        // Generate trial params if not locked
+        if (!paramsLocked) {
+            generateTrialParams();
+            copyArray(trialParams, currentParams);
+            syncFieldsFromParams();
+        }
     }
+
+    private void endRecording() {
+        recording = false;
+        predictiveActive = false;
+
+        int validSamples = sampleCount - WARMUP_SAMPLES;
+        if (validSamples < MIN_SAMPLES) {
+            return;
+        }
+
+        // Analyze shot
+        analyzeShot();
+
+        // Mark awaiting rating
+        awaitingRating = true;
+        lastRating = "? RATE IT";
+    }
+
+    private void analyzeShot() {
+        double maxOver = 0, maxUnder = 0;
+        double sumSqErr = 0;
+        int count = 0;
+
+        for (int i = WARMUP_SAMPLES; i < sampleCount; i++) {
+            double v = sampleVels[i];
+            double err = v - effectiveTarget;
+            sumSqErr += err * err;
+            count++;
+
+            if (v > effectiveTarget) {
+                maxOver = Math.max(maxOver, v - effectiveTarget);
+            } else {
+                maxUnder = Math.max(maxUnder, effectiveTarget - v);
+            }
+        }
+
+        lastShotMaxOver = maxOver;
+        lastShotMaxUnder = maxUnder;
+        lastShotStability = count > 0 ? 100 - Math.sqrt(sumSqErr / count) : 0;
+        lastShotBalls = detectedBalls;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PARAMETER GENERATION
+    // ═══════════════════════════════════════════════════════════════
 
     private void generateTrialParams() {
-        if (elites.size() >= 2 && random.nextDouble() < ELITE_CROSSOVER_RATE) {
-            // Crossover between two random elites
-            int idx1 = random.nextInt(elites.size());
-            int idx2 = random.nextInt(elites.size());
-            while (idx2 == idx1 && elites.size() > 1) {
-                idx2 = random.nextInt(elites.size());
-            }
+        // Start from best known
+        copyArray(bestParams, trialParams);
 
-            double[] p1 = elites.get(idx1).params;
-            double[] p2 = elites.get(idx2).params;
-
-            for (int i = 0; i < PARAM_COUNT; i++) {
-                // Blend with some randomness
-                double blend = random.nextDouble();
-                trialParams[i] = p1[i] * blend + p2[i] * (1 - blend);
-            }
-
-            // Small perturbation on top
-            perturbParams(trialParams, temperature * 0.5);
-        } else {
-            // Start from best and perturb
-            System.arraycopy(bestParams, 0, trialParams, 0, PARAM_COUNT);
-            perturbParams(trialParams, temperature);
-        }
-    }
-
-    private void endSession() {
-        recording = false;
-        servoPredictiveActive = false;
-
-        // Filter out warmup samples
-        List<Sample> validSamples = new ArrayList<>();
-        for (Sample s : samples) {
-            if (s.ball >= 0) validSamples.add(s);
-        }
-
-        if (validSamples.size() < MIN_SAMPLES) return;
-
-        SessionResult result = analyze(validSamples);
-        lastResult = result;
-        sessions++;
-
-        // Outlier check
-        if (result.isOutlier) {
-            outlierCount++;
-            return;  // Don't update anything
-        }
-
-        if (result.balls < MIN_BALLS) {
-            sessionsWithoutImprove++;
-            checkRestart();
-            return;
-        }
-
-        // Update loss history
-        recentLosses.add(result.loss);
-        if (recentLosses.size() > LOSS_HISTORY_SIZE) {
-            recentLosses.remove(0);
-        }
-        updateConfidence();
-
-        // Check for improvement
-        boolean improved = false;
-        if (result.loss < bestLoss) {
-            // Definite improvement
-            bestLoss = result.loss;
-            System.arraycopy(currentParams, 0, bestParams, 0, PARAM_COUNT);
-            improvements++;
-            sessionsWithoutImprove = 0;
-            degradationCount = 0;
-            improved = true;
-
-            // Update rollback point
-            rollbackLoss = bestLoss;
-            System.arraycopy(bestParams, 0, rollbackParams, 0, PARAM_COUNT);
-
-            // Add to elites
-            addToElites(currentParams, result.loss, sessions);
-
-            // Haptic feedback
-            rumbleController(300);
-        } else {
-            // Simulated annealing acceptance
-            double delta = result.loss - bestLoss;
-            double prob = Math.exp(-delta / (temperature * 500));
-            if (random.nextDouble() < prob) {
-                // Accept worse solution
-            }
-            sessionsWithoutImprove++;
-
-            // Check for degradation (rollback protection)
-            if (result.loss > rollbackLoss * ROLLBACK_LOSS_RATIO) {
-                degradationCount++;
-                if (degradationCount >= ROLLBACK_THRESHOLD) {
-                    performRollback();
-                }
-            } else {
-                degradationCount = 0;
-            }
-        }
-
-        currentLoss = result.loss;
-        temperature = Math.max(MIN_TEMP, temperature * COOLING_RATE);
-        checkRestart();
-    }
-
-    private void addToElites(double[] params, double loss, int sessionNum) {
-        elites.add(new EliteEntry(params, loss, sessionNum));
-
-        // Sort by loss (best first)
-        elites.sort(Comparator.comparingDouble(e -> e.loss));
-
-        // Keep only top N
-        while (elites.size() > ELITE_COUNT) {
-            elites.remove(elites.size() - 1);
-        }
-    }
-
-    private void performRollback() {
-        System.arraycopy(rollbackParams, 0, bestParams, 0, PARAM_COUNT);
-        System.arraycopy(rollbackParams, 0, currentParams, 0, PARAM_COUNT);
-        syncFieldsFromParams();
-        bestLoss = rollbackLoss;
-        degradationCount = 0;
-        rollbackCount++;
-        temperature = RESTART_TEMP;  // Also reset temperature
-    }
-
-    private void checkRestart() {
-        if (sessionsWithoutImprove >= RESTART_THRESHOLD) {
-            temperature = RESTART_TEMP;
-            sessionsWithoutImprove = 0;
-
-            // Maybe try an elite instead of best
-            if (!elites.isEmpty() && random.nextDouble() < 0.3) {
-                int idx = random.nextInt(elites.size());
-                System.arraycopy(elites.get(idx).params, 0, currentParams, 0, PARAM_COUNT);
-            } else {
-                System.arraycopy(bestParams, 0, currentParams, 0, PARAM_COUNT);
-            }
-            syncFieldsFromParams();
-        }
-    }
-
-    private void updateConfidence() {
-        if (recentLosses.size() < 5) {
-            confidenceScore = 0;
-            return;
-        }
-
-        // Calculate variance
-        double mean = 0;
-        for (double l : recentLosses) mean += l;
-        mean /= recentLosses.size();
-
-        double variance = 0;
-        for (double l : recentLosses) variance += (l - mean) * (l - mean);
-        variance /= recentLosses.size();
-        lossVariance = variance;
-
-        // Confidence based on best loss and variance
-        double lossConfidence = Math.max(0, 1 - bestLoss / CONFIDENCE_LOSS_TARGET);
-        double varianceConfidence = Math.max(0, 1 - Math.sqrt(variance) / CONFIDENCE_VARIANCE_TARGET);
-
-        confidenceScore = (lossConfidence + varianceConfidence) / 2;
-        confidenceScore = clamp(confidenceScore, 0, 1);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  ANALYSIS
-    // ═══════════════════════════════════════════════════════════════
-
-    private SessionResult analyze(List<Sample> validSamples) {
-        List<Integer> bounds = findBallBounds(validSamples);
-        int ballCount = bounds.size();
-
-        BallStats[] stats = new BallStats[3];
-        for (int i = 0; i < 3; i++) stats[i] = new BallStats();
-
-        double totalRec = 0, maxOver = 0;
-        int recCount = 0;
-        double totalOsc = 0;
-        double totalPhase = 0;
-        int phaseCount = 0;
-
-        for (int b = 0; b < ballCount && b < 3; b++) {
-            int start = bounds.get(b);
-            int end = (b + 1 < ballCount) ? bounds.get(b + 1) : validSamples.size();
-            stats[b] = analyzeBall(validSamples, start, end);
-
-            if (stats[b].recovered) {
-                totalRec += stats[b].recoveryMs;
-                recCount++;
-            }
-            maxOver = Math.max(maxOver, stats[b].maxOver);
-
-            if (stats[b].oscillated) totalOsc++;
-            if (stats[b].phaseDelay > 0) {
-                totalPhase += stats[b].phaseDelay;
-                phaseCount++;
-            }
-        }
-
-        // Overall metrics
-        double sumSq = 0;
-        double sumVoltage = 0;
-        for (Sample s : validSamples) {
-            double e = s.velKalman - targetVelocity;
-            sumSq += e * e;
-            sumVoltage += s.voltage;
-        }
-        double stability = Math.max(0, 100 - Math.sqrt(sumSq / validSamples.size()));
-        double avgVoltage = sumVoltage / validSamples.size();
-        double avgRec = recCount > 0 ? totalRec / recCount : 1000;
-        double avgPhase = phaseCount > 0 ? totalPhase / phaseCount : 0;
-
-        double loss = calcLoss(stats, stability, ballCount, avgRec, maxOver, totalOsc);
-
-        // Outlier detection
-        boolean isOutlier = false;
-        if (!recentLosses.isEmpty()) {
-            double avgLoss = 0;
-            for (double l : recentLosses) avgLoss += l;
-            avgLoss /= recentLosses.size();
-
-            if (loss > avgLoss * OUTLIER_LOSS_MULTIPLIER) {
-                isOutlier = true;
-            }
-        }
-
-        return new SessionResult(ballCount, loss, stability, maxOver, avgRec,
-                totalOsc / Math.max(1, ballCount), avgPhase, avgVoltage,
-                stats, isOutlier);
-    }
-
-    private List<Integer> findBallBounds(List<Sample> validSamples) {
-        List<Integer> bounds = new ArrayList<>();
-        bounds.add(0);
-
-        int n = validSamples.size();
-        double scaledDetect = DROP_DETECT * getVelocityScale();
-
-        for (int i = 24; i < n; i++) {
-            double prev = 0, curr = 0;
-            for (int j = 12; j <= 16; j++) prev += validSamples.get(i - j).velKalman;
-            for (int j = 0; j <= 4; j++) curr += validSamples.get(i - j).velKalman;
-            prev /= 5; curr /= 5;
-
-            if (prev - curr > scaledDetect) {
-                double scaledTrigger = getScaledTrigger();
-                boolean stable = true;
-                for (int j = 18; j <= 23 && i - j >= 0; j++) {
-                    if (Math.abs(validSamples.get(i - j).velKalman - targetVelocity) > scaledTrigger * 0.7) {
-                        stable = false;
-                        break;
-                    }
-                }
-                if (stable && i - bounds.get(bounds.size() - 1) > MIN_BALL_GAP) {
-                    bounds.add(i);
-                }
-            }
-        }
-        return bounds;
-    }
-
-    private BallStats analyzeBall(List<Sample> validSamples, int start, int end) {
-        BallStats s = new BallStats();
-        if (start >= end) return s;
-
-        double minV = Double.MAX_VALUE, maxV = Double.MIN_VALUE;
-        double sumSqErr = 0, sumOver = 0;
-        double sumM1Err = 0, sumM2Err = 0;
-        int minIdx = start, recIdx = -1, overCount = 0;
-        int crossings = 0;
-        double lastErr = 0;
-
-        for (int i = start; i < end && i < validSamples.size(); i++) {
-            Sample samp = validSamples.get(i);
-            double v = samp.velKalman;
-            double e = v - targetVelocity;
-            sumSqErr += e * e;
-            s.count++;
-
-            // Track individual motor errors
-            sumM1Err += Math.abs(samp.vel1 - targetVelocity);
-            sumM2Err += Math.abs(samp.vel2 - targetVelocity);
-
-            // Oscillation detection per ball
-            if (s.count > 1 && lastErr * e < 0) crossings++;
-            lastErr = e;
-
-            if (v < minV) { minV = v; minIdx = i; }
-            if (v > maxV) maxV = v;
-
-            if (v > targetVelocity) {
-                sumOver += v - targetVelocity;
-                overCount++;
-                s.maxOver = Math.max(s.maxOver, v - targetVelocity);
-            }
-
-            double scaledTrigger = getScaledTrigger();
-            if (i > minIdx && recIdx < 0 && v >= targetVelocity - scaledTrigger * 0.3) {
-                recIdx = i;
-                s.recovered = true;
-            }
-        }
-
-        s.maxDrop = targetVelocity - minV;
-        s.avgOver = overCount > 0 ? sumOver / overCount : 0;
-        s.rmsError = s.count > 0 ? Math.sqrt(sumSqErr / s.count) : 0;
-        s.motor1Error = s.count > 0 ? sumM1Err / s.count : 0;
-        s.motor2Error = s.count > 0 ? sumM2Err / s.count : 0;
-
-        // Check for oscillation
-        double crossRate = (double) crossings / Math.max(1, s.count);
-        s.oscillated = crossRate > OSCILLATION_THRESHOLD;
-
-        if (recIdx > minIdx) {
-            s.recoveryMs = validSamples.get(recIdx).time - validSamples.get(minIdx).time;
-        }
-
-        return s;
-    }
-
-    private double calcLoss(BallStats[] stats, double stability, int balls,
-                            double avgRec, double maxOver, double oscCount) {
-        double loss = 0;
-
-        double velScale = getVelocityScale();
-
-        // Scale targets with velocity
-        double T_DROP = 35.0 * velScale;
-        double T_OVER = 8.0 * velScale;
-        double T_REC = 100.0;
-        double T_STAB = 94.0;
-
-        final double W_OVER = 18, W_AVG_OVER = 10, W_DROP = 2;
-        final double W_REC = 2, W_RMS = 3, W_STAB = 4;
-        final double W_MOTOR_BALANCE = 3, W_OSC = 5;
-
-        for (int i = 0; i < Math.min(balls, 3); i++) {
-            BallStats s = stats[i];
-            if (s.count == 0) continue;
-
-            // Overshoot (most important)
-            double overErr = Math.max(0, s.maxOver - T_OVER);
-            loss += W_OVER * overErr * overErr;
-            loss += W_AVG_OVER * s.avgOver;
-
-            // Drop
-            loss += W_DROP * Math.max(0, s.maxDrop - T_DROP);
-
-            // Recovery
-            loss += W_REC * Math.max(0, s.recoveryMs - T_REC) / 50;
-
-            // RMS
-            loss += W_RMS * s.rmsError;
-
-            // Motor balance
-            double motorDiff = Math.abs(s.motor1Error - s.motor2Error);
-            loss += W_MOTOR_BALANCE * motorDiff;
-
-            // Oscillation penalty
-            if (s.oscillated) loss += W_OSC * 20;
-        }
-
-        // Stability
-        loss += W_STAB * Math.pow(Math.max(0, T_STAB - stability), 2);
-
-        // Global oscillation penalty
-        loss += oscCount * 15;
-
-        // Fewer balls penalty
-        if (balls < 3) loss *= 1.2;
-
-        // No recovery penalty
-        for (int i = 0; i < Math.min(balls, 3); i++) {
-            if (!stats[i].recovered && stats[i].count > 0) loss *= 1.35;
-        }
-
-        return loss;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  PERTURBATION
-    // ═══════════════════════════════════════════════════════════════
-
-    private void perturbParams(double[] p, double temp) {
+        // Apply perturbations based on exploration rate
         for (int i = 0; i < PARAM_COUNT; i++) {
-            double noise = (random.nextDouble() * 2 - 1) * temp;
+            double noise = (random.nextDouble() * 2 - 1) * explorationRate;
 
             switch (i) {
-                case 0: case 2: case 4:  // Multipliers
-                    p[i] = clamp(p[i] * (1 + noise * 0.18), 0.3, 4.0);
+                // Ball gains (0-2)
+                case 0: case 1: case 2:
+                    trialParams[i] = clamp(trialParams[i] * (1 + noise * 0.15), 0.1, 1.5);
                     break;
-                case 1: case 3: case 5:  // Exponents
-                    p[i] = clamp(p[i] + noise * 0.35, 1.0, 2.6);
+                // Ball curves (3-5)
+                case 3: case 4: case 5:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.15, 1.0, 1.8);
                     break;
-                case 6:  // boostTrigger
-                    p[i] = clamp(p[i] * (1 + noise * 0.15), 20, 90);
+                // Trigger threshold (6)
+                case 6:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.02, 0.03, 0.15);
                     break;
-                case 7:  // boostCap
-                    p[i] = clamp(p[i] * (1 + noise * 0.15), 100, 600);
+                // Max boost ratio (7)
+                case 7:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.05, 0.1, 0.5);
                     break;
-                case 8:  // rampUpRate
-                    p[i] = clamp(p[i] + noise * 0.15, 0.1, 1.0);
+                // Ramp rate (8)
+                case 8:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.08, 0.1, 0.5);
                     break;
-                case 9:  // approachDamping
-                    p[i] = clamp(p[i] + noise * 0.12, 0.2, 0.95);
+                // Damping (9)
+                case 9:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.1, 0.4, 0.95);
                     break;
-                case 10: // derivativeGain
-                    p[i] = clamp(p[i] + noise * 0.05, 0.005, 0.2);
+                // Derivative gain (10)
+                case 10:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.03, 0.02, 0.2);
                     break;
-                case 11: // decayRate
-                    p[i] = clamp(p[i] + noise * 0.012, 0.003, 0.06);
+                // Recovery rate (11)
+                case 11:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.01, 0.01, 0.08);
                     break;
-                case 12: // hysteresisRatio
-                    p[i] = clamp(p[i] + noise * 0.1, 0.5, 0.95);
+                // Predictive strength (12)
+                case 12:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.05, 0.0, 0.3);
                     break;
-                case 13: // predictiveBoostFraction
-                    p[i] = clamp(p[i] + noise * 0.12, 0.0, 0.7);
+                // Predictive window (13)
+                case 13:
+                    trialParams[i] = clamp(trialParams[i] + noise * 20, 30, 150);
                     break;
-                case 14: // predictiveWindowMs
-                    p[i] = clamp(p[i] + noise * 40, 30, 250);
+                // Integral strength (14)
+                case 14:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.0003, 0.0, 0.002);
                     break;
-                case 15: // predictiveRampUp
-                    p[i] = clamp(p[i] + noise * 0.15, 0.2, 0.9);
-                    break;
-                case 16: // integralGain
-                    p[i] = clamp(p[i] + noise * 0.003, 0.0, 0.015);
-                    break;
-                case 17: // integralCap
-                    p[i] = clamp(p[i] + noise * 12, 5, 70);
-                    break;
-                case 18: case 19: // motorBias
-                    p[i] = clamp(p[i] + noise * 12, -40, 40);
+                // Integral limit (15)
+                case 15:
+                    trialParams[i] = clamp(trialParams[i] + noise * 0.01, 0.01, 0.08);
                     break;
             }
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  PERSISTENCE
+    //  PARAM SYNC
     // ═══════════════════════════════════════════════════════════════
-
-    private boolean saveToFile() {
-        try {
-            File folder = new File(SAVE_FOLDER);
-            if (!folder.exists()) folder.mkdirs();
-
-            PrintWriter w = new PrintWriter(new FileWriter(SAVE_FOLDER + SAVE_FILE));
-            w.println("# DepoTuner v4 Parameters");
-            w.println("version=4");
-            w.println("bestLoss=" + bestLoss);
-            w.println("sessions=" + sessions);
-            w.println("improvements=" + improvements);
-            w.println("temperature=" + temperature);
-            w.println("confidence=" + confidenceScore);
-            w.println("rollbackLoss=" + rollbackLoss);
-            w.println("");
-
-            String[] names = getParamNames();
-            for (int i = 0; i < PARAM_COUNT; i++) {
-                w.println(names[i] + "=" + bestParams[i]);
-            }
-            w.println("");
-            w.println("# Rollback params");
-            for (int i = 0; i < PARAM_COUNT; i++) {
-                w.println("rb_" + names[i] + "=" + rollbackParams[i]);
-            }
-
-            w.close();
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private boolean loadFromFile() {
-        try {
-            File file = new File(SAVE_FOLDER + SAVE_FILE);
-            if (!file.exists()) return false;
-
-            BufferedReader r = new BufferedReader(new FileReader(file));
-            String line;
-            String[] names = getParamNames();
-
-            while ((line = r.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#")) continue;
-
-                String[] parts = line.split("=");
-                if (parts.length != 2) continue;
-
-                String key = parts[0].trim();
-                double value = Double.parseDouble(parts[1].trim());
-
-                if (key.equals("bestLoss")) bestLoss = value;
-                else if (key.equals("sessions")) sessions = (int) value;
-                else if (key.equals("improvements")) improvements = (int) value;
-                else if (key.equals("temperature")) temperature = value;
-                else if (key.equals("confidence")) confidenceScore = value;
-                else if (key.equals("rollbackLoss")) rollbackLoss = value;
-                else {
-                    for (int i = 0; i < PARAM_COUNT; i++) {
-                        if (key.equals(names[i])) {
-                            bestParams[i] = value;
-                        } else if (key.equals("rb_" + names[i])) {
-                            rollbackParams[i] = value;
-                        }
-                    }
-                }
-            }
-            r.close();
-
-            System.arraycopy(bestParams, 0, currentParams, 0, PARAM_COUNT);
-            syncFieldsFromParams();
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private void saveElitesToFile() {
-        try {
-            PrintWriter w = new PrintWriter(new FileWriter(SAVE_FOLDER + ELITE_FILE));
-            w.println("# DepoTuner Elites");
-            w.println("count=" + elites.size());
-
-            String[] names = getParamNames();
-            for (int e = 0; e < elites.size(); e++) {
-                EliteEntry elite = elites.get(e);
-                w.println("");
-                w.println("[elite_" + e + "]");
-                w.println("loss=" + elite.loss);
-                w.println("session=" + elite.sessionNum);
-                for (int i = 0; i < PARAM_COUNT; i++) {
-                    w.println(names[i] + "=" + elite.params[i]);
-                }
-            }
-            w.close();
-        } catch (Exception ignored) {}
-    }
-
-    private void loadElitesFromFile() {
-        try {
-            File file = new File(SAVE_FOLDER + ELITE_FILE);
-            if (!file.exists()) return;
-
-            BufferedReader r = new BufferedReader(new FileReader(file));
-            String line;
-            String[] names = getParamNames();
-
-            double[] tempParams = new double[PARAM_COUNT];
-            double tempLoss = Double.MAX_VALUE;
-            int tempSession = 0;
-            boolean inElite = false;
-
-            while ((line = r.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#")) continue;
-
-                if (line.startsWith("[elite_")) {
-                    if (inElite && tempLoss < Double.MAX_VALUE) {
-                        elites.add(new EliteEntry(tempParams.clone(), tempLoss, tempSession));
-                    }
-                    tempParams = new double[PARAM_COUNT];
-                    tempLoss = Double.MAX_VALUE;
-                    tempSession = 0;
-                    inElite = true;
-                    continue;
-                }
-
-                String[] parts = line.split("=");
-                if (parts.length != 2) continue;
-
-                String key = parts[0].trim();
-                double value = Double.parseDouble(parts[1].trim());
-
-                if (key.equals("loss")) tempLoss = value;
-                else if (key.equals("session")) tempSession = (int) value;
-                else {
-                    for (int i = 0; i < PARAM_COUNT; i++) {
-                        if (key.equals(names[i])) {
-                            tempParams[i] = value;
-                        }
-                    }
-                }
-            }
-
-            if (inElite && tempLoss < Double.MAX_VALUE) {
-                elites.add(new EliteEntry(tempParams, tempLoss, tempSession));
-            }
-
-            r.close();
-        } catch (Exception ignored) {}
-    }
-
-    private void saveToStatic() {
-        if (staticBestParams == null) staticBestParams = new double[PARAM_COUNT];
-        System.arraycopy(bestParams, 0, staticBestParams, 0, PARAM_COUNT);
-        staticBestLoss = bestLoss;
-        staticTotalSessions = sessions;
-        staticTotalImprovements = improvements;
-        staticInitialized = true;
-        staticElites = new ArrayList<>(elites);
-    }
-
-    private void loadFromStatic() {
-        if (staticBestParams != null) {
-            System.arraycopy(staticBestParams, 0, bestParams, 0, PARAM_COUNT);
-            System.arraycopy(bestParams, 0, currentParams, 0, PARAM_COUNT);
-            syncFieldsFromParams();
-            bestLoss = staticBestLoss;
-            sessions = staticTotalSessions;
-            improvements = staticTotalImprovements;
-        }
-    }
-
-    private void resetToDefaults() {
-        ball1Mult = 1.0; ball1Exp = 1.5;
-        ball2Mult = 1.6; ball2Exp = 1.6;
-        ball3Mult = 1.4; ball3Exp = 1.55;
-        boostTrigger = 45.0; boostCap = 320.0;
-        rampUpRate = 0.4; approachDamping = 0.6;
-        derivativeGain = 0.06; decayRate = 0.015;
-        hysteresisRatio = 0.7;
-        predictiveBoostFraction = 0.35; predictiveWindowMs = 100.0;
-        predictiveRampUp = 0.5;
-        integralGain = 0.002; integralCap = 30.0;
-        motor1Bias = 0.0; motor2Bias = 0.0;
-
-        syncParamsFromFields();
-        System.arraycopy(currentParams, 0, bestParams, 0, PARAM_COUNT);
-        System.arraycopy(currentParams, 0, rollbackParams, 0, PARAM_COUNT);
-
-        bestLoss = Double.MAX_VALUE;
-        rollbackLoss = Double.MAX_VALUE;
-        sessions = 0;
-        improvements = 0;
-        temperature = INITIAL_TEMP;
-        confidenceScore = 0;
-        elites.clear();
-        recentLosses.clear();
-
-        staticBestParams = null;
-        staticInitialized = false;
-        staticElites = null;
-
-        try {
-            new File(SAVE_FOLDER + SAVE_FILE).delete();
-            new File(SAVE_FOLDER + ELITE_FILE).delete();
-        } catch (Exception ignored) {}
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  HAPTIC FEEDBACK
-    // ═══════════════════════════════════════════════════════════════
-
-    private void rumbleController(int durationMs) {
-        long now = System.currentTimeMillis();
-        if (now - lastRumbleTime < RUMBLE_COOLDOWN) return;
-
-        try {
-            gamepad1.rumble(durationMs);
-        } catch (Exception ignored) {}
-
-        lastRumbleTime = now;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  PARAM HELPERS
-    // ═══════════════════════════════════════════════════════════════
-
-    private String[] getParamNames() {
-        return new String[] {
-                "ball1Mult", "ball1Exp", "ball2Mult", "ball2Exp", "ball3Mult", "ball3Exp",
-                "boostTrigger", "boostCap", "rampUpRate", "approachDamping", "derivativeGain", "decayRate",
-                "hysteresisRatio", "predictiveBoostFraction", "predictiveWindowMs", "predictiveRampUp",
-                "integralGain", "integralCap", "motor1Bias", "motor2Bias"
-        };
-    }
 
     private void syncParamsFromFields() {
-        currentParams[0] = ball1Mult;     currentParams[1] = ball1Exp;
-        currentParams[2] = ball2Mult;     currentParams[3] = ball2Exp;
-        currentParams[4] = ball3Mult;     currentParams[5] = ball3Exp;
-        currentParams[6] = boostTrigger;  currentParams[7] = boostCap;
-        currentParams[8] = rampUpRate;    currentParams[9] = approachDamping;
-        currentParams[10] = derivativeGain; currentParams[11] = decayRate;
-        currentParams[12] = hysteresisRatio;
-        currentParams[13] = predictiveBoostFraction; currentParams[14] = predictiveWindowMs;
-        currentParams[15] = predictiveRampUp;
-        currentParams[16] = integralGain; currentParams[17] = integralCap;
-        currentParams[18] = motor1Bias;   currentParams[19] = motor2Bias;
+        currentParams[0] = ballGain[0];
+        currentParams[1] = ballGain[1];
+        currentParams[2] = ballGain[2];
+        currentParams[3] = ballCurve[0];
+        currentParams[4] = ballCurve[1];
+        currentParams[5] = ballCurve[2];
+        currentParams[6] = triggerThreshold;
+        currentParams[7] = maxBoostRatio;
+        currentParams[8] = rampRate;
+        currentParams[9] = dampingFactor;
+        currentParams[10] = derivativeGain;
+        currentParams[11] = recoveryRate;
+        currentParams[12] = predictiveStrength;
+        currentParams[13] = predictiveWindow;
+        currentParams[14] = integralStrength;
+        currentParams[15] = integralLimit;
     }
 
     private void syncFieldsFromParams() {
-        ball1Mult = currentParams[0];     ball1Exp = currentParams[1];
-        ball2Mult = currentParams[2];     ball2Exp = currentParams[3];
-        ball3Mult = currentParams[4];     ball3Exp = currentParams[5];
-        boostTrigger = currentParams[6];  boostCap = currentParams[7];
-        rampUpRate = currentParams[8];    approachDamping = currentParams[9];
-        derivativeGain = currentParams[10]; decayRate = currentParams[11];
-        hysteresisRatio = currentParams[12];
-        predictiveBoostFraction = currentParams[13]; predictiveWindowMs = currentParams[14];
-        predictiveRampUp = currentParams[15];
-        integralGain = currentParams[16]; integralCap = currentParams[17];
-        motor1Bias = currentParams[18];   motor2Bias = currentParams[19];
+        ballGain[0] = currentParams[0];
+        ballGain[1] = currentParams[1];
+        ballGain[2] = currentParams[2];
+        ballCurve[0] = currentParams[3];
+        ballCurve[1] = currentParams[4];
+        ballCurve[2] = currentParams[5];
+        triggerThreshold = currentParams[6];
+        maxBoostRatio = currentParams[7];
+        rampRate = currentParams[8];
+        dampingFactor = currentParams[9];
+        derivativeGain = currentParams[10];
+        recoveryRate = currentParams[11];
+        predictiveStrength = currentParams[12];
+        predictiveWindow = currentParams[13];
+        integralStrength = currentParams[14];
+        integralLimit = currentParams[15];
     }
 
-    private double clamp(double v, double lo, double hi) {
+    // ═══════════════════════════════════════════════════════════════
+    //  RESET
+    // ═══════════════════════════════════════════════════════════════
+
+    private void resetAll() {
+        // Reset to conservative defaults
+        ballGain[0] = 0.35; ballGain[1] = 0.55; ballGain[2] = 0.65;
+        ballCurve[0] = 1.15; ballCurve[1] = 1.25; ballCurve[2] = 1.30;
+
+        triggerThreshold = 0.08;
+        maxBoostRatio = 0.25;
+        rampRate = 0.20;
+        dampingFactor = 0.70;
+        derivativeGain = 0.08;
+        recoveryRate = 0.03;
+
+        predictiveStrength = 0.12;
+        predictiveWindow = 70.0;
+
+        integralStrength = 0.0008;
+        integralLimit = 0.03;
+
+        motor1Trim = 0;
+        motor2Trim = 0;
+
+        syncParamsFromFields();
+        copyArray(currentParams, bestParams);
+        copyArray(currentParams, lastGoodParams);
+
+        bestScore = 0;
+        explorationRate = 0.5;
+        paramsLocked = false;
+
+        totalShots = 0;
+        goodShots = 0;
+        perfectShots = 0;
+        badShots = 0;
+        historyCount = 0;
+        historyIndex = 0;
+
+        lastRating = "-";
+        awaitingRating = false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  UTILITIES
+    // ═══════════════════════════════════════════════════════════════
+
+    private void updatePrevStates() {
+        prev_gp1_lt = gp1.left_trigger > 0.5;
+        prev_gp1_back = gp1.back;
+        prev_gp1_yb = gp1.y && gp1.b;
+        prev_gp1_dpadL = gp1.dpad_left;
+        prev_gp1_dpadR = gp1.dpad_right;
+
+        prev_gp2_x = gp2.x;
+        prev_gp2_dpadU = gp2.dpad_up;
+        prev_gp2_dpadD = gp2.dpad_down;
+        prev_gp2_dpadL = gp2.dpad_left;
+        prev_gp2_dpadR = gp2.dpad_right;
+        prev_gp2_lb = gp2.left_bumper;
+        prev_gp2_rb = gp2.right_bumper;
+    }
+
+    private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
     }
 
-    private String fmt(long ms) {
-        long s = ms / 1000;
-        return String.format("%d:%02d", s / 60, s % 60);
+    private static void copyArray(double[] src, double[] dst) {
+        System.arraycopy(src, 0, dst, 0, Math.min(src.length, dst.length));
+    }
+
+    private void rumble(Gamepad gp, int ms) {
+        try { gp.rumble(ms); } catch (Exception ignored) {}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  TELEMETRY - NORMAL
+    //  TELEMETRY
     // ═══════════════════════════════════════════════════════════════
 
-    private void showTelemetry() {
-        long elapsed = System.currentTimeMillis() - startTime;
+    private void showMainTelemetry() {
+        long elapsed = (System.currentTimeMillis() - startTime) / 1000;
 
-        telemetry.addLine("═══════════════════════════════════════");
-        telemetry.addLine("    DepoTuner v4 - " + fmt(elapsed));
-        telemetry.addLine("═══════════════════════════════════════");
+        telemetry.addLine("═══ DepoTuner v5.0 DRIVER FEEDBACK ═══");
+        telemetry.addData("Time", "%d:%02d", elapsed / 60, elapsed % 60);
 
-        String status = depositOn ? (recording ? "●REC" : "▶RUN") : "■OFF";
-        telemetry.addData("Status", "%s | Target: %.0f", status, targetVelocity);
+        // Status
+        String status = depositOn ? (recording ? "●REC" : "▶ON") : "■OFF";
+        telemetry.addData("Status", "%s | Target:%.0f [%s]", status, effectiveTarget, speedModeLabel);
 
-        if (voltageSensor != null) {
-            telemetry.addData("Battery", "%.2fV (×%.2f)", currentVoltage, voltageCompensation);
+        // Velocity
+        if (depositOn) {
+            double error = effectiveTarget - filteredVelocity;
+            telemetry.addData("Velocity", "%.0f (err:%.0f) boost:%.0f",
+                    filteredVelocity, error, currentBoost);
         }
 
-        if (depositOn && robot.deposit1 != null) {
-            double err = targetVelocity - kalmanVelocity;
-            telemetry.addData("Velocity", "%.0f [Kalman] err:%.0f", kalmanVelocity, err);
-            telemetry.addData("Motors", "M1:%.0f  M2:%.0f", motor1Filtered, motor2Filtered);
-            telemetry.addData("Boost", "%.0f (pred:%.0f)", currentBoost, predictiveBoost);
+        // Battery
+        telemetry.addData("Battery", "%.1fV (comp:%.2f)", voltage, voltageCompensation);
 
-            if (oscillationScore > OSCILLATION_THRESHOLD) {
-                telemetry.addData("⚠ Oscillation", "%.0f%% (damping:%.0f%%)",
-                        oscillationScore * 100, oscillationDamping * 100);
-            }
-        }
         telemetry.addLine("");
 
-        // Confidence bar
-        String confBar = buildProgressBar(confidenceScore, 10);
-        telemetry.addData("Confidence", "%s %.0f%%", confBar, confidenceScore * 100);
-        telemetry.addLine("");
-
-        telemetry.addLine("─── PROGRESS ───");
-        telemetry.addData("Sessions", "%d", sessions);
-        telemetry.addData("Improvements", "%d", improvements);
-        telemetry.addData("Elites", "%d", elites.size());
-        telemetry.addData("Best Loss", "%.1f", bestLoss);
-        telemetry.addData("Temperature", "%.2f", temperature);
-
-        if (outlierCount > 0) telemetry.addData("Outliers", "%d", outlierCount);
-        if (rollbackCount > 0) telemetry.addData("Rollbacks", "%d", rollbackCount);
-        telemetry.addLine("");
-
-        if (lastResult != null) {
-            telemetry.addLine("─── LAST SESSION ───");
-            String resultStatus = lastResult.isOutlier ? "⚠OUTLIER" :
-                    (lastResult.loss <= bestLoss ? "✓BEST" : "");
-            telemetry.addData("Result", "%d balls | Loss: %.1f %s",
-                    lastResult.balls, lastResult.loss, resultStatus);
-            telemetry.addData("Stability", "%.1f%%", lastResult.stability);
-            telemetry.addData("Max Over", "%.0f | Osc: %.0f%%",
-                    lastResult.maxOver, lastResult.oscillationScore * 100);
-            telemetry.addLine("");
+        // === RATING SECTION ===
+        if (awaitingRating) {
+            telemetry.addLine("╔════════════════════════════════╗");
+            telemetry.addLine("║     RATE THIS SHOT! (GP2)      ║");
+            telemetry.addLine("║  D-Up=GOOD   D-Right=PERFECT   ║");
+            telemetry.addLine("║  D-Left=OK   D-Down=BAD        ║");
+            telemetry.addLine("╚════════════════════════════════╝");
+            telemetry.addData("Balls", "%d", lastShotBalls);
+            telemetry.addData("Over/Under", "+%.0f / -%.0f", lastShotMaxOver, lastShotMaxUnder);
+            telemetry.addData("Stability", "%.0f%%", lastShotStability);
+        } else {
+            telemetry.addData("Last Rating", lastRating);
         }
 
-        telemetry.addLine("Y+B=Export | RB=Save | LB+L3+R3=Reset");
-        telemetry.addLine("═══════════════════════════════════════");
+        telemetry.addLine("");
+
+        // Stats
+        telemetry.addLine("─── STATS ───");
+        telemetry.addData("Shots", "%d (Good:%d Perfect:%d Bad:%d)",
+                totalShots, goodShots, perfectShots, badShots);
+        telemetry.addData("Exploration", "%.0f%% %s",
+                explorationRate * 100, paramsLocked ? "[LOCKED]" : "");
+
+        telemetry.addLine("");
+
+        // Controls reminder
+        telemetry.addLine("─── CONTROLS ───");
+        telemetry.addLine("GP1: LT=Shoot LB=45% RB=70%");
+        telemetry.addLine("GP2: X=Depo A/B=Intake LStick=Speed");
+        telemetry.addLine("GP2: LB=Undo RB=Lock Y+B=Export");
 
         telemetry.update();
     }
 
-    private String buildProgressBar(double progress, int width) {
-        int filled = (int) (progress * width);
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < width; i++) {
-            sb.append(i < filled ? "█" : "░");
-        }
-        sb.append("]");
-        return sb.toString();
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  TELEMETRY - EXPORT
-    // ═══════════════════════════════════════════════════════════════
-
     private void showExportTelemetry() {
-        telemetry.addLine("════════════════════════════════════════");
-        telemetry.addLine("          📋 EXPORT MODE");
-        telemetry.addLine("════════════════════════════════════════");
+        telemetry.addLine("══════ EXPORT MODE ══════");
+        telemetry.addLine("GP1 D-Pad = toggle format");
+        telemetry.addLine("GP1 Y+B = exit");
         telemetry.addLine("");
-        telemetry.addLine("D-Pad Left/Right = toggle format");
-        telemetry.addLine("Y+B = exit export mode");
-        telemetry.addLine("");
-        telemetry.addData("Format", showJavaFormat ? "JAVA CODE" : "VALUES");
-        telemetry.addLine("");
-        telemetry.addLine("────────────────────────────────────────");
+        telemetry.addData("Format", javaFormat ? "JAVA" : "VALUES");
+        telemetry.addLine("─────────────────────────");
 
-        if (showJavaFormat) {
+        if (javaFormat) {
             telemetry.addLine("");
-            telemetry.addLine("// ══ DEPOTUNER v4 PARAMETERS ══");
+            telemetry.addLine("// Ball-specific gains");
+            telemetry.addLine(String.format("double[] ballGain = {%.4f, %.4f, %.4f};",
+                    bestParams[0], bestParams[1], bestParams[2]));
+            telemetry.addLine(String.format("double[] ballCurve = {%.4f, %.4f, %.4f};",
+                    bestParams[3], bestParams[4], bestParams[5]));
             telemetry.addLine("");
-            telemetry.addLine("// Per-ball boost curves");
-            telemetry.addLine(String.format("double ball1Mult = %.4f;", bestParams[0]));
-            telemetry.addLine(String.format("double ball1Exp  = %.4f;", bestParams[1]));
-            telemetry.addLine(String.format("double ball2Mult = %.4f;", bestParams[2]));
-            telemetry.addLine(String.format("double ball2Exp  = %.4f;", bestParams[3]));
-            telemetry.addLine(String.format("double ball3Mult = %.4f;", bestParams[4]));
-            telemetry.addLine(String.format("double ball3Exp  = %.4f;", bestParams[5]));
+            telemetry.addLine("// Response tuning");
+            telemetry.addLine(String.format("double triggerThreshold = %.4f;", bestParams[6]));
+            telemetry.addLine(String.format("double maxBoostRatio = %.4f;", bestParams[7]));
+            telemetry.addLine(String.format("double rampRate = %.4f;", bestParams[8]));
+            telemetry.addLine(String.format("double dampingFactor = %.4f;", bestParams[9]));
+            telemetry.addLine(String.format("double derivativeGain = %.4f;", bestParams[10]));
+            telemetry.addLine(String.format("double recoveryRate = %.4f;", bestParams[11]));
             telemetry.addLine("");
-            telemetry.addLine("// Boost response");
-            telemetry.addLine(String.format("double boostTrigger     = %.2f;", bestParams[6]));
-            telemetry.addLine(String.format("double boostCap         = %.1f;", bestParams[7]));
-            telemetry.addLine(String.format("double rampUpRate       = %.4f;", bestParams[8]));
-            telemetry.addLine(String.format("double approachDamping  = %.4f;", bestParams[9]));
-            telemetry.addLine(String.format("double derivativeGain   = %.5f;", bestParams[10]));
-            telemetry.addLine(String.format("double decayRate        = %.5f;", bestParams[11]));
-            telemetry.addLine(String.format("double hysteresisRatio  = %.4f;", bestParams[12]));
+            telemetry.addLine("// Predictive");
+            telemetry.addLine(String.format("double predictiveStrength = %.4f;", bestParams[12]));
+            telemetry.addLine(String.format("double predictiveWindow = %.1f;", bestParams[13]));
             telemetry.addLine("");
-            telemetry.addLine("// Predictive boost");
-            telemetry.addLine(String.format("double predBoostFrac   = %.4f;", bestParams[13]));
-            telemetry.addLine(String.format("double predWindowMs    = %.1f;", bestParams[14]));
-            telemetry.addLine(String.format("double predRampUp      = %.4f;", bestParams[15]));
-            telemetry.addLine("");
-            telemetry.addLine("// Integral correction");
-            telemetry.addLine(String.format("double integralGain = %.6f;", bestParams[16]));
-            telemetry.addLine(String.format("double integralCap  = %.2f;", bestParams[17]));
-            telemetry.addLine("");
-            telemetry.addLine("// Motor balance");
-            telemetry.addLine(String.format("double motor1Bias = %.2f;", bestParams[18]));
-            telemetry.addLine(String.format("double motor2Bias = %.2f;", bestParams[19]));
+            telemetry.addLine("// Integral");
+            telemetry.addLine(String.format("double integralStrength = %.6f;", bestParams[14]));
+            telemetry.addLine(String.format("double integralLimit = %.4f;", bestParams[15]));
         } else {
-            String[] names = getParamNames();
             telemetry.addLine("");
             for (int i = 0; i < PARAM_COUNT; i++) {
-                if (i == 6 || i == 12 || i == 13 || i == 16 || i == 18) {
-                    telemetry.addLine("");
-                }
-                telemetry.addData(names[i], "%.4f", bestParams[i]);
+                telemetry.addData("p" + i, "%.6f", bestParams[i]);
             }
         }
 
         telemetry.addLine("");
-        telemetry.addLine("────────────────────────────────────────");
-        telemetry.addData("Sessions", "%d", sessions);
-        telemetry.addData("Best Loss", "%.2f", bestLoss);
-        telemetry.addData("Confidence", "%.0f%%", confidenceScore * 100);
-        telemetry.addLine("════════════════════════════════════════");
+        telemetry.addData("Total Shots", "%d", totalShots);
+        telemetry.addData("Good/Perfect", "%d / %d", goodShots, perfectShots);
 
         telemetry.update();
     }
@@ -1767,32 +1201,18 @@ public class DepoTuner extends OpMode {
     public void stop() {
         robot.stop();
 
-        saveToFile();
-        saveElitesToFile();
-        saveToStatic();
-
-        System.arraycopy(bestParams, 0, currentParams, 0, PARAM_COUNT);
-        syncFieldsFromParams();
-
         telemetry.clearAll();
-        telemetry.addLine("════════════════════════════════════════");
-        telemetry.addLine("       DEPOTUNER v4 - SAVED");
-        telemetry.addLine("════════════════════════════════════════");
+        telemetry.addLine("══════════════════════════════");
+        telemetry.addLine("   DepoTuner v5.0 STOPPED");
+        telemetry.addLine("══════════════════════════════");
         telemetry.addLine("");
-        telemetry.addLine("✓ Parameters saved to file");
-        telemetry.addLine("✓ Elites saved (" + elites.size() + " entries)");
+        telemetry.addData("Total Shots", "%d", totalShots);
+        telemetry.addData("Good", "%d", goodShots);
+        telemetry.addData("Perfect", "%d", perfectShots);
+        telemetry.addData("Bad", "%d", badShots);
         telemetry.addLine("");
-        telemetry.addData("Total Sessions", "%d", sessions);
-        telemetry.addData("Improvements", "%d", improvements);
-        telemetry.addData("Best Loss", "%.2f", bestLoss);
-        telemetry.addData("Confidence", "%.0f%%", confidenceScore * 100);
-        telemetry.addLine("");
-        telemetry.addLine("Files saved to:");
-        telemetry.addLine("  " + SAVE_FOLDER + SAVE_FILE);
-        telemetry.addLine("  " + SAVE_FOLDER + ELITE_FILE);
-        telemetry.addLine("");
-        telemetry.addLine("Use Y+B before stop to see export view.");
-        telemetry.addLine("════════════════════════════════════════");
+        telemetry.addLine("Use GP1 Y+B to export params");
+        telemetry.addLine("before stopping next time!");
         telemetry.update();
     }
 }

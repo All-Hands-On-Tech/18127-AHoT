@@ -18,7 +18,7 @@ import java.util.Random;
  *
  * DOES NOT tune PID+F coefficients — the controller's built-in PID+F is left untouched.
  */
-@TeleOp(name = "Trowel Drive", group = "Trowel")
+@TeleOp(name = "Do not use", group = "Trowel")
 public class AutomaticDepoTuner extends OpMode {
 
     // ============== SERVO CONFIGURATION ==============
