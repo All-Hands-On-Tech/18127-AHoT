@@ -29,6 +29,8 @@ public class Utilities000 {
     public DcMotor fr, fl, br, bl;
     public double frPower, flPower, brPower, blPower;
 
+    public GoBildaPinpointDriver odo;
+
 //    private VisionPortal portal;
 //    private static final double resHorz = 640;
 //    private static final double resVert = 480;
@@ -76,6 +78,9 @@ public class Utilities000 {
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
 
+        odo.initialize();
+        odo.setOffsets(80.025, 176.475, DistanceUnit.MM);
+        odo.setEncoderDirections();
 //        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
 //        l.telemetry.setMsTransmissionInterval(10);
 //        limelight.pipelineSwitch(0);
