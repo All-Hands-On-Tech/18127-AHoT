@@ -8,11 +8,20 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+
 import org.firstinspires.ftc.teamcode.Trowel.common.Odometry;
 import org.firstinspires.ftc.teamcode.Trowel.Configs.TrowelHardware;
 
+import java.util.List;
+
 @Configurable
-@TeleOp(name = "Randy Butter Knubs", group = "Trowel")
+@TeleOp(name = "Trowel Teleop", group = "Trowel")
 public class TrowelTeleOp extends OpMode {
 
     // ══════════════════════════════════════════════════════════════
@@ -53,14 +62,71 @@ public class TrowelTeleOp extends OpMode {
     public static double DRIVE_DEADZONE = 0.05;
 
     // ══════════════════════════════════════════════════════════════
-    // AUTO-AIM HEADING LOCK CONFIGURATION
-    // Pedro heading P = 1.5 on radians, no D (causes oscillation)
-    // Correction negated to match mecanum mixing direction.
+    // CAMERA MOUNT CONFIGURATION (PLACEHOLDERS)
+    // Adjust these to match where the camera is physically mounted
+    // on the robot relative to the robot's center.
     // ══════════════════════════════════════════════════════════════
 
-    public static double AIM_P = 1.5;
+    /** Camera X offset from robot center, in inches. Positive = forward. */
+    public static double CAMERA_X_OFFSET_INCHES = 7.0;
+
+    /** Camera Y offset from robot center, in inches. Positive = left. */
+    public static double CAMERA_Y_OFFSET_INCHES = 0.0;
+
+    /** Camera Z offset (height) from ground, in inches. */
+    public static double CAMERA_Z_OFFSET_INCHES = 10.0;
+
+    /**
+     * Camera pitch angle relative to ground, in degrees.
+     * 0 = looking straight ahead (horizontal)
+     * 90 = looking straight up
+     * -90 = looking straight down
+     * Typical forward-facing camera: ~0 to -10 degrees
+     */
+    public static double CAMERA_PITCH_DEG = 0.0;
+
+    /**
+     * Camera yaw offset from robot forward direction, in degrees.
+     * 0 = camera faces straight forward
+     * Positive = camera rotated left
+     * Negative = camera rotated right
+     */
+    public static double CAMERA_YAW_DEG = 0.0;
+
+    /**
+     * Camera roll, in degrees. Usually 0 unless camera is mounted sideways.
+     */
+    public static double CAMERA_ROLL_DEG = 0.0;
+
+    // ══════════════════════════════════════════════════════════════
+    // APRILTAG AUTO-AIM CONFIGURATION
+    // ══════════════════════════════════════════════════════════════
+
+    /** P gain for AprilTag auto-aim turning correction. */
+    public static double AIM_P = 0.03;
+
+    /** Maximum turn power the auto-aim can command. */
     public static double AIM_MAX_POWER = 0.6;
-    public static double AIM_DEADZONE_DEG = 2.0;
+
+    /** Deadzone in degrees — if the tag is within this, no correction. */
+    public static double AIM_DEADZONE_DEG = 1.5;
+
+    /**
+     * Which AprilTag IDs to target for auto-aim.
+     * Set to null or empty to target ANY detected tag.
+     * Example: new int[]{1, 2, 5} to only aim at tags 1, 2, or 5.
+     */
+    public static int[] TARGET_TAG_IDS = null;
+
+    /**
+     * If multiple valid tags are seen, aim at the closest one.
+     */
+    public static boolean AIM_CLOSEST_TAG = true;
+
+    /**
+     * Name of the webcam in the robot configuration.
+     */
+    public static String WEBCAM_NAME = "Webcam 1";
 
     // ══════════════════════════════════════════════════════════════
     // SERVO & INTAKE CONFIGURATION
@@ -108,12 +174,20 @@ public class TrowelTeleOp extends OpMode {
     private double smoothedVoltage = 12.0;
     private boolean inBrownout = false;
 
-    // Auto-aim state
-    private double savedAimHeadingRad = Double.NaN;
+    // AprilTag auto-aim state
+    private AprilTagProcessor aprilTagProcessor;
+    private VisionPortal visionPortal;
+    private boolean visionEnabled = false;
     private boolean aimLockActive = false;
     private double aimCorrectionPower = 0.0;
     private double aimErrorDeg = 0.0;
     private double currentHeadingDeg = 0.0;
+    private boolean tagDetected = false;
+    private int detectedTagId = -1;
+    private double detectedTagRange = 0.0;
+    private double detectedTagBearing = 0.0;
+    private double detectedTagYaw = 0.0;
+    private int totalTagsVisible = 0;
 
     // ══════════════════════════════════════════════════════════════
     // INITIALIZATION
@@ -128,6 +202,7 @@ public class TrowelTeleOp extends OpMode {
         initDriveMotors();
         initFlywheelMotors(PIDF_P);
         initOdometry();
+        initVision();
 
         if (robot.transferServo != null) {
             robot.transferServo.setPosition(SERVO_IDLE);
@@ -138,6 +213,20 @@ public class TrowelTeleOp extends OpMode {
 
     @Override
     public void init_loop() {
+        // Optionally show AprilTag detections during init
+        if (visionEnabled && aprilTagProcessor != null) {
+            List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
+            telemetry.addData("AprilTags Visible", detections.size());
+            for (AprilTagDetection det : detections) {
+                if (det.metadata != null) {
+                    telemetry.addData("  Tag " + det.id, "%.1f\" away, bearing %.1f°",
+                            det.ftcPose.range, det.ftcPose.bearing);
+                } else {
+                    telemetry.addData("  Tag " + det.id, "(unknown size — no metadata)");
+                }
+            }
+            telemetry.update();
+        }
     }
 
     private void initVoltageSensor() {
@@ -167,8 +256,7 @@ public class TrowelTeleOp extends OpMode {
         telemetry.addLine("  Left Stick: Move");
         telemetry.addLine("  Right Stick X: Turn");
         telemetry.addLine("  RB hold: Slow mode (40%)");
-        telemetry.addLine("  LB hold: Auto-aim heading lock");
-        telemetry.addLine("  RT: Save current heading for aim lock");
+        telemetry.addLine("  LB hold: AprilTag Auto-Aim");
         telemetry.addLine("  LT: Shoot");
         telemetry.addLine("");
         telemetry.addLine("DRIVER 2 (Gamepad 2):");
@@ -178,7 +266,10 @@ public class TrowelTeleOp extends OpMode {
         telemetry.addLine("  A: Intake2 in  |  B: Intake2 reverse");
         telemetry.addLine("");
         telemetry.addData("Battery", "%.2fV", smoothedVoltage);
-        telemetry.addData("Aim P", "%.2f (Pedro heading P)", AIM_P);
+        telemetry.addData("Vision", visionEnabled ? "READY" : "NOT AVAILABLE");
+        telemetry.addData("Camera Pitch", "%.1f° from horizontal", CAMERA_PITCH_DEG);
+        telemetry.addData("Camera Offset", "X=%.1f Y=%.1f Z=%.1f inches",
+                CAMERA_X_OFFSET_INCHES, CAMERA_Y_OFFSET_INCHES, CAMERA_Z_OFFSET_INCHES);
         telemetry.update();
     }
 
@@ -223,6 +314,55 @@ public class TrowelTeleOp extends OpMode {
     }
 
     // ══════════════════════════════════════════════════════════════
+    // VISION INITIALIZATION
+    // ══════════════════════════════════════════════════════════════
+
+    private void initVision() {
+        try {
+            // Build the AprilTag processor with camera pose information
+            aprilTagProcessor = new AprilTagProcessor.Builder()
+                    .setDrawAxes(true)
+                    .setDrawCubeProjection(true)
+                    .setDrawTagOutline(true)
+                    .setCameraPose(
+                            new org.firstinspires.ftc.robotcore.external.navigation.Position(
+                                    DistanceUnit.INCH,
+                                    CAMERA_X_OFFSET_INCHES,
+                                    CAMERA_Y_OFFSET_INCHES,
+                                    CAMERA_Z_OFFSET_INCHES,
+                                    0 // acquisitionTime — 0 is fine
+                            ),
+                            new org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles(
+                                    AngleUnit.DEGREES,
+                                    CAMERA_YAW_DEG,
+                                    CAMERA_PITCH_DEG,
+                                    CAMERA_ROLL_DEG,
+                                    0 // acquisitionTime
+                            )
+                    )
+                    .build();
+
+            // Build the VisionPortal with the webcam
+            visionPortal = new VisionPortal.Builder()
+                    .setCamera(hardwareMap.get(WebcamName.class, WEBCAM_NAME))
+                    .addProcessor(aprilTagProcessor)
+                    .setCameraResolution(new android.util.Size(640, 480))
+                    .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
+                    .enableLiveView(true)
+                    .build();
+
+            visionEnabled = true;
+
+        } catch (Exception e) {
+            telemetry.addData("Vision Init Error", e.getMessage());
+            telemetry.update();
+            visionEnabled = false;
+            aprilTagProcessor = null;
+            visionPortal = null;
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // START / STOP
     // ══════════════════════════════════════════════════════════════
 
@@ -232,7 +372,6 @@ public class TrowelTeleOp extends OpMode {
         lastLoopTime = 0;
         currentRampTarget = 0;
         flywheelTarget = FLYWHEEL_DEFAULT_TARGET;
-        savedAimHeadingRad = Double.NaN;
     }
 
     @Override
@@ -243,6 +382,11 @@ public class TrowelTeleOp extends OpMode {
         if (robot.deposit1 != null) robot.deposit1.setPower(0);
         if (robot.deposit2 != null) robot.deposit2.setPower(0);
         robot.stop();
+
+        // Clean up vision
+        if (visionPortal != null) {
+            visionPortal.close();
+        }
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -268,6 +412,7 @@ public class TrowelTeleOp extends OpMode {
             currentHeadingDeg = Math.toDegrees(pos.headingRad);
         }
 
+        updateAprilTagDetection();
         updateDrive();
         updateFlywheelTarget();
         updateFlywheel(deltaTime);
@@ -299,40 +444,103 @@ public class TrowelTeleOp extends OpMode {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // AUTO-AIM HEADING LOCK
+    // APRILTAG DETECTION & AUTO-AIM
     // ══════════════════════════════════════════════════════════════
 
     /**
-     * Saves the exact current heading as the aim target.
-     * Called when GP1 RT is pressed.
+     * Reads the latest AprilTag detections from the camera and selects
+     * the best target tag for auto-aim.
      */
-    private void saveAimHeading() {
-        if (odoEnabled && odometry != null) {
-            Odometry.Position pos = odometry.getPosition();
-            savedAimHeadingRad = pos.headingRad;
+    private void updateAprilTagDetection() {
+        tagDetected = false;
+        detectedTagId = -1;
+        detectedTagRange = 0;
+        detectedTagBearing = 0;
+        detectedTagYaw = 0;
+        totalTagsVisible = 0;
+
+        if (!visionEnabled || aprilTagProcessor == null) {
+            return;
+        }
+
+        List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
+        totalTagsVisible = detections.size();
+
+        if (detections.isEmpty()) {
+            return;
+        }
+
+        // Find the best target tag
+        AprilTagDetection bestTag = null;
+        double bestRange = Double.MAX_VALUE;
+
+        for (AprilTagDetection detection : detections) {
+            // Skip detections without pose data
+            if (detection.ftcPose == null) {
+                continue;
+            }
+
+            // Check if this tag ID is in our target list (if filtering is enabled)
+            if (TARGET_TAG_IDS != null && TARGET_TAG_IDS.length > 0) {
+                boolean isTarget = false;
+                for (int targetId : TARGET_TAG_IDS) {
+                    if (detection.id == targetId) {
+                        isTarget = true;
+                        break;
+                    }
+                }
+                if (!isTarget) {
+                    continue;
+                }
+            }
+
+            // If aiming at closest, track by range; otherwise take first valid
+            if (AIM_CLOSEST_TAG) {
+                if (detection.ftcPose.range < bestRange) {
+                    bestRange = detection.ftcPose.range;
+                    bestTag = detection;
+                }
+            } else {
+                bestTag = detection;
+                break;
+            }
+        }
+
+        if (bestTag != null && bestTag.ftcPose != null) {
+            tagDetected = true;
+            detectedTagId = bestTag.id;
+            detectedTagRange = bestTag.ftcPose.range;
+            detectedTagBearing = bestTag.ftcPose.bearing;
+            detectedTagYaw = bestTag.ftcPose.yaw;
         }
     }
 
-    private double normalizeAngleRad(double angle) {
-        while (angle > Math.PI) angle -= 2.0 * Math.PI;
-        while (angle < -Math.PI) angle += 2.0 * Math.PI;
-        return angle;
-    }
-
     /**
-     * Pure P controller for heading lock.
-     * Correction negated to match mecanum mixing direction.
+     * Computes the turn correction needed to center the robot on the detected
+     * AprilTag. Uses the bearing angle from the camera's ftcPose, which
+     * represents the horizontal angle from the camera's center to the tag.
+     *
+     * The bearing already accounts for the camera's mounting position via
+     * the setCameraPose() call during initialization, so the correction
+     * is the angle the robot needs to turn to face the tag directly.
+     *
+     * Positive bearing = tag is to the right of center
+     * We return a turn power to rotate the robot toward the tag.
      */
-    private double computeAimCorrection() {
-        if (Double.isNaN(savedAimHeadingRad) || !odoEnabled || odometry == null) {
+    private double computeAprilTagAimCorrection() {
+        if (!tagDetected) {
             aimErrorDeg = 0;
             aimCorrectionPower = 0;
             return 0;
         }
 
-        Odometry.Position pos = odometry.getPosition();
-        double errorRad = normalizeAngleRad(savedAimHeadingRad - pos.headingRad);
-        double errorDeg = Math.toDegrees(errorRad);
+        // The bearing is the angle from camera center to the tag in degrees.
+        // We want to drive this to zero by turning the robot.
+        // Account for camera yaw offset: the bearing from ftcPose already
+        // incorporates the camera pose set during init, but if using raw
+        // bearing we'd add CAMERA_YAW_DEG. With setCameraPose() this should
+        // already be handled, so we use bearing directly.
+        double errorDeg = detectedTagBearing;
         aimErrorDeg = errorDeg;
 
         if (Math.abs(errorDeg) < AIM_DEADZONE_DEG) {
@@ -340,8 +548,14 @@ public class TrowelTeleOp extends OpMode {
             return 0;
         }
 
-        double correction = -(AIM_P * errorRad);
+        // P controller: positive bearing means tag is to the right,
+        // so we need positive rotation (turn right) to face it.
+        // The sign may need to be flipped depending on your drive mixing.
+        // Negate here to match the mecanum mixing convention where
+        // positive rot = turn right in updateDrive().
+        double correction = AIM_P * errorDeg;
 
+        // Clamp
         if (correction > AIM_MAX_POWER) correction = AIM_MAX_POWER;
         if (correction < -AIM_MAX_POWER) correction = -AIM_MAX_POWER;
 
@@ -355,12 +569,9 @@ public class TrowelTeleOp extends OpMode {
 
     private void updateDrive() {
         isSlowMode = gamepad1.right_bumper;
-        aimLockActive = gamepad1.left_bumper && !Double.isNaN(savedAimHeadingRad) && odoEnabled;
 
-        // GP1 RT saves current heading for aim lock
-        if (gamepad1.right_trigger > 0.5) {
-            saveAimHeading();
-        }
+        // LB activates AprilTag auto-aim (only if vision is working and a tag is visible)
+        aimLockActive = gamepad1.left_bumper && visionEnabled && tagDetected;
 
         double fwd = -gamepad1.left_stick_y;
         double str = gamepad1.left_stick_x;
@@ -370,7 +581,8 @@ public class TrowelTeleOp extends OpMode {
         if (Math.abs(str) < DRIVE_DEADZONE) str = 0;
 
         if (aimLockActive) {
-            rot = computeAimCorrection();
+            // Auto-aim controls rotation; driver still controls translation
+            rot = computeAprilTagAimCorrection();
         } else {
             rot = gamepad1.right_stick_x;
             if (Math.abs(rot) < DRIVE_DEADZONE) rot = 0;
@@ -480,7 +692,7 @@ public class TrowelTeleOp extends OpMode {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // SERVO — GP1 LT shoots (heading saved separately via RT)
+    // SERVO — GP1 LT shoots
     // ══════════════════════════════════════════════════════════════
 
     private void updateServo() {
@@ -566,22 +778,37 @@ public class TrowelTeleOp extends OpMode {
 
         telemetry.addLine("");
 
-        // Auto-aim
-        telemetry.addLine("── AIM LOCK ──");
-        telemetry.addData("Current Heading", "%.1f°", currentHeadingDeg);
+        // AprilTag Auto-Aim
+        telemetry.addLine("── APRILTAG AIM ──");
+        telemetry.addData("Vision", visionEnabled ? "ACTIVE" : "NOT AVAILABLE");
+        telemetry.addData("Tags Visible", totalTagsVisible);
 
-        if (Double.isNaN(savedAimHeadingRad)) {
-            telemetry.addLine("No heading saved (RT to save)");
-        } else {
-            telemetry.addData("Saved Target", "%.1f°", Math.toDegrees(savedAimHeadingRad));
+        if (tagDetected) {
+            telemetry.addData("Target Tag", "#%d at %.1f\" | bearing %.1f° | yaw %.1f°",
+                    detectedTagId, detectedTagRange, detectedTagBearing, detectedTagYaw);
+
             if (aimLockActive) {
-                String lockStatus = Math.abs(aimErrorDeg) < AIM_DEADZONE_DEG ? "LOCKED" : "CORRECTING";
-                telemetry.addData("Status", "%s (err: %.1f°)", lockStatus, aimErrorDeg);
-                telemetry.addData("Correction", "%.3f", aimCorrectionPower);
+                String lockStatus = Math.abs(aimErrorDeg) < AIM_DEADZONE_DEG ? "ON TARGET ✓" : "CORRECTING";
+                telemetry.addData("Auto-Aim", "%s (err: %.1f°)", lockStatus, aimErrorDeg);
+                telemetry.addData("Correction Power", "%.3f", aimCorrectionPower);
             } else {
-                telemetry.addLine("Hold LB to engage");
+                telemetry.addLine("Hold LB to auto-aim");
+            }
+        } else {
+            telemetry.addLine("No target tag detected");
+            if (gamepad1.left_bumper) {
+                telemetry.addLine("⚠ LB pressed but no tag — manual control");
             }
         }
+
+        telemetry.addLine("");
+
+        // Camera mount info
+        telemetry.addLine("── CAMERA ──");
+        telemetry.addData("Mount", "X=%.1f Y=%.1f Z=%.1f in",
+                CAMERA_X_OFFSET_INCHES, CAMERA_Y_OFFSET_INCHES, CAMERA_Z_OFFSET_INCHES);
+        telemetry.addData("Angles", "pitch=%.1f° yaw=%.1f° roll=%.1f°",
+                CAMERA_PITCH_DEG, CAMERA_YAW_DEG, CAMERA_ROLL_DEG);
 
         telemetry.addLine("");
 
@@ -608,9 +835,9 @@ public class TrowelTeleOp extends OpMode {
         telemetry.addLine("── DRIVE ──");
         String modeStr;
         if (aimLockActive && isSlowMode) {
-            modeStr = "AIM LOCK + SLOW";
+            modeStr = "AUTO-AIM + SLOW";
         } else if (aimLockActive) {
-            modeStr = "AIM LOCK";
+            modeStr = "AUTO-AIM";
         } else if (isSlowMode) {
             modeStr = "SLOW (40%)";
         } else {
