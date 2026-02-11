@@ -38,7 +38,7 @@ public class StraightAuto extends OpMode {
     public static double PID_P = 240.0;
     public static double PID_I = 0.0;
     public static double PID_D = 0.0;
-    public static double PID_F = 23.0;
+    public static double PID_F = 23.2;
 
     private double deposit1Vel = 0;
     private double deposit2Vel = 0;

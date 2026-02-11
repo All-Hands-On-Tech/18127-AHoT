@@ -35,7 +35,7 @@ public class Auto extends OpMode {
     public static double DEPOSIT_TARGET_VELOCITY = 510.0;
 
     // PIDF values (same as TeleOp tuned values)
-    public static double PIDF_P = 140.0;
+    public static double PIDF_P = 240.0;
     public static double PIDF_I = 0.0;
     public static double PIDF_D = 0.0;
     public static double PIDF_F = 19.0;

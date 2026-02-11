@@ -12,6 +12,14 @@ import org.firstinspires.ftc.teamcode.GoBildaPinpointDriver.DeviceStatus;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import android.util.Size;
+import java.util.List;
+import java.util.ArrayList;
+import org.firstinspires.ftc.robotcore.external.navigation.Position;
 
 /**
  * TrowelHardware - Robot hardware abstraction for Trowel
@@ -68,6 +76,14 @@ public class TrowelHardware {
     // Minimum effective velocity to command to avoid low-speed hunting/oscillation (ticks/sec)
     // Lower this to allow motors to reach lower speeds. Set to 0.0 to disable clamping.
     public static double MIN_EFFECTIVE_DEPOSIT_VELOCITY = 0.0;
+
+    // Vision / camera (AprilTag) objects
+    private AprilTagProcessor aprilTagProcessor = null;
+    private VisionPortal visionPortal = null;
+    private boolean visionEnabled = false;
+    private String visionInitError = null;
+    private String visionWebcamName = null;
+    private Size visionResolution = new Size(640, 480);
 
     /**
      * Constructor - Initialize hardware with HardwareMap
@@ -549,5 +565,93 @@ public class TrowelHardware {
         return mult + abs;
     }
 
-}
+    /**
+     * Initialize the camera and AprilTag processor. Non-throwing: returns false
+     * on failure and sets getVisionInitError() for diagnostics.
+     */
+    public boolean initVision(String webcamName, double camXInches, double camYInches, double camZInches,
+                              double yawDeg, double pitchDeg, double rollDeg) {
+        // If already initialized with same webcam, treat as success
+        if (visionEnabled && visionWebcamName != null && visionWebcamName.equals(webcamName)) return true;
 
+        try {
+            aprilTagProcessor = new AprilTagProcessor.Builder()
+                    .setDrawAxes(true)
+                    .setDrawCubeProjection(true)
+                    .setDrawTagOutline(true)
+                    .setCameraPose(
+                            new Position(DistanceUnit.INCH, camXInches, camYInches, camZInches, 0),
+                            new YawPitchRollAngles(AngleUnit.DEGREES, yawDeg, pitchDeg, rollDeg, 0)
+                    )
+                    .build();
+
+            visionPortal = new VisionPortal.Builder()
+                    .setCamera(hwMap.get(WebcamName.class, webcamName))
+                    .addProcessor(aprilTagProcessor)
+                    .setCameraResolution(visionResolution)
+                    .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
+                    .enableLiveView(true)
+                    .build();
+
+            visionEnabled = true;
+            visionInitError = null;
+            visionWebcamName = webcamName;
+            return true;
+        } catch (Exception e) {
+            visionInitError = e.getMessage();
+            visionEnabled = false;
+            aprilTagProcessor = null;
+            visionPortal = null;
+            return false;
+        }
+    }
+
+    /** Return the current AprilTag detections list (safe to call). */
+    public List<AprilTagDetection> getDetections() {
+        if (aprilTagProcessor == null) return new ArrayList<>();
+        try {
+            List<AprilTagDetection> d = aprilTagProcessor.getDetections();
+            return d != null ? d : new ArrayList<>();
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    public boolean isVisionEnabled() {
+        return visionEnabled;
+    }
+
+    public String getVisionInitError() {
+        return visionInitError;
+    }
+
+    /**
+     * Close and release camera/vision resources. Safe to call multiple times.
+     */
+    public void closeVision() {
+        try {
+            if (visionPortal != null) {
+                visionPortal.close();
+            }
+        } catch (Exception ignored) {}
+        visionPortal = null;
+        aprilTagProcessor = null;
+        visionEnabled = false;
+        visionWebcamName = null;
+    }
+
+    /**
+     * Single-line status for telemetry describing vision state.
+     */
+    public String getVisionStatusString() {
+        if (visionEnabled) {
+            int count = getDetections().size();
+            return String.format("ENABLED %s %dx%d (%d tags)",
+                    visionWebcamName != null ? visionWebcamName : "(unknown)",
+                    visionResolution.getWidth(), visionResolution.getHeight(), count);
+        } else {
+            return visionInitError != null ? "DISABLED: " + visionInitError : "DISABLED";
+        }
+    }
+
+}
