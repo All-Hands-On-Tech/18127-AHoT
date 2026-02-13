@@ -47,7 +47,7 @@ public class MotorTunerOpMode extends LinearOpMode {
 
             if(motor != null){
 
-                if(Math.hypot(-gamepad1.left_stick_y,gamepad1.left_stick_x) > 0.1f){
+                if(Math.hypot(-gamepad1.left_stick_y,gamepad1.left_stick_x) > 0.8f){
                     double angle = Math.atan2(-gamepad1.left_stick_y,gamepad1.left_stick_x);
                     angle = Math.toDegrees(angle);
                     angle = 180-angle;
