@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.ZSupport;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -10,6 +11,9 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 import java.util.List;
 
@@ -21,12 +25,19 @@ public class Utilities000 {
     private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
     private static final double PITCH_PULSES_PER_DEGREE = 0;
 
+    private static final double TRANSFER_DOWN = 0;
+    private static final double TRANSFER_UP = 0.5;
+
+
     private DcMotor intakeMotor;
     private DcMotorEx flywheelR;
     private DcMotorEx flywheelL;
-    private DcMotor hoodYawMotor;
+    private DcMotorEx hoodYawMotor;
     private Servo hoodPitchServo;
+    private Servo transferServo;
     public DcMotor fr, fl, br, bl;
+    private List<DcMotorEx> motors;
+    private List<LynxModule> allHubs;
     public double frPower, flPower, brPower, blPower;
 
     public GoBildaPinpointDriver odo;
@@ -48,11 +59,13 @@ public class Utilities000 {
     public void initialize(LinearOpMode l) {
 //        follower = Constants000.createFollower(l.hardwareMap);
 //        telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
-        List<LynxModule> allHubs = l.hardwareMap.getAll(LynxModule.class);
+        allHubs = l.hardwareMap.getAll(LynxModule.class);
 
         for (LynxModule hub : allHubs) {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
+        motors = l.hardwareMap.getAll(DcMotorEx.class);
+        odo = l.hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
         fr = l.hardwareMap.get(DcMotor.class, "fr");
         fl = l.hardwareMap.get(DcMotor.class, "fl");
@@ -71,16 +84,17 @@ public class Utilities000 {
         flywheelL   = l.hardwareMap.get(DcMotorEx.class, "flyL");
         flywheelL.setDirection(DcMotorSimple.Direction.REVERSE);
         flywheelL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        hoodYawMotor = l.hardwareMap.get(DcMotor.class, "hoodYaw");
+        hoodYawMotor = l.hardwareMap.get(DcMotorEx.class, "hoodYaw");
         hoodYawMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         hoodYawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         hoodYawMotor.setTargetPosition(0);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
+        transferServo = l.hardwareMap.get(Servo.class, "transfer");
 
         odo.initialize();
         odo.setOffsets(80.025, 176.475, DistanceUnit.MM);
-        odo.setEncoderDirections();
+        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD);
 //        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
 //        l.telemetry.setMsTransmissionInterval(10);
 //        limelight.pipelineSwitch(0);
@@ -144,10 +158,40 @@ public class Utilities000 {
         flywheelL.setPower(volts/currentVoltage);
         flywheelR.setPower(volts/currentVoltage);
     }
+
+    public void setTransferServo(double position){
+        transferServo.setPosition(position);
+    }
+
+    public void setTransferUp(){
+        transferServo.setPosition(TRANSFER_UP);
+    }
+    public void setTransferDown(){
+        transferServo.setPosition(TRANSFER_DOWN);
+    }
     public void setFlywheelSpeed_DO_NOT_USE(int tickRate) {
         flywheelL.setVelocity(tickRate);
         flywheelR.setVelocity(tickRate);
     }
+
+    public void addAmpTelemetry(){
+        for (DcMotorEx motor : motors) {
+            String name = motor.getDeviceName();
+            double current = motor.getCurrent(CurrentUnit.AMPS);
+
+            linearOpMode.telemetry.addData(
+                    name,
+                    "%.2f A",
+                    current
+            );
+        }
+        double totalCurrent = 0;
+        for (LynxModule hub : allHubs) {
+            totalCurrent += hub.getCurrent(CurrentUnit.AMPS);
+        }
+        linearOpMode.telemetry.addData("Total Current: ", totalCurrent);
+    }
+
 //    public void setPoseEstimate(Pose pose) {
 //        follower.setPose(pose);
 //    }
@@ -179,6 +223,7 @@ public class Utilities000 {
             setFlywheelVolts(feedForward + p*(targetTicksPerSec-currentTicksPerSec));
         }
     }
+
 
 //    private double speedFunction() {
 //        Pose current = follower.getPose();
