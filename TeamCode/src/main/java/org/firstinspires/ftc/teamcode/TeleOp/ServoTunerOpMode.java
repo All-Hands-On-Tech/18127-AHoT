@@ -5,8 +5,6 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.PwmControl;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoController;
 
@@ -30,12 +28,12 @@ public class ServoTunerOpMode extends LinearOpMode {
         waitForStart();
         while (opModeIsActive()) {
 
-            if(!TunerParams.servoName.equals(lastServoName)){
+            if(!ServoTunerParams.servoName.equals(lastServoName)){
                 try{
-                    servo = hardwareMap.get(Servo.class, TunerParams.servoName);
-                    lastServoName = TunerParams.servoName;
+                    servo = hardwareMap.get(Servo.class, ServoTunerParams.servoName);
+                    lastServoName = ServoTunerParams.servoName;
                 } catch (Exception e){
-                    telemetry.addData("Error", "Servo not found: " + TunerParams.servoName);
+                    telemetry.addData("Error", "Servo not found: " + ServoTunerParams.servoName);
                 }
             }
 
@@ -43,7 +41,7 @@ public class ServoTunerOpMode extends LinearOpMode {
 
                 if(Math.hypot(-gamepad1.left_stick_y,gamepad1.left_stick_x) > 0.8f){
                     double angleDeg = Math.toDegrees(Math.atan2(-gamepad1.left_stick_y, gamepad1.left_stick_x));
-                    TunerParams.position = (angleDeg + 180.0) / 360.0;
+                    ServoTunerParams.position = (angleDeg + 180.0) / 360.0;
                 }
 
                 tuneServo(servo);
@@ -57,31 +55,31 @@ public class ServoTunerOpMode extends LinearOpMode {
     }
 
     public void tuneServo(Servo servo){
-        if(TunerParams.servoEnabled ){
+        if(ServoTunerParams.servoEnabled ){
             servo.getController().pwmEnable();
         }
 
-        if(!TunerParams.servoEnabled ){
+        if(!ServoTunerParams.servoEnabled ){
             servo.getController().pwmDisable();
         }
 
 
-        servo.scaleRange(TunerParams.min,TunerParams.max);
+        servo.scaleRange(ServoTunerParams.min, ServoTunerParams.max);
 
         if(servo.getController().getPwmStatus() == ServoController.PwmStatus.ENABLED){
             telemetry.addLine("updating position");
-            servo.setPosition(TunerParams.position);
+            servo.setPosition(ServoTunerParams.position);
         }
 
-        servo.setDirection(TunerParams.direction);
+        servo.setDirection(ServoTunerParams.direction);
         telemetry.addData("Position: ", servo.getPosition());
         telemetry.addData("Enabled: ", ServoController.PwmStatus.ENABLED);
 
-        servoEnabledLast = TunerParams.servoEnabled;
+        servoEnabledLast = ServoTunerParams.servoEnabled;
     }
 
     @Config
-    public static class TunerParams{
+    public static class ServoTunerParams {
         public static String servoName = "";
         public static boolean servoEnabled;
         public static double min = 0, max = 1, position = 0.5;

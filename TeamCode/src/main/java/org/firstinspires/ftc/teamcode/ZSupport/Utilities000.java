@@ -27,9 +27,11 @@ public class Utilities000 {
 
     private static final double TRANSFER_MIN = 0.2;
     private static final double TRANSFER_MAX = 0.82;
+    private static final double SAFE_CURRENT = 1.5;
+    private static final double MAX_CURRENT = 6.0;
 
 
-    private DcMotor intakeMotor;
+    private DcMotorEx intakeMotor;
     private DcMotorEx flywheelR;
     private DcMotorEx flywheelL;
     private DcMotorEx hoodYawMotor;
@@ -74,7 +76,7 @@ public class Utilities000 {
         fr.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        intakeMotor = l.hardwareMap.get(DcMotor.class, "intake");
+        intakeMotor = l.hardwareMap.get(DcMotorEx.class, "intake");
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
@@ -147,7 +149,16 @@ public class Utilities000 {
 //        follower.setTeleOpDrive(forward, left, rotateCounterclockwise, false);
 //    }
 
-    public void intakePower(double pow) {intakeMotor.setPower(deadZone(pow, 0.05));}
+    public double computeCurrentMultiplier(double current){
+        if (current <= SAFE_CURRENT) return 1.0;
+        if (current >= MAX_CURRENT)  return 0.0;
+
+        return 1.0 - (current - SAFE_CURRENT) / (MAX_CURRENT - SAFE_CURRENT);
+    }
+    public void intakePower(double pow) {
+        double currentMultiplier = computeCurrentMultiplier(intakeMotor.getCurrent(CurrentUnit.AMPS));
+        intakeMotor.setPower(deadZone(pow*currentMultiplier, 0.05));
+    }
 
     public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
     public void setHoodYawAngleDegrees(double degrees) {hoodYawMotor.setTargetPosition((int)(degrees * YAW_PULSES_PER_DEGREE));}
