@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.ZSupport;
 
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -12,8 +13,10 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
 import java.util.List;
 
@@ -88,7 +91,7 @@ public class Utilities000 {
         flywheelL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         hoodYawMotor = l.hardwareMap.get(DcMotorEx.class, "hoodYaw");
-        hoodYawMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        hoodYawMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         hoodYawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         hoodYawMotor.setTargetPosition(0);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -227,6 +230,41 @@ public class Utilities000 {
         } else {
             return 0;
         }
+    }
+
+    public void updateOdo(){
+        odo.update();
+    }
+    public void aimAtPoint(double x, double y) {
+        Pose2D currentPose = odo.getPosition();
+        double currentX = currentPose.getX(DistanceUnit.INCH);
+        double currentY = currentPose.getY(DistanceUnit.INCH);
+
+        double dX = x - currentX;
+        double dY = y - currentY;
+
+        double deg = Math.toDegrees(Math.atan2(dY, dX));
+
+        double turretDeg = deg - odo.getHeading(AngleUnit.DEGREES);
+
+        setHoodYawAngleDegrees(turretDeg);
+    }
+
+    public double getAngleRelativeToPoint(int x, int y) {
+        Pose2D currentPose = odo.getPosition();
+        double currentX = currentPose.getX(DistanceUnit.INCH);
+        double currentY = currentPose.getY(DistanceUnit.INCH);
+
+        double dX = x - currentX;
+        double dY = y - currentY;
+
+        double deg = Math.toDegrees(Math.atan2(dY, dX));
+
+        return deg;
+    }
+
+    public Pose2D getPosition(){
+        return odo.getPosition();
     }
 
     private void flywheelController(double targetTicksPerSec) {

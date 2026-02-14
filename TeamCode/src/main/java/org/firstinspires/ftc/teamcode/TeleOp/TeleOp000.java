@@ -24,7 +24,8 @@ public class TeleOp000 extends LinearOpMode {
     public enum TelemetryMode {
         DELIVERY,
         CIRCUIT,
-        DEBUG;
+        DEBUG,
+        ODOMETRY;;
     }
     private TelemetryMode telemetryMode;
 
@@ -50,6 +51,7 @@ public class TeleOp000 extends LinearOpMode {
         }
 
         bot.move(-gamepad.left_stick_y*speedFactor, gamepad.left_stick_x*speedFactor, -gamepad.right_stick_x*speedFactor);
+        bot.updateOdo();
     }
 
     public void handleDelivery(Gamepad gamepad){
@@ -65,7 +67,9 @@ public class TeleOp000 extends LinearOpMode {
         } else if (gamepad.dpad_left) {
             yaw -= 5;
         }
-        bot.setHoodYawAngleTicks(yaw);
+
+        bot.aimAtPoint(80.025,176.475);
+//        bot.setHoodYawAngleTicks(yaw);
         bot.setHoodYawPower(0.5);
 
         if(gamepad.dpad_up) {
@@ -79,10 +83,10 @@ public class TeleOp000 extends LinearOpMode {
     public void handleIntake(Gamepad gamepad){
         if(gamepad.right_trigger > 0.01){
             bot.intakePower(gamepad.right_trigger);
-        }
-
-        if(gamepad.left_trigger > 0.01){
-            bot.intakePower(gamepad.left_trigger);
+        } else if(gamepad.left_trigger > 0.01){
+            bot.intakePower(-gamepad.left_trigger);
+        } else{
+            bot.intakePower(0);
         }
 
         if(gamepad.y){
@@ -101,6 +105,7 @@ public class TeleOp000 extends LinearOpMode {
             case DEBUG:
                 bot.addAmpTelemetry();
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
+                telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
                 telemetry.addData("Turret Yaw Deg: ", bot.getHoodYawAngleDegrees());
                 telemetry.addData("Flywheel ticks/s: ", shotPower);
                 telemetry.addData("Flywheel speed: ", bot.getFlywheelSpeed());
@@ -113,9 +118,13 @@ public class TeleOp000 extends LinearOpMode {
                 telemetry.addData("Flywheel speed: ", bot.getFlywheelSpeed());
                 telemetry.addData("Flywheel yaw:     ", yaw);
                 telemetry.addData("Flywheel pitch:   ", pitch);
+                telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
             case CIRCUIT:
                 bot.addAmpTelemetry();
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
+            case ODOMETRY:
+                telemetry.addData("Position: ", bot.getPosition());
+                telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
         }
 
         loopTime.reset();
