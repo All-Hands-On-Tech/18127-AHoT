@@ -2,13 +2,13 @@ package org.firstinspires.ftc.teamcode.ZSupport;
 
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
@@ -25,8 +25,8 @@ public class Utilities000 {
     private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
     private static final double PITCH_PULSES_PER_DEGREE = 0;
 
-    private static final double TRANSFER_DOWN = 0;
-    private static final double TRANSFER_UP = 0.5;
+    private static final double TRANSFER_MIN = 0.2;
+    private static final double TRANSFER_MAX = 0.82;
 
 
     private DcMotor intakeMotor;
@@ -84,13 +84,23 @@ public class Utilities000 {
         flywheelL   = l.hardwareMap.get(DcMotorEx.class, "flyL");
         flywheelL.setDirection(DcMotorSimple.Direction.REVERSE);
         flywheelL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
         hoodYawMotor = l.hardwareMap.get(DcMotorEx.class, "hoodYaw");
         hoodYawMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         hoodYawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         hoodYawMotor.setTargetPosition(0);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+
+        PIDFCoefficients vCoefficients = new PIDFCoefficients(5, 3, 2, 35);
+        hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, vCoefficients);
+
+        PIDFCoefficients pCoefficients = new PIDFCoefficients(10, 0,0,0);
+        hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION, pCoefficients);
+
         hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
         transferServo = l.hardwareMap.get(Servo.class, "transfer");
+        transferServo.scaleRange(TRANSFER_MIN, TRANSFER_MAX);
 
         odo.initialize();
         odo.setOffsets(80.025, 176.475, DistanceUnit.MM);
@@ -159,15 +169,15 @@ public class Utilities000 {
         flywheelR.setPower(volts/currentVoltage);
     }
 
-    public void setTransferServo(double position){
-        transferServo.setPosition(position);
+    public void setTransferBlock(){
+        transferServo.setPosition(0.5);
     }
 
     public void setTransferUp(){
-        transferServo.setPosition(TRANSFER_UP);
+        transferServo.setPosition(0);
     }
     public void setTransferDown(){
-        transferServo.setPosition(TRANSFER_DOWN);
+        transferServo.setPosition(1);
     }
     public void setFlywheelSpeed_DO_NOT_USE(int tickRate) {
         flywheelL.setVelocity(tickRate);

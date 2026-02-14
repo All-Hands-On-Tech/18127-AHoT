@@ -85,12 +85,12 @@ public class TeleOp000 extends LinearOpMode {
             bot.intakePower(gamepad.left_trigger);
         }
 
-        if(gamepad.aWasPressed()){
-            bot.setTransferDown();
-        }
-
-        if(gamepad.aWasReleased()){
+        if(gamepad.y){
             bot.setTransferUp();
+        } else if(gamepad.a){
+            bot.setTransferDown();
+        } else {
+            bot.setTransferBlock();
         }
     }
 

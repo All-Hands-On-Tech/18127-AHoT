@@ -7,13 +7,14 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.ServoImplEx;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.ServoController;
 
 
 @TeleOp(name="ServoTuner", group="A")
 public class ServoTunerOpMode extends LinearOpMode {
 
-    private ServoImplEx servoImpl;
+    private Servo servo;
     private String lastServoName = "";
     boolean servoEnabledLast = false;
 
@@ -31,22 +32,21 @@ public class ServoTunerOpMode extends LinearOpMode {
 
             if(!TunerParams.servoName.equals(lastServoName)){
                 try{
-                    servoImpl = hardwareMap.get(ServoImplEx.class, TunerParams.servoName);
+                    servo = hardwareMap.get(Servo.class, TunerParams.servoName);
                     lastServoName = TunerParams.servoName;
                 } catch (Exception e){
-                    telemetry.addData("Error", "Motor not found: " + TunerParams.servoName);
+                    telemetry.addData("Error", "Servo not found: " + TunerParams.servoName);
                 }
             }
 
-            if(servoImpl != null){
+            if(servo != null){
 
                 if(Math.hypot(-gamepad1.left_stick_y,gamepad1.left_stick_x) > 0.8f){
-                    double angle = Math.atan2(-gamepad1.left_stick_y,gamepad1.left_stick_x);
-                    angle = Math.toDegrees(angle);
-                    TunerParams.position = angle / (Math.PI * 2);
+                    double angleDeg = Math.toDegrees(Math.atan2(-gamepad1.left_stick_y, gamepad1.left_stick_x));
+                    TunerParams.position = (angleDeg + 180.0) / 360.0;
                 }
 
-                tuneServo(servoImpl);
+                tuneServo(servo);
 
 
                 telemetry.update();
@@ -56,24 +56,28 @@ public class ServoTunerOpMode extends LinearOpMode {
 
     }
 
-    public void tuneServo(ServoImplEx servo){
-
-        if(TunerParams.servoEnabled && !servoEnabledLast){
-            servo.setPwmEnable();
+    public void tuneServo(Servo servo){
+        if(TunerParams.servoEnabled ){
+            servo.getController().pwmEnable();
         }
 
-        if(!TunerParams.servoEnabled && servoEnabledLast){
-            servo.setPwmDisable();
+        if(!TunerParams.servoEnabled ){
+            servo.getController().pwmDisable();
         }
 
-        servo.setPwmRange(new PwmControl.PwmRange(TunerParams.min, TunerParams.max));
-        servo.setPosition(TunerParams.position);
+
+        servo.scaleRange(TunerParams.min,TunerParams.max);
+
+        if(servo.getController().getPwmStatus() == ServoController.PwmStatus.ENABLED){
+            telemetry.addLine("updating position");
+            servo.setPosition(TunerParams.position);
+        }
+
         servo.setDirection(TunerParams.direction);
-
-        telemetry.addData("Is PWM Enabled: ", servo.isPwmEnabled());
-        telemetry.addData("Range: ", servo.getPwmRange());
         telemetry.addData("Position: ", servo.getPosition());
-        telemetry.update();
+        telemetry.addData("Enabled: ", ServoController.PwmStatus.ENABLED);
+
+        servoEnabledLast = TunerParams.servoEnabled;
     }
 
     @Config
