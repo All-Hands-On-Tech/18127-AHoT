@@ -10,6 +10,9 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
+
+import java.util.Timer;
+
 @Disabled
 @TeleOp(name="0-0-0 TeleOp", group="A")
 public class TeleOp000 extends LinearOpMode {
@@ -20,6 +23,8 @@ public class TeleOp000 extends LinearOpMode {
     private double yaw = 0;
     private double pitch = 0.6;
     private double speedFactor = 1;
+    private ElapsedTime transferTimer = new ElapsedTime();
+    private boolean transfered = false;
 
     public enum TelemetryMode {
         DELIVERY,
@@ -68,7 +73,9 @@ public class TeleOp000 extends LinearOpMode {
             yaw -= 5;
         }
 
-        bot.aimAtPoint(80.025,176.475);
+//        bot.aimAtPoint(80.025,176.475);
+        bot.aimAtPoint(10,10);
+//        bot.aimAtPoint(0,0);
 //        bot.setHoodYawAngleTicks(yaw);
         bot.setHoodYawPower(0.5);
 
@@ -89,12 +96,18 @@ public class TeleOp000 extends LinearOpMode {
             bot.intakePower(0);
         }
 
-        if(gamepad.y){
-            bot.setTransferUp();
-        } else if(gamepad.a){
+
+
+        if(gamepad.aWasPressed()){
+            transfered = false;
             bot.setTransferDown();
-        } else {
+        } else if(gamepad.aWasReleased()){
+            transfered = true;
+            bot.setTransferUp();
+            transferTimer.reset();
+        } else if(transfered && transferTimer.seconds() > 0.5){
             bot.setTransferBlock();
+            transfered = false;
         }
     }
 

@@ -25,7 +25,7 @@ public class Utilities000 {
     private TelemetryManager telemetryM;
     private Follower follower;
 
-    private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
+    private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (145.1);
     private static final double PITCH_PULSES_PER_DEGREE = 0;
 
     private static final double TRANSFER_MIN = 0.2;
@@ -94,6 +94,7 @@ public class Utilities000 {
         hoodYawMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         hoodYawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         hoodYawMotor.setTargetPosition(0);
+        hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
 
@@ -108,7 +109,9 @@ public class Utilities000 {
         transferServo.scaleRange(TRANSFER_MIN, TRANSFER_MAX);
 
         odo.initialize();
-        odo.setOffsets(80.025, 176.475, DistanceUnit.MM);
+        odo.resetPosAndIMU();
+        odo.setOffsets(80.025, -176.475, DistanceUnit.MM);
+//        odo.setOffsets(0, 0, DistanceUnit.MM);
         odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD);
 //        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
 //        l.telemetry.setMsTransmissionInterval(10);
@@ -243,9 +246,17 @@ public class Utilities000 {
         double dX = x - currentX;
         double dY = y - currentY;
 
-        double deg = Math.toDegrees(Math.atan2(dY, dX));
+        double deg = Math.toDegrees(Math.atan2(dX, dY));
 
-        double turretDeg = deg - odo.getHeading(AngleUnit.DEGREES);
+        double turretDeg = (deg + 90) - odo.getHeading(AngleUnit.DEGREES);
+//        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
+
+        turretDeg = Math.min(170, Math.max(-170, turretDeg));
+
+        linearOpMode.telemetry.addData("Deg: ", deg);
+        linearOpMode.telemetry.addData("turretDeg: ", turretDeg);
+        linearOpMode.telemetry.addData("dX: ", dX);
+        linearOpMode.telemetry.addData("dY: ", dY);
 
         setHoodYawAngleDegrees(turretDeg);
     }
