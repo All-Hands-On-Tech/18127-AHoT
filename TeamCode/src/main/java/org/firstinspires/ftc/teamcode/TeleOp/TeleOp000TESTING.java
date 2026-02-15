@@ -34,7 +34,7 @@ public class TeleOp000TESTING extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            bot.move(-gamepad1.left_stick_y/3, gamepad1.left_stick_x/3, -gamepad1.right_stick_x/3);
+            bot.move(-gamepad1.left_stick_y, gamepad1.left_stick_x, -gamepad1.right_stick_x, 1/3);
 
             if(gamepad1.rightBumperWasPressed()) {
                 shotPower += 100;
@@ -60,10 +60,10 @@ public class TeleOp000TESTING extends LinearOpMode {
 
             if(gamepad1.right_trigger > 0.01){
                 bot.intakePower(gamepad1.right_trigger);
-            }
-
-            if(gamepad1.left_trigger > 0.01){
+            }else if(gamepad1.left_trigger > 0.01){
                 bot.intakePower(gamepad1.left_trigger);
+            } else {
+                bot.intakePower(0);
             }
 
             telemetry.addData("Flywheel ticks/s: ", shotPower);

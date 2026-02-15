@@ -1,11 +1,16 @@
 package org.firstinspires.ftc.teamcode.ZSupport;
 
+import android.graphics.Color;
+import android.util.Size;
+
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.pedropathing.math.Vector;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -13,19 +18,24 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.opencv.Circle;
+import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
+import org.firstinspires.ftc.vision.opencv.ColorRange;
+import org.firstinspires.ftc.vision.opencv.ImageRegion;
 
 import java.util.List;
 
 public class Utilities000 {
-    LinearOpMode linearOpMode;
+    OpMode opMode;
     private TelemetryManager telemetryM;
     private Follower follower;
 
-    private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (145.1);
+    private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
     private static final double PITCH_PULSES_PER_DEGREE = 0;
 
     private static final double TRANSFER_MIN = 0.2;
@@ -43,26 +53,31 @@ public class Utilities000 {
     public DcMotor fr, fl, br, bl;
     private List<DcMotorEx> motors;
     private List<LynxModule> allHubs;
-    public double frPower, flPower, brPower, blPower;
-
-    public GoBildaPinpointDriver odo;
-
-//    private VisionPortal portal;
-//    private static final double resHorz = 640;
-//    private static final double resVert = 480;
-//    private static final double diagonalFOV = 78;
-//    private Limelight3A limelight;
+    private VisionPortal portal;
+    ColorBlobLocatorProcessor colorLocatorPurple;
+    ColorBlobLocatorProcessor colorLocatorGreen;
+    private static final double resHorz = 640;
+    private static final double resVert = 480;
+    private static final double diagonalFOV = 78;
+    private static final double webcamX = 6.5;
+    private static final double webcamY = 0;
+    private static final double webcamA = 120;
+    private Limelight3A limelight;
 
     private VoltageSensor voltageSensor;
 
+    public enum AllianceColor {RED, BLUE, UNKNOWN;}
+    AllianceColor allianceColor = AllianceColor.UNKNOWN;
+
 
     /**Initialization code*/
-    public Utilities000(LinearOpMode l) {
-        linearOpMode = l;
+    public Utilities000(OpMode l) {
+        opMode = l;
     }
 
-    public void initialize(LinearOpMode l) {
-//        follower = Constants000.createFollower(l.hardwareMap);
+    public void initialize(OpMode l) {
+        follower = Constants000.createFollower(l.hardwareMap);
+        follower.startTeleOpDrive();
 //        telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         allHubs = l.hardwareMap.getAll(LynxModule.class);
 
@@ -70,7 +85,6 @@ public class Utilities000 {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
         motors = l.hardwareMap.getAll(DcMotorEx.class);
-        odo = l.hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
         fr = l.hardwareMap.get(DcMotor.class, "fr");
         fl = l.hardwareMap.get(DcMotor.class, "fl");
@@ -96,6 +110,7 @@ public class Utilities000 {
         hoodYawMotor.setTargetPosition(0);
         hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        hoodYawMotor.setPower(0);
 
 
         PIDFCoefficients vCoefficients = new PIDFCoefficients(5, 3, 2, 35);
@@ -108,52 +123,91 @@ public class Utilities000 {
         transferServo = l.hardwareMap.get(Servo.class, "transfer");
         transferServo.scaleRange(TRANSFER_MIN, TRANSFER_MAX);
 
-        odo.initialize();
-        odo.resetPosAndIMU();
-        odo.setOffsets(80.025, -176.475, DistanceUnit.MM);
-//        odo.setOffsets(0, 0, DistanceUnit.MM);
-        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD);
-//        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
-//        l.telemetry.setMsTransmissionInterval(10);
-//        limelight.pipelineSwitch(0);
-//        limelight.start();
+        limelight = l.hardwareMap.get(Limelight3A.class, "limelight");
+        l.telemetry.setMsTransmissionInterval(10);
+        limelight.pipelineSwitch(0);
+        limelight.start();
 //
-//        portal = initWebcam(l);
+        ColorBlobLocatorProcessor colorLocatorPurple = new ColorBlobLocatorProcessor.Builder()
+                .setTargetColorRange(ColorRange.ARTIFACT_PURPLE)// Use a predefined color match
+                .setContourMode(ColorBlobLocatorProcessor.ContourMode.EXTERNAL_ONLY)
+                .setRoi(ImageRegion.asUnityCenterCoordinates(-1, 1, 1, -1))
+                .setDrawContours(true)   // Show contours on the Stream Preview
+                .setBoxFitColor(0)       // Disable the drawing of rectangles
+                .setCircleFitColor(Color.rgb(255, 255, 0)) // Draw a circle
+                .setBlurSize(3)          // Smooth the transitions between different colors in image
+
+                // the following options have been added to fill in perimeter holes.
+                .setDilateSize(2)       // Expand blobs to fill any divots on the edges
+                .setErodeSize(2)        // Shrink blobs back to original size
+                .setMorphOperationType(ColorBlobLocatorProcessor.MorphOperationType.CLOSING)
+
+                .build();
+
+        ColorBlobLocatorProcessor colorLocatorGreen = new ColorBlobLocatorProcessor.Builder()
+                .setTargetColorRange(ColorRange.ARTIFACT_GREEN)   // Use a predefined color match
+                .setContourMode(ColorBlobLocatorProcessor.ContourMode.EXTERNAL_ONLY)
+                .setRoi(ImageRegion.asUnityCenterCoordinates(-1, 1, 1, -1))
+                .setDrawContours(true)   // Show contours on the Stream Preview
+                .setBoxFitColor(0)       // Disable the drawing of rectangles
+                .setCircleFitColor(Color.rgb(255, 255, 0)) // Draw a circle
+                .setBlurSize(3)          // Smooth the transitions between different colors in image
+
+                // the following options have been added to fill in perimeter holes.
+                .setDilateSize(2)       // Expand blobs to fill any divots on the edges
+                .setErodeSize(2)        // Shrink blobs back to original size
+                .setMorphOperationType(ColorBlobLocatorProcessor.MorphOperationType.CLOSING)
+
+                .build();
+
+        portal = new VisionPortal.Builder()
+                .addProcessor(colorLocatorPurple)
+                .addProcessor(colorLocatorGreen)
+                .setCameraResolution(new Size((int)resHorz, (int)resVert))
+                .setCamera(l.hardwareMap.get(WebcamName.class, "Webcam 1"))
+                .build();
 
         voltageSensor = l.hardwareMap.get(VoltageSensor.class, "Control Hub");
     }
 
-    public void move(double forward, double right, double r) {
-        //represent inputs as 3D vector then normalize to ensure robot translates and turns at max speed if asked to, and if input exceeds possible power, normalize.
-        double mag = Math.sqrt(forward * forward + right * right + r * r);
-
-        if (mag > 1.0) {
-            forward /= mag;
-            right /= mag;
-            r /= mag;
-        }
-        flPower = forward + right - r;
-        frPower = -forward + right - r;
-        blPower = -forward + right + r;
-        brPower = forward + right + r;
-
-
-        applyDrivePower();
-    }
-    public void applyDrivePower() {
-        fl.setPower(flPower);
-        bl.setPower(blPower);
-        br.setPower(brPower);
-        fr.setPower(frPower);
-    }
+//    public void move(double forward, double right, double r) {
+//        //represent inputs as 3D vector then normalize to ensure robot translates and turns at max speed if asked to, and if input exceeds possible power, normalize.
+//        double mag = Math.sqrt(forward * forward + right * right + r * r);
+//
+//        if (mag > 1.0) {
+//            forward /= mag;
+//            right /= mag;
+//            r /= mag;
+//        }
+//        flPower = forward + right - r;
+//        frPower = -forward + right - r;
+//        blPower = -forward + right + r;
+//        brPower = forward + right + r;
+//
+//
+//        applyDrivePower();
+//    }
+//    public void applyDrivePower() {
+//        fl.setPower(flPower);
+//        bl.setPower(blPower);
+//        br.setPower(brPower);
+//        fr.setPower(frPower);
+//    }
 
     /**Useable methods*/
-//    public void move(double forward, double left, double rotateCounterclockwise, double speed) {
-//        forward                = speed * deadZone(forward, 0.05);
-//        left                   = speed * deadZone(left, 0.05);
-//        rotateCounterclockwise = speed * deadZone(rotateCounterclockwise, 0.05);
-//        follower.setTeleOpDrive(forward, left, rotateCounterclockwise, false);
-//    }
+    public void move(double forward, double left, double rotateCounterclockwise, double speed) {
+        forward                = speed * deadZone(forward, 0.05);
+        left                   = speed * deadZone(left, 0.05);
+        rotateCounterclockwise = speed * deadZone(rotateCounterclockwise, 0.05);
+        follower.setTeleOpDrive(forward, left, rotateCounterclockwise, true);
+    }
+
+    public void setAllianceColor(AllianceColor color) {
+        allianceColor = color;
+    }
+    public AllianceColor getAllianceColor(){
+        return allianceColor;
+    }
 
     public double computeCurrentMultiplier(double current){
         if (current <= SAFE_CURRENT) return 1.0;
@@ -206,7 +260,7 @@ public class Utilities000 {
             String name = motor.getDeviceName();
             double current = motor.getCurrent(CurrentUnit.AMPS);
 
-            linearOpMode.telemetry.addData(
+            opMode.telemetry.addData(
                     name,
                     "%.2f A",
                     current
@@ -216,15 +270,28 @@ public class Utilities000 {
         for (LynxModule hub : allHubs) {
             totalCurrent += hub.getCurrent(CurrentUnit.AMPS);
         }
-        linearOpMode.telemetry.addData("Total Current: ", totalCurrent);
+        opMode.telemetry.addData("Total Current: ", totalCurrent);
     }
 
-//    public void setPoseEstimate(Pose pose) {
-//        follower.setPose(pose);
-//    }
-//    public void updateFollower() {
-//        follower.update();
-//    }
+    public void turrentUpdate() {
+        double[] shotVector = findShot();
+        flywheelController(shotVector[0]);
+        setHoodPitchAngleDegrees(shotVector[1]);
+        setHoodYawAngleDegrees(shotVector[2]);
+    }
+
+    public void disarmTurrent() {
+        flywheelController(0);
+    }
+
+    public void limelightUpdate() {
+        LLResult result = limelight.getLatestResult();
+        if (result.isValid()) {
+            Pose3D pose = result.getBotpose();
+            if (pose.getPosition().x!=0 || pose.getPosition().y!=0)
+            follower.setPose(new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw()));
+        }
+    }
 
     /**Internal utilities*/
     private double deadZone(double value, double minimum) {
@@ -236,35 +303,28 @@ public class Utilities000 {
     }
 
     public void updateOdo(){
-        odo.update();
+        follower.update();
     }
-    public void aimAtPoint(double x, double y) {
-        Pose2D currentPose = odo.getPosition();
-        double currentX = currentPose.getX(DistanceUnit.INCH);
-        double currentY = currentPose.getY(DistanceUnit.INCH);
+    public double aimAtPoint(Pose point) {
+        Pose currentPose = follower.getPose();
+        Pose path = point.minus(currentPose);
 
-        double dX = x - currentX;
-        double dY = y - currentY;
+        double dX = path.getX();
+        double dY = path.getY();
 
         double deg = Math.toDegrees(Math.atan2(dX, dY));
 
-        double turretDeg = deg - odo.getHeading(AngleUnit.DEGREES);
+        double turretDeg = deg - Math.toDegrees(currentPose.getHeading());
 //        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
 
         turretDeg = Math.min(170, Math.max(-170, turretDeg));
-
-        linearOpMode.telemetry.addData("Deg: ", deg);
-        linearOpMode.telemetry.addData("turretDeg: ", turretDeg);
-        linearOpMode.telemetry.addData("dX: ", dX);
-        linearOpMode.telemetry.addData("dY: ", dY);
-
-        setHoodYawAngleDegrees(turretDeg);
+        return turretDeg;
     }
 
     public double getAngleRelativeToPoint(int x, int y) {
-        Pose2D currentPose = odo.getPosition();
-        double currentX = currentPose.getX(DistanceUnit.INCH);
-        double currentY = currentPose.getY(DistanceUnit.INCH);
+        Pose currentPose = follower.getPose();
+        double currentX = currentPose.getX();
+        double currentY = currentPose.getY();
 
         double dX = x - currentX;
         double dY = y - currentY;
@@ -274,8 +334,8 @@ public class Utilities000 {
         return deg;
     }
 
-    public Pose2D getPosition(){
-        return odo.getPosition();
+    public Pose getPosition(){
+        return follower.getPose();
     }
 
     private void flywheelController(double targetTicksPerSec) {
@@ -285,7 +345,9 @@ public class Utilities000 {
         double b = 0;
         double feedForward = m*targetTicksPerSec + b;
 
-        if (currentTicksPerSec < 0.9*targetTicksPerSec) {
+        if (targetTicksPerSec < 0){
+            setFlywheelVolts(-2);
+        } else if (currentTicksPerSec < 0.9*targetTicksPerSec) {
             setFlywheelVolts(12);
         } else if (currentTicksPerSec > 1.1*targetTicksPerSec) {
             setFlywheelVolts(0);
@@ -294,10 +356,94 @@ public class Utilities000 {
         }
     }
 
+    private Pose[] getArtifactPoses(){
+        Pose currentPose = follower.getPose();
+        List<ColorBlobLocatorProcessor.Blob> blobs = colorLocatorPurple.getBlobs();
+        blobs.addAll(colorLocatorGreen.getBlobs());
 
-//    private double speedFunction() {
-//        Pose current = follower.getPose();
-//        double distance
-//    }
+        ColorBlobLocatorProcessor.Util.filterByCriteria(
+                ColorBlobLocatorProcessor.BlobCriteria.BY_CONTOUR_AREA,
+                500, resHorz*resVert*10, blobs);  // filter out very small blobs.
+
+        ColorBlobLocatorProcessor.Util.filterByCriteria(
+                ColorBlobLocatorProcessor.BlobCriteria.BY_CIRCULARITY,
+                0.5, 1, blobs);
+        //focal length = apparent radius (px) * known distance
+        double focalLength = 1570;
+        //Field Of View Scaling
+        double fovScaling = diagonalFOV / Math.sqrt(resHorz*resHorz + resVert*resVert);
+        Pose[] artifactPoses = new Pose[blobs.size()];
+        for (int i=0; i>blobs.size(); i++) {
+
+            ColorBlobLocatorProcessor.Blob b = blobs.get(i);
+            Circle circleFit = b.getCircle();
+
+            double range = focalLength / circleFit.getRadius();
+            double theta = webcamA + ((circleFit.getY() - resVert / 2) * fovScaling);
+            double phi = Math.toDegrees(currentPose.getHeading()) - ((circleFit.getX() - resHorz / 2) * fovScaling);
+
+            double blobX = currentPose.getX() + range * Math.sin(Math.toRadians(theta)) * Math.cos(Math.toRadians(phi));
+            double blobY = currentPose.getY() + range * Math.sin(Math.toRadians(theta)) * Math.sin(Math.toRadians(phi));
+            artifactPoses[i] = new Pose(blobX, blobY);
+
+            //debugging lines
+            //telemetry.addLine(String.format("r theta phi (%5.1f, %5.1f,%5.1f)", range, theta, phi));
+            //telemetry.addLine(String.format("artifact location: (%5.1f,%5.1f)", blobX, blobY));
+            // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
+            //telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
+            //b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
+        }
+
+        return artifactPoses;
+    }
+
+    private Pose getGoal(){
+        if (allianceColor==AllianceColor.BLUE) {
+            return new Pose(0, 144);
+        } else if (allianceColor==AllianceColor.RED) {
+            return new Pose(144, 144);
+        } else {
+            return new Pose(72, 144);
+        }
+    }
+
+    private double flywheelSpeedFit() {
+        double distance = getGoal().distanceFrom(follower.getPose());
+        double speed = distance * 3 + 500;
+        return speed;
+    }
+    private double flywheelPitchFit() {
+        double distance = getGoal().distanceFrom(follower.getPose());
+        double pitch = distance * 3 + 500;
+        return pitch;
+    }
+
+    /**This finds the shot vector when stationary
+     * @return [speed, pitch, yaw]
+     */
+    private double[] findShot() {
+        double[] values = new double[3];
+        values[0] = flywheelSpeedFit();
+        values[1] = flywheelPitchFit();
+        values[2] = aimAtPoint(getGoal());
+        return values;
+    }
+
+    private double[] subtractMovement() {
+        Vector movement = follower.getVelocity();
+        double[] prevShot = findShot();
+        double X = prevShot[0] * Math.cos(prevShot[1]) * Math.cos(prevShot[2]);
+        double Y = prevShot[0] * Math.cos(prevShot[1]) * Math.sin(prevShot[2]);
+        double Z = prevShot[0] * Math.sin(prevShot[1]);
+
+        X -= movement.getXComponent();
+        Y -= movement.getYComponent();
+
+        double[] newShot = new double[3];
+        newShot[0] = Math.sqrt(X*X + Y*Y + Z*Z);
+        newShot[1] = Math.atan2(Z, Math.sqrt(X*X + Y*Y));
+        newShot[2] = Math.atan2(Y, X);
+        return newShot;
+    }
 
 }

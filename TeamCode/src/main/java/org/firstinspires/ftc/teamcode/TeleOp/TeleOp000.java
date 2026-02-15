@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -15,7 +16,7 @@ import java.util.Timer;
 
 @Disabled
 @TeleOp(name="0-0-0 TeleOp", group="A")
-public class TeleOp000 extends LinearOpMode {
+public class TeleOp000 extends OpMode {
     Utilities000 bot = new Utilities000(this);
     private ElapsedTime loopTime = new ElapsedTime();
 
@@ -35,7 +36,7 @@ public class TeleOp000 extends LinearOpMode {
     private TelemetryMode telemetryMode;
 
     @Override
-    public void runOpMode() {
+    public void init() {
         bot.initialize(this);
 
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
@@ -43,10 +44,15 @@ public class TeleOp000 extends LinearOpMode {
         telemetry.addData("Status", "Initialized");
         telemetry.update();
 
-        waitForStart();
-        loopTime.reset();
-
     }
+
+    @Override
+    public void start() {
+        loopTime.reset();
+    }
+
+    @Override
+    public void loop() {}
 
     public void handleDrivetrain(Gamepad gamepad){
         if(gamepad.right_bumper){
@@ -55,7 +61,7 @@ public class TeleOp000 extends LinearOpMode {
             speedFactor = 0.8;
         }
 
-        bot.move(-gamepad.left_stick_y*speedFactor, gamepad.left_stick_x*speedFactor, -gamepad.right_stick_x*speedFactor);
+        bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
         bot.updateOdo();
     }
 
@@ -74,9 +80,9 @@ public class TeleOp000 extends LinearOpMode {
         }
 
 //        bot.aimAtPoint(80.025,176.475);
-        bot.aimAtPoint(-10,0);
+//        bot.aimAtPoint(-10,0);
 //        bot.aimAtPoint(0,0);
-//        bot.setHoodYawAngleTicks(yaw);
+        bot.setHoodYawAngleTicks(yaw);
         bot.setHoodYawPower(0.5);
 
         if(gamepad.dpad_up) {
