@@ -74,7 +74,7 @@ public class TeleOp000 extends LinearOpMode {
         }
 
 //        bot.aimAtPoint(80.025,176.475);
-        bot.aimAtPoint(10,10);
+        bot.aimAtPoint(-10,0);
 //        bot.aimAtPoint(0,0);
 //        bot.setHoodYawAngleTicks(yaw);
         bot.setHoodYawPower(0.5);

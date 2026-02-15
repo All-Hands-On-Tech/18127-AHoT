@@ -248,7 +248,7 @@ public class Utilities000 {
 
         double deg = Math.toDegrees(Math.atan2(dX, dY));
 
-        double turretDeg = (deg + 90) - odo.getHeading(AngleUnit.DEGREES);
+        double turretDeg = deg - odo.getHeading(AngleUnit.DEGREES);
 //        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
 
         turretDeg = Math.min(170, Math.max(-170, turretDeg));
