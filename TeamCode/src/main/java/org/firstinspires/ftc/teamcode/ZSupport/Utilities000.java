@@ -19,6 +19,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
@@ -47,10 +48,11 @@ public class Utilities000 {
     private DcMotorEx intakeMotor;
     private DcMotorEx flywheelR;
     private DcMotorEx flywheelL;
-    private DcMotorEx hoodYawMotor;
+    public DcMotorEx hoodYawMotor;
     private Servo hoodPitchServo;
     private Servo transferServo;
     public DcMotor fr, fl, br, bl;
+    public double flPower, frPower, brPower, blPower;
     private List<DcMotorEx> motors;
     private List<LynxModule> allHubs;
     private VisionPortal portal;
@@ -90,7 +92,7 @@ public class Utilities000 {
         fl = l.hardwareMap.get(DcMotor.class, "fl");
         br = l.hardwareMap.get(DcMotor.class, "br");
         bl = l.hardwareMap.get(DcMotor.class, "bl");
-        fr.setDirection(DcMotorSimple.Direction.REVERSE);
+        bl.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
 
         intakeMotor = l.hardwareMap.get(DcMotorEx.class, "intake");
@@ -170,7 +172,10 @@ public class Utilities000 {
         voltageSensor = l.hardwareMap.get(VoltageSensor.class, "Control Hub");
     }
 
-//    public void move(double forward, double right, double r) {
+//    public void move(double forward, double right, double r, double speed) {
+//        forward *= speed;
+//        right *= speed;
+//        r *= speed;
 //        //represent inputs as 3D vector then normalize to ensure robot translates and turns at max speed if asked to, and if input exceeds possible power, normalize.
 //        double mag = Math.sqrt(forward * forward + right * right + r * r);
 //
@@ -227,8 +232,8 @@ public class Utilities000 {
     public void setHoodPitchAngleTicks(double pos) {
         hoodPitchServo.setPosition(pos);
     }
-    public void setHoodPitchAngleDegrees(double pos) {hoodPitchServo.setPosition(pos * PITCH_PULSES_PER_DEGREE);}
-    public double getHoodPitchAngleDegrees() {return (10000 - hoodPitchServo.getPosition()/ PITCH_PULSES_PER_DEGREE);}
+    public void setHoodPitchAngleDegrees(double deg) {hoodPitchServo.setPosition((100.6-deg)/54.1);}
+    public double getHoodPitchAngleDegrees() {return (100.6 -  54.1 * hoodPitchServo.getPosition());}
 
     public double getFlywheelSpeed() {
         double average = (flywheelL.getVelocity()+flywheelR.getVelocity()) / 2;
@@ -241,14 +246,14 @@ public class Utilities000 {
     }
 
     public void setTransferBlock(){
-        transferServo.setPosition(0.5);
+        transferServo.setPosition(0.4);
     }
 
     public void setTransferUp(){
         transferServo.setPosition(0);
     }
     public void setTransferDown(){
-        transferServo.setPosition(1);
+        transferServo.setPosition(1.1);
     }
     public void setFlywheelSpeed_DO_NOT_USE(int tickRate) {
         flywheelL.setVelocity(tickRate);
@@ -274,9 +279,9 @@ public class Utilities000 {
     }
 
     public void turrentUpdate() {
-        double[] shotVector = findShot();
+        double[] shotVector = subtractMovement();
         flywheelController(shotVector[0]);
-        setHoodPitchAngleDegrees(shotVector[1]);
+        setHoodPitchAngleTicks(shotVector[1]);
         setHoodYawAngleDegrees(shotVector[2]);
     }
 
@@ -284,13 +289,17 @@ public class Utilities000 {
         flywheelController(0);
     }
 
-    public void limelightUpdate() {
+    public boolean limelightUpdate() {
+        boolean updated = false;
         LLResult result = limelight.getLatestResult();
         if (result.isValid()) {
             Pose3D pose = result.getBotpose();
-            if (pose.getPosition().x!=0 || pose.getPosition().y!=0)
-            follower.setPose(new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw()));
+            if (pose.getPosition().x!=0 || pose.getPosition().y!=0) {
+                updated = true;
+                follower.setPose(new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw(AngleUnit.RADIANS)+Math.PI/2));
+            }
         }
+        return updated;
     }
 
     /**Internal utilities*/
@@ -312,9 +321,10 @@ public class Utilities000 {
         double dX = path.getX();
         double dY = path.getY();
 
-        double deg = Math.toDegrees(Math.atan2(dX, dY));
+        double deg = Math.toDegrees(Math.atan2(dY, dX));
+        opMode.telemetry.addData("The target is: ", deg);
 
-        double turretDeg = deg - Math.toDegrees(currentPose.getHeading());
+        double turretDeg = deg - (180+Math.toDegrees(currentPose.getHeading()));
 //        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
 
         turretDeg = Math.min(170, Math.max(-170, turretDeg));
@@ -338,11 +348,11 @@ public class Utilities000 {
         return follower.getPose();
     }
 
-    private void flywheelController(double targetTicksPerSec) {
+    public void flywheelController(double targetTicksPerSec) {
         double currentTicksPerSec = getFlywheelSpeed();
-        double p = 0.5; //these values need to be tuned
-        double m = 0;
-        double b = 0;
+        double p = 0.005;
+        double m = 0.00456;
+        double b = 0.675;
         double feedForward = m*targetTicksPerSec + b;
 
         if (targetTicksPerSec < 0){
@@ -409,12 +419,12 @@ public class Utilities000 {
 
     private double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-        double speed = distance * 3 + 500;
+        double speed = distance * 7.05 + 945;
         return speed;
     }
     private double flywheelPitchFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-        double pitch = distance * 3 + 500;
+        double pitch = distance * 0.0034 + 0.331;
         return pitch;
     }
 
@@ -431,18 +441,22 @@ public class Utilities000 {
 
     private double[] subtractMovement() {
         Vector movement = follower.getVelocity();
+        Pose currentPose = follower.getPose();
         double[] prevShot = findShot();
-        double X = prevShot[0] * Math.cos(prevShot[1]) * Math.cos(prevShot[2]);
-        double Y = prevShot[0] * Math.cos(prevShot[1]) * Math.sin(prevShot[2]);
-        double Z = prevShot[0] * Math.sin(prevShot[1]);
+        double shotFactor = 2.83*3.14/56;
+        prevShot[0] *= shotFactor;
+
+        double X = prevShot[0] * Math.cos(Math.toRadians(100.6 -  54.1 * prevShot[1])) * Math.cos(Math.toRadians(prevShot[2]));
+        double Y = prevShot[0] * Math.cos(Math.toRadians(100.6 -  54.1 * prevShot[1])) * Math.sin(Math.toRadians(prevShot[2]));
+        double Z = prevShot[0] * Math.sin(Math.toRadians(100.6 -  54.1 * prevShot[1]));
 
         X -= movement.getXComponent();
         Y -= movement.getYComponent();
 
         double[] newShot = new double[3];
-        newShot[0] = Math.sqrt(X*X + Y*Y + Z*Z);
-        newShot[1] = Math.atan2(Z, Math.sqrt(X*X + Y*Y));
-        newShot[2] = Math.atan2(Y, X);
+        newShot[0] = Math.sqrt(X*X + Y*Y + Z*Z) / shotFactor;
+        newShot[1] = (Math.toDegrees(Math.atan2(Z, Math.sqrt(X*X + Y*Y)))-100.6)/(-54.1);
+        newShot[2] = Math.toDegrees(Math.atan2(Y, X)-currentPose.getHeading());
         return newShot;
     }
 

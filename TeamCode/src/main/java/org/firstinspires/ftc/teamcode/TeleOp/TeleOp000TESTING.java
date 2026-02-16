@@ -8,7 +8,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
-@Disabled
 @TeleOp(name="0-0-0 TeleOp Manual Control", group="A")
 public class TeleOp000TESTING extends LinearOpMode {
     Utilities000 bot = new Utilities000(this);

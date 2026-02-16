@@ -25,6 +25,7 @@ public class TeleOp000 extends OpMode {
     private double pitch = 0.6;
     private double speedFactor = 1;
     private ElapsedTime transferTimer = new ElapsedTime();
+    private ElapsedTime limeLightStaller = new ElapsedTime(10);
     private boolean transfered = false;
 
     public enum TelemetryMode {
@@ -63,34 +64,46 @@ public class TeleOp000 extends OpMode {
 
         bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
         bot.updateOdo();
+        if (limeLightStaller.seconds()>5) {
+            if (bot.limelightUpdate()) {
+                limeLightStaller.reset();
+            }
+        }
     }
 
     public void handleDelivery(Gamepad gamepad){
-        if(gamepad.rightBumperWasPressed()) {
-            shotPower += 100;
-        } else if (gamepad.leftBumperWasPressed()) {
-            shotPower -= 100;
+//        if(gamepad.rightBumperWasPressed()) {
+//            shotPower += 50;
+//        } else if (gamepad.leftBumperWasPressed()) {
+//            shotPower -= 50;
+//        }
+//        bot.flywheelController(shotPower);
+//
+//        if(gamepad.dpad_right) {
+//            yaw += 20;
+//        } else if (gamepad.dpad_left) {
+//            yaw -= 20;
+//        }
+//
+////        bot.aimAtPoint(80.025,176.475);
+////        bot.aimAtPoint(-10,0);
+////        bot.aimAtPoint(0,0);
+//        bot.setHoodYawAngleTicks(yaw);
+//        bot.setHoodYawPower(0.5);
+//
+//        if(gamepad.dpad_up) {
+//            pitch += 0.006;
+//        } else if (gamepad.dpad_down) {
+//            pitch -= 0.006;
+//        }
+//        bot.setHoodPitchAngleTicks(pitch);
+        if(gamepad.x) {
+            bot.turrentUpdate();
+            bot.hoodYawMotor.setPower(1);
+        } else {
+            bot.flywheelController(0);
+            bot.hoodYawMotor.setPower(0);
         }
-        bot.setFlywheelSpeed_DO_NOT_USE(shotPower);
-
-        if(gamepad.dpad_right) {
-            yaw += 20;
-        } else if (gamepad.dpad_left) {
-            yaw -= 20;
-        }
-
-//        bot.aimAtPoint(80.025,176.475);
-//        bot.aimAtPoint(-10,0);
-//        bot.aimAtPoint(0,0);
-        bot.setHoodYawAngleTicks(yaw);
-        bot.setHoodYawPower(0.5);
-
-        if(gamepad.dpad_up) {
-            pitch += 0.006;
-        } else if (gamepad.dpad_down) {
-            pitch -= 0.006;
-        }
-        bot.setHoodPitchAngleTicks(pitch);
     }
 
     public void handleIntake(Gamepad gamepad){
@@ -143,6 +156,7 @@ public class TeleOp000 extends OpMode {
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
             case ODOMETRY:
                 telemetry.addData("Position: ", bot.getPosition());
+                telemetry.addData("Heading: ", Math.toDegrees(bot.getPosition().getHeading()));
                 telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
         }
 
