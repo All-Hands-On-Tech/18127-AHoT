@@ -74,9 +74,9 @@ public class TeleOp000 extends OpMode {
         bot.setFlywheelSpeed_DO_NOT_USE(shotPower);
 
         if(gamepad.dpad_right) {
-            yaw += 5;
+            yaw += 20;
         } else if (gamepad.dpad_left) {
-            yaw -= 5;
+            yaw -= 20;
         }
 
 //        bot.aimAtPoint(80.025,176.475);

@@ -41,7 +41,7 @@ public class Utilities000 {
     private static final double TRANSFER_MIN = 0.2;
     private static final double TRANSFER_MAX = 0.82;
     private static final double SAFE_CURRENT = 1.5;
-    private static final double MAX_CURRENT = 6.0;
+    private static final double MAX_CURRENT = 3.0;
 
 
     private DcMotorEx intakeMotor;

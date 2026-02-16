@@ -15,7 +15,7 @@ public class SinglePlayerTeleOp000 extends TeleOp000 {
         telemetry.addData("Status", "Initialized");
         telemetry.update();
 
-        setTelemetryMode(TelemetryMode.ODOMETRY);
+        setTelemetryMode(TelemetryMode.DEBUG);
 
         loopTime.reset();
     }
