@@ -15,7 +15,7 @@ public class SinglePlayerTeleOp000 extends TeleOp000 {
         telemetry.addData("Status", "Initialized");
         telemetry.update();
 
-        setTelemetryMode(TelemetryMode.DEBUG);
+        setTelemetryMode(TelemetryMode.DELIVERY);
 
         loopTime.reset();
     }
@@ -48,6 +48,6 @@ public class SinglePlayerTeleOp000 extends TeleOp000 {
 
             handleIntake(gamepad1);
 
-            handleTelemetry();
+//            handleTelemetry();
         }
 }

@@ -28,6 +28,7 @@ public class TeleOp000 extends OpMode {
     private ElapsedTime transferTimer = new ElapsedTime();
     private ElapsedTime limeLightStaller = new ElapsedTime(10);
     private boolean transfered = false;
+    private boolean aiming = false;
 
     public enum TelemetryMode {
         DELIVERY,
@@ -109,10 +110,20 @@ public class TeleOp000 extends OpMode {
 //            pitch -= 0.006;
 //        }
 //        bot.setHoodPitchAngleTicks(pitch);
-        if(gamepad.x) {
+//        if(gamepad.xWasPressed() && !aiming) {
+//            aiming = true;
+//        } else if(gamepad.xWasPressed() && aiming){
+//            aiming = false;
+//        }
+
+        if(gamepad.xWasPressed()){
+            aiming = !aiming;
+        }
+
+        if(aiming){
             bot.turrentUpdate();
             bot.hoodYawMotor.setPower(1);
-        } else {
+        } else{
             bot.flywheelController(0);
             bot.hoodYawMotor.setPower(0);
         }
@@ -122,13 +133,13 @@ public class TeleOp000 extends OpMode {
         if(gamepad.right_trigger > 0.01){
             bot.intakePower(gamepad.right_trigger);
         } else if(gamepad.left_trigger > 0.01){
-            bot.intakePower(-gamepad.left_trigger);
+            bot.intakePower(-gamepad.left_trigger * 0.5);
         } else{
             bot.intakePower(0);
         }
 
 
-        if(gamepad.a) {
+        if(gamepad.a && gamepad.left_trigger < 0.01) {
             bot.intakePower(1);
         }
 

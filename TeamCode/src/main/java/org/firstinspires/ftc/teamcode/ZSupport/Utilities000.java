@@ -427,7 +427,7 @@ public class Utilities000 {
     private double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
         double speed = distance * 7.05 + 945;
-        return speed;
+        return speed + 100; //HUY ADJUSTMENT REMOVE LATER
     }
     private double flywheelPitchFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
