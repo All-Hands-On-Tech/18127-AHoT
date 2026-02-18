@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -56,11 +57,22 @@ public class TeleOp000 extends OpMode {
     public void loop() {}
 
     public void handleDrivetrain(Gamepad gamepad){
-        if(gamepad.right_bumper){
-            speedFactor = 0.6;
+        if(gamepad.left_bumper){
+            speedFactor = 0.3;
         }else{
             speedFactor = 0.8;
         }
+
+        if (gamepad.yWasPressed()) {
+            Pose[] blobs = bot.getArtifactPoses();
+            if (blobs.length>0) {
+                telemetry.addData("blobbby: ",    blobs[0].getX());
+                bot.follower.followPath(bot.pathToArtifacts(blobs));
+            }
+        } else if(gamepad.yWasReleased()) {
+            bot.follower.startTeleOpDrive();
+        }
+        bot.follower.update();
 
         bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
         bot.updateOdo();
@@ -116,6 +128,9 @@ public class TeleOp000 extends OpMode {
         }
 
 
+        if(gamepad.a) {
+            bot.intakePower(1);
+        }
 
         if(gamepad.aWasPressed()){
             transfered = false;

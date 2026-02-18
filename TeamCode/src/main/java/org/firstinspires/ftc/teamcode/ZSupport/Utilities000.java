@@ -5,8 +5,12 @@ import android.util.Size;
 
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.math.Vector;
+import com.pedropathing.paths.Path;
+import com.pedropathing.paths.PathBuilder;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
@@ -34,7 +38,7 @@ import java.util.List;
 public class Utilities000 {
     OpMode opMode;
     private TelemetryManager telemetryM;
-    private Follower follower;
+    public Follower follower;
 
     private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
     private static final double PITCH_PULSES_PER_DEGREE = 0;
@@ -130,7 +134,7 @@ public class Utilities000 {
         limelight.pipelineSwitch(0);
         limelight.start();
 //
-        ColorBlobLocatorProcessor colorLocatorPurple = new ColorBlobLocatorProcessor.Builder()
+        colorLocatorPurple = new ColorBlobLocatorProcessor.Builder()
                 .setTargetColorRange(ColorRange.ARTIFACT_PURPLE)// Use a predefined color match
                 .setContourMode(ColorBlobLocatorProcessor.ContourMode.EXTERNAL_ONLY)
                 .setRoi(ImageRegion.asUnityCenterCoordinates(-1, 1, 1, -1))
@@ -146,7 +150,7 @@ public class Utilities000 {
 
                 .build();
 
-        ColorBlobLocatorProcessor colorLocatorGreen = new ColorBlobLocatorProcessor.Builder()
+        colorLocatorGreen = new ColorBlobLocatorProcessor.Builder()
                 .setTargetColorRange(ColorRange.ARTIFACT_GREEN)   // Use a predefined color match
                 .setContourMode(ColorBlobLocatorProcessor.ContourMode.EXTERNAL_ONLY)
                 .setRoi(ImageRegion.asUnityCenterCoordinates(-1, 1, 1, -1))
@@ -279,7 +283,7 @@ public class Utilities000 {
     }
 
     public void turrentUpdate() {
-        double[] shotVector = subtractMovement();
+        double[] shotVector = findShot();//subtractMovement();
         flywheelController(shotVector[0]);
         setHoodPitchAngleTicks(shotVector[1]);
         setHoodYawAngleDegrees(shotVector[2]);
@@ -302,6 +306,10 @@ public class Utilities000 {
         return updated;
     }
 
+    public void updateOdo(){
+        follower.update();
+    }
+
     /**Internal utilities*/
     private double deadZone(double value, double minimum) {
         if (Math.abs(value) > minimum) {
@@ -311,9 +319,6 @@ public class Utilities000 {
         }
     }
 
-    public void updateOdo(){
-        follower.update();
-    }
     public double aimAtPoint(Pose point) {
         Pose currentPose = follower.getPose();
         Pose path = point.minus(currentPose);
@@ -366,7 +371,7 @@ public class Utilities000 {
         }
     }
 
-    private Pose[] getArtifactPoses(){
+    public Pose[] getArtifactPoses(){
         Pose currentPose = follower.getPose();
         List<ColorBlobLocatorProcessor.Blob> blobs = colorLocatorPurple.getBlobs();
         blobs.addAll(colorLocatorGreen.getBlobs());
@@ -383,7 +388,8 @@ public class Utilities000 {
         //Field Of View Scaling
         double fovScaling = diagonalFOV / Math.sqrt(resHorz*resHorz + resVert*resVert);
         Pose[] artifactPoses = new Pose[blobs.size()];
-        for (int i=0; i>blobs.size(); i++) {
+        opMode.telemetry.addData("say hi", blobs.size());
+        for (int i=0; i<blobs.size(); i++) {
 
             ColorBlobLocatorProcessor.Blob b = blobs.get(i);
             Circle circleFit = b.getCircle();
@@ -397,8 +403,9 @@ public class Utilities000 {
             artifactPoses[i] = new Pose(blobX, blobY);
 
             //debugging lines
-            //telemetry.addLine(String.format("r theta phi (%5.1f, %5.1f,%5.1f)", range, theta, phi));
-            //telemetry.addLine(String.format("artifact location: (%5.1f,%5.1f)", blobX, blobY));
+            opMode.telemetry.addLine(String.format("r theta phi (%5.1f, %5.1f,%5.1f)", range, theta, phi));
+            opMode.telemetry.addLine(String.format("artifact location: (%5.1f,%5.1f)", blobX, blobY));
+            opMode.telemetry.addLine(String.format("artifact location: (%5.1f,%5.1f)", artifactPoses[i].getX(), artifactPoses[i].getY()));
             // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
             //telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
             //b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
@@ -413,7 +420,7 @@ public class Utilities000 {
         } else if (allianceColor==AllianceColor.RED) {
             return new Pose(144, 144);
         } else {
-            return new Pose(72, 144);
+            return new Pose(0, 0);
         }
     }
 
@@ -445,6 +452,7 @@ public class Utilities000 {
         double[] prevShot = findShot();
         double shotFactor = 2.83*3.14/56;
         prevShot[0] *= shotFactor;
+        prevShot[2] += (180+Math.toDegrees(currentPose.getHeading()));
 
         double X = prevShot[0] * Math.cos(Math.toRadians(100.6 -  54.1 * prevShot[1])) * Math.cos(Math.toRadians(prevShot[2]));
         double Y = prevShot[0] * Math.cos(Math.toRadians(100.6 -  54.1 * prevShot[1])) * Math.sin(Math.toRadians(prevShot[2]));
@@ -455,9 +463,19 @@ public class Utilities000 {
 
         double[] newShot = new double[3];
         newShot[0] = Math.sqrt(X*X + Y*Y + Z*Z) / shotFactor;
-        newShot[1] = (Math.toDegrees(Math.atan2(Z, Math.sqrt(X*X + Y*Y)))-100.6)/(-54.1);
-        newShot[2] = Math.toDegrees(Math.atan2(Y, X)-currentPose.getHeading());
+        newShot[1] = (90-Math.toDegrees(Math.atan(Math.sqrt(X*X + Y*Y)/Z))-100.6)/(-54.1);
+        newShot[2] = Math.toDegrees(Math.atan2(Y, X))-(180+Math.toDegrees(currentPose.getHeading()));
         return newShot;
+    }
+
+    public PathChain pathToArtifacts(Pose[] artifactPoses) {
+        Pose currentPose = follower.getPose();
+
+        PathBuilder robotPath = new PathBuilder(follower);
+        Path a = new Path(new BezierLine(currentPose, artifactPoses[0]));
+        a.setTangentHeadingInterpolation();
+        robotPath.addPath(a);
+        return robotPath.build();
     }
 
 }
