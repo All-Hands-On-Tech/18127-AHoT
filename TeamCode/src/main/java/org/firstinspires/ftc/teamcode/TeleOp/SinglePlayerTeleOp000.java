@@ -48,6 +48,6 @@ public class SinglePlayerTeleOp000 extends TeleOp000 {
 
             handleIntake(gamepad1);
 
-//            handleTelemetry();
+            handleTelemetry();
         }
 }

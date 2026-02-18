@@ -41,6 +41,7 @@ public class TeleOp000 extends OpMode {
     @Override
     public void init() {
         bot.initialize(this);
+        bot.turnOffCamera();
 
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
@@ -65,6 +66,7 @@ public class TeleOp000 extends OpMode {
         }
 
         if (gamepad.yWasPressed()) {
+            bot.turnOnCamera();
             Pose[] blobs = bot.getArtifactPoses();
             if (blobs.length>0) {
                 telemetry.addData("blobbby: ",    blobs[0].getX());
@@ -72,6 +74,7 @@ public class TeleOp000 extends OpMode {
             }
         } else if(gamepad.yWasReleased()) {
             bot.follower.startTeleOpDrive();
+            bot.turnOffCamera();
         }
         bot.follower.update();
 
@@ -85,31 +88,18 @@ public class TeleOp000 extends OpMode {
     }
 
     public void handleDelivery(Gamepad gamepad){
-//        if(gamepad.rightBumperWasPressed()) {
-//            shotPower += 50;
-//        } else if (gamepad.leftBumperWasPressed()) {
-//            shotPower -= 50;
-//        }
-//        bot.flywheelController(shotPower);
-//
-//        if(gamepad.dpad_right) {
-//            yaw += 20;
-//        } else if (gamepad.dpad_left) {
-//            yaw -= 20;
-//        }
-//
-////        bot.aimAtPoint(80.025,176.475);
-////        bot.aimAtPoint(-10,0);
-////        bot.aimAtPoint(0,0);
-//        bot.setHoodYawAngleTicks(yaw);
-//        bot.setHoodYawPower(0.5);
-//
-//        if(gamepad.dpad_up) {
-//            pitch += 0.006;
-//        } else if (gamepad.dpad_down) {
-//            pitch -= 0.006;
-//        }
-//        bot.setHoodPitchAngleTicks(pitch);
+        if(gamepad1.dpad_right) {
+            bot.yawShift += 0.1;
+        } else if (gamepad1.dpad_left) {
+            bot.yawShift -= 0.1;
+        }
+
+        if(gamepad1.dpad_up) {
+            bot.pitchShift += 0.003;
+        } else if (gamepad1.dpad_down) {
+            bot.pitchShift -= 0.003;
+        }
+
 //        if(gamepad.xWasPressed() && !aiming) {
 //            aiming = true;
 //        } else if(gamepad.xWasPressed() && aiming){

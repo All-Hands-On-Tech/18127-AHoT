@@ -75,7 +75,8 @@ public class Utilities000 {
     public enum AllianceColor {RED, BLUE, UNKNOWN;}
     AllianceColor allianceColor = AllianceColor.UNKNOWN;
 
-
+    public double yawShift = 0;
+    public double pitchShift = 0;
     /**Initialization code*/
     public Utilities000(OpMode l) {
         opMode = l;
@@ -230,11 +231,11 @@ public class Utilities000 {
     }
 
     public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
-    public void setHoodYawAngleDegrees(double degrees) {hoodYawMotor.setTargetPosition((int)(degrees * YAW_PULSES_PER_DEGREE));}
+    public void setHoodYawAngleDegrees(double degrees) {hoodYawMotor.setTargetPosition((int)((degrees+yawShift) * YAW_PULSES_PER_DEGREE));}
     public double getHoodYawAngleDegrees(){return hoodYawMotor.getCurrentPosition() / YAW_PULSES_PER_DEGREE;}
     public void setHoodYawPower(double power) {hoodYawMotor.setPower(power);}
     public void setHoodPitchAngleTicks(double pos) {
-        hoodPitchServo.setPosition(pos);
+        hoodPitchServo.setPosition(pos+pitchShift);
     }
     public void setHoodPitchAngleDegrees(double deg) {hoodPitchServo.setPosition((100.6-deg)/54.1);}
     public double getHoodPitchAngleDegrees() {return (100.6 -  54.1 * hoodPitchServo.getPosition());}
@@ -247,6 +248,17 @@ public class Utilities000 {
         double currentVoltage = voltageSensor.getVoltage();
         flywheelL.setPower(volts/currentVoltage);
         flywheelR.setPower(volts/currentVoltage);
+    }
+
+    public void turnOffCamera() {
+        portal.stopLiveView();
+        portal.setProcessorEnabled(colorLocatorGreen, false);
+        portal.setProcessorEnabled(colorLocatorPurple, false);
+    }
+
+    public void turnOnCamera() {
+        portal.setProcessorEnabled(colorLocatorGreen, true);
+        portal.setProcessorEnabled(colorLocatorPurple, true);
     }
 
     public void setTransferBlock(){
