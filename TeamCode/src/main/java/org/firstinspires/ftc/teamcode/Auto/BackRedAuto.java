@@ -22,14 +22,15 @@ public class BackRedAuto extends OpMode {
 
     public PathChain Path1;
     public PathChain Path2;
+    public PathChain Path3;
 
-    public Pose startPose = new Pose(86.771, 9.229, Math.toRadians(-90));
+    public Pose startPose = new Pose(89, 10, Math.toRadians(-90));
 
 
     public void buildPaths() {
         Path1 = bot.follower.pathBuilder().addPath(
                         new BezierCurve(
-                                new Pose(86.771, 9.229),
+                                startPose,
                                 new Pose(99.465, 12.861),
                                 new Pose(133.239, 36.778),
                                 new Pose(137.775, 7.118)
@@ -41,9 +42,19 @@ public class BackRedAuto extends OpMode {
                         new BezierLine(
                                 new Pose(137.775, 7.118),
 
-                                startPose
+                                new Pose(89, 13)
                         )
                 ).setConstantHeadingInterpolation(Math.toRadians(270))
+
+                .build();
+
+        Path3 = bot.follower.pathBuilder().addPath(
+                        new BezierLine(
+                                new Pose(89, 13),
+
+                                new Pose(89, 30)
+                        )
+                ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90))
 
                 .build();
     }
@@ -54,15 +65,15 @@ public class BackRedAuto extends OpMode {
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                if(clock.milliseconds()>1000 && clock.milliseconds()<3000){
+                bot.follower.setPose(new Pose(84, 0, Math.toRadians(-90)));
+                if(clock.milliseconds()>3000 && clock.milliseconds()<5000){
                     bot.intakePower(1);
                     bot.setTransferDown();
-                } else if(clock.milliseconds()>3000){
+                } else if(clock.milliseconds()>5000 && clock.milliseconds()<6000){
                     bot.setTransferUp();
-                } else if(clock.milliseconds()>4000){
+                } else if(clock.milliseconds()>6000){
+                    bot.follower.setPose(startPose);
                     bot.setTransferBlock();
-                }
-                if(clock.milliseconds()>4000) {
                     setPathState(1);
                 }
                 break;
@@ -91,6 +102,7 @@ public class BackRedAuto extends OpMode {
                 }
                 break;
             case 4:
+                bot.follower.setPose(new Pose(84, 3, Math.toRadians(-90)));
                 if(clock.milliseconds()>1000 && clock.milliseconds()<3000){
                     bot.intakePower(1);
                     bot.setTransferDown();
@@ -100,10 +112,17 @@ public class BackRedAuto extends OpMode {
                     bot.setTransferBlock();
                 }
                 if(clock.milliseconds()>4000) {
-                    setPathState(-1);
+                    bot.follower.setPose(new Pose(89, 13));
+                    bot.follower.followPath(Path3,true);
+                    setPathState(5);
                     bot.hoodYawMotor.setPower(0);
                     bot.intakePower(0);
                     bot.setFlywheelVolts(0);
+                }
+                break;
+            case 5:
+                if(!bot.follower.isBusy()) {
+                    setPathState(-1);
                 }
                 break;
         }
