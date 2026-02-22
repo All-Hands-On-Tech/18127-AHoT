@@ -48,6 +48,7 @@ public class Utilities000 {
     private static final double SAFE_CURRENT = 1.5;
     private static final double MAX_CURRENT = 3.0;
 
+    public double manualFlywheelPowerConstant = 0;
 
     private DcMotorEx intakeMotor;
     private DcMotorEx flywheelR;
@@ -221,7 +222,7 @@ public class Utilities000 {
 
     public double computeCurrentMultiplier(double current){
         if (current <= SAFE_CURRENT) return 1.0;
-        if (current >= MAX_CURRENT)  return 0.0;
+        if (current >= MAX_CURRENT)  return 0.5; //FIXME
 
         return 1.0 - (current - SAFE_CURRENT) / (MAX_CURRENT - SAFE_CURRENT);
     }
@@ -231,7 +232,10 @@ public class Utilities000 {
     }
 
     public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
-    public void setHoodYawAngleDegrees(double degrees) {hoodYawMotor.setTargetPosition((int)((degrees+yawShift) * YAW_PULSES_PER_DEGREE));}
+    public void setHoodYawAngleDegrees(double degrees) {
+        double clampedDeg = Math.min(Math.max(degrees, -120), 120);
+        hoodYawMotor.setTargetPosition((int)((clampedDeg+yawShift) * YAW_PULSES_PER_DEGREE));
+    }
     public double getHoodYawAngleDegrees(){return hoodYawMotor.getCurrentPosition() / YAW_PULSES_PER_DEGREE;}
     public void setHoodYawPower(double power) {hoodYawMotor.setPower(power);}
     public void setHoodPitchAngleTicks(double pos) {
@@ -262,14 +266,14 @@ public class Utilities000 {
     }
 
     public void setTransferBlock(){
-        transferServo.setPosition(0.4);
+        transferServo.setPosition(0.5); //was 0.4
     }
 
     public void setTransferUp(){
-        transferServo.setPosition(0);
+        transferServo.setPosition(0.0);
     }
     public void setTransferDown(){
-        transferServo.setPosition(1.1);
+        transferServo.setPosition(1.0);
     }
     public void setFlywheelSpeed_DO_NOT_USE(int tickRate) {
         flywheelL.setVelocity(tickRate);
@@ -426,7 +430,7 @@ public class Utilities000 {
         return artifactPoses;
     }
 
-    private Pose getGoal(){
+    public Pose getGoal(){
         if (allianceColor==AllianceColor.BLUE) {
             return new Pose(0, 144);
         } else if (allianceColor==AllianceColor.RED) {
@@ -436,14 +440,15 @@ public class Utilities000 {
         }
     }
 
-    private double flywheelSpeedFit() {
+    public double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
         double speed = distance * 7.05 + 945;
-        return speed + 100; //HUY ADJUSTMENT REMOVE LATER
+        return speed + manualFlywheelPowerConstant; //HUY ADJUSTMENT REMOVE LATER
     }
     private double flywheelPitchFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-        double pitch = distance * 0.0034 + 0.331;
+//        double pitch = distance * 0.0034 + 0.331;
+        double pitch = distance * 0.00554285714286 + 0.3; // Khai-tuned line
         return pitch;
     }
 

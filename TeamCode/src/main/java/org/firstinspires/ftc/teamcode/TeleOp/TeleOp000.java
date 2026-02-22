@@ -34,7 +34,8 @@ public class TeleOp000 extends OpMode {
         DELIVERY,
         CIRCUIT,
         DEBUG,
-        ODOMETRY;;
+        ODOMETRY,
+        NONE;
     }
     private TelemetryMode telemetryMode;
 
@@ -76,11 +77,10 @@ public class TeleOp000 extends OpMode {
             bot.follower.startTeleOpDrive();
             bot.turnOffCamera();
         }
-        bot.follower.update();
 
         bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
         bot.updateOdo();
-        if (limeLightStaller.seconds()>5) {
+        if (limeLightStaller.seconds()>1) {
             if (bot.limelightUpdate()) {
                 limeLightStaller.reset();
             }
@@ -110,6 +110,13 @@ public class TeleOp000 extends OpMode {
             aiming = !aiming;
         }
 
+        if(gamepad.leftBumperWasPressed()){
+            bot.manualFlywheelPowerConstant -= 50;
+        }
+        if(gamepad.rightBumperWasPressed()){
+            bot.manualFlywheelPowerConstant += 50;
+        }
+
         if(aiming){
             bot.turrentUpdate();
             bot.hoodYawMotor.setPower(1);
@@ -129,13 +136,14 @@ public class TeleOp000 extends OpMode {
         }
 
 
-        if(gamepad.a && gamepad.left_trigger < 0.01) {
-            bot.intakePower(1);
-        }
+
 
         if(gamepad.aWasPressed()){
             transfered = false;
             bot.setTransferDown();
+            if(gamepad.left_trigger < 0.01 && transferTimer.seconds() > 0.15) {
+                bot.intakePower(1);
+            }
         } else if(gamepad.aWasReleased()){
             transfered = true;
             bot.setTransferUp();
@@ -162,7 +170,7 @@ public class TeleOp000 extends OpMode {
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
             case DELIVERY:
                 telemetry.addData("Turret Yaw Deg: ", bot.getHoodYawAngleDegrees());
-                telemetry.addData("Flywheel ticks/s: ", shotPower);
+                telemetry.addData("Flywheel ticks/s: ", bot.flywheelSpeedFit());
                 telemetry.addData("Flywheel speed: ", bot.getFlywheelSpeed());
                 telemetry.addData("Flywheel yaw:     ", yaw);
                 telemetry.addData("Flywheel pitch:   ", pitch);
@@ -174,6 +182,8 @@ public class TeleOp000 extends OpMode {
                 telemetry.addData("Position: ", bot.getPosition());
                 telemetry.addData("Heading: ", Math.toDegrees(bot.getPosition().getHeading()));
                 telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
+                telemetry.addData("Distance to Goal (inch): ", bot.getGoal().distanceFrom(bot.follower.getPose()));
+            case NONE:
         }
 
         loopTime.reset();
