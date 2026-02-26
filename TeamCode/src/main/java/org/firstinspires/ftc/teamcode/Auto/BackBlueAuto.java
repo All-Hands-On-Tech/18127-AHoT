@@ -1,19 +1,15 @@
 package org.firstinspires.ftc.teamcode.Auto; // make sure this aligns with class location
 
-import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.ZSupport.RobotStateAfterAuto;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
 
 @Autonomous(name = "Back Auto Blue", group = "A")
 public class BackBlueAuto extends OpMode {
@@ -204,7 +200,7 @@ public class BackBlueAuto extends OpMode {
      **/
     @Override
     public void stop() {
-        RobotStateAfterAuto.setPostAutoState(bot.follower.getPose(), bot.getHoodYawAngleTicks());
+        Utilities000.RobotStateAfterAuto.setPostAutoState(bot.follower.getPose(), bot.getHoodYawAngleTicks());
     }
 
 }

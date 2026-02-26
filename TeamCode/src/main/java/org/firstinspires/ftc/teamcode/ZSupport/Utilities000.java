@@ -80,7 +80,7 @@ public class Utilities000 {
 
     public double yawShift = 0;
     public double pitchShift = 0;
-    public int initialYawAfterAuto = 0;
+    public int initialYawAfterAuto;
     /**Initialization code*/
     public Utilities000(OpMode l) {
         opMode = l;
@@ -118,7 +118,7 @@ public class Utilities000 {
         hoodYawMotor = l.hardwareMap.get(DcMotorEx.class, "hoodYaw");
         hoodYawMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         hoodYawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        hoodYawMotor.setTargetPosition(0);
+        setHoodYawAngleTicks(0);
         hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         hoodYawMotor.setPower(0);
@@ -234,10 +234,10 @@ public class Utilities000 {
         intakeMotor.setPower(deadZone(pow*currentMultiplier, 0.05));
     }
 
-    public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
+    public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks - initialYawAfterAuto);}
     public void setHoodYawAngleDegrees(double degrees) {
         double clampedDeg = Math.min(Math.max(degrees, -120), 120);
-        hoodYawMotor.setTargetPosition((int)((clampedDeg+yawShift) * YAW_PULSES_PER_DEGREE));
+        setHoodYawAngleTicks((int)((clampedDeg+yawShift) * YAW_PULSES_PER_DEGREE));
     }
     public int getHoodYawAngleTicks(){return hoodYawMotor.getCurrentPosition() - initialYawAfterAuto;}
     public double getHoodYawAngleDegrees(){return getHoodYawAngleTicks() / YAW_PULSES_PER_DEGREE;}
@@ -502,6 +502,28 @@ public class Utilities000 {
         a.setTangentHeadingInterpolation();
         robotPath.addPath(a);
         return robotPath.build();
+    }
+
+    public static class RobotStateAfterAuto {
+        public static Pose postAutoPose;
+        public static int postAutoYawAngle;
+        public static boolean wasAuto = false;
+
+        private static void setPostAutoPose(Pose p) {
+            postAutoPose = p;
+            wasAuto = true;
+        }
+
+        private static void setPostAutoYawTicks(int t) {
+            postAutoYawAngle = t;
+            wasAuto = true;
+        }
+
+        public static void setPostAutoState(Pose p, int t) {
+            setPostAutoPose(p);
+            setPostAutoYawTicks(t);
+            wasAuto = true;
+        }
     }
 
 }

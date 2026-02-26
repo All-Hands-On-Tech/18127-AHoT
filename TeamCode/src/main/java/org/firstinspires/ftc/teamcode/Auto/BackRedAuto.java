@@ -9,7 +9,6 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.ZSupport.RobotStateAfterAuto;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
 @Autonomous(name = "Back Auto Red", group = "A")
@@ -82,7 +81,6 @@ public class BackRedAuto extends OpMode {
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-90))
-                .setReversed()
                 .build();
 
         Path3 = bot.follower.pathBuilder().addPath(
@@ -101,7 +99,8 @@ public class BackRedAuto extends OpMode {
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                bot.follower.setPose(new Pose(84, 0, Math.toRadians(-90)));
+//                bot.follower.setPose(new Pose(84, 0, Math.toRadians(-90)));
+                bot.setManualAimOffsets(5,10);
                 if(clock.milliseconds()>3000 && clock.milliseconds()<5000){
                     bot.intakePower(1);
                     bot.setTransferDown();
@@ -202,6 +201,15 @@ public class BackRedAuto extends OpMode {
             case 9:
                 if(!bot.follower.isBusy()){
                     bot.follower.followPath(Path3);
+                    setPathState(-1);
+                }
+                break;
+            case -1:
+                if(!bot.follower.isBusy()){
+                    bot.setFlywheelVolts(0);
+                    bot.setHoodYawPower(0);
+                    bot.intakePower(0);
+                    bot.setTransferBlock();
                 }
                 break;
         }
@@ -281,7 +289,16 @@ public class BackRedAuto extends OpMode {
      **/
     @Override
     public void stop() {
-        RobotStateAfterAuto.setPostAutoState(bot.follower.getPose(), bot.getHoodYawAngleTicks());
+
+        int yaw = bot.getHoodYawAngleTicks();
+
+        telemetry.addData("Yaw in stop()", yaw);
+        telemetry.update();
+
+        Utilities000.RobotStateAfterAuto.setPostAutoState(
+                bot.follower.getPose(),
+                yaw
+        );
     }
 
 }

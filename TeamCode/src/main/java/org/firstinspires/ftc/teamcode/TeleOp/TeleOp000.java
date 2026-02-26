@@ -10,7 +10,6 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.ZSupport.RobotStateAfterAuto;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
 @Disabled
@@ -43,12 +42,12 @@ public class TeleOp000 extends OpMode {
     public void init() {
         bot.initialize(this);
         bot.turnOffCamera();
-
-        if(RobotStateAfterAuto.wasAuto){
-            bot.follower.setPose(RobotStateAfterAuto.postAutoPose);
-            bot.initialYawAfterAuto = RobotStateAfterAuto.postAutoYawAngle;
-        }
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+
+        if(Utilities000.RobotStateAfterAuto.wasAuto){
+            bot.follower.setPose(Utilities000.RobotStateAfterAuto.postAutoPose);
+            bot.initialYawAfterAuto = Utilities000.RobotStateAfterAuto.postAutoYawAngle;
+        }
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -67,7 +66,7 @@ public class TeleOp000 extends OpMode {
         if(gamepad.left_bumper){
             speedFactor = 0.3;
         }else{
-            speedFactor = 0.8;
+            speedFactor = 1.0;
         }
 
         if (gamepad.yWasPressed()) {
@@ -208,6 +207,9 @@ public class TeleOp000 extends OpMode {
                 telemetry.addData("Flywheel yaw:     ", yaw);
                 telemetry.addData("Flywheel pitch:   ", pitch);
                 telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
+                telemetry.addData("Initial Yaw Angle (ticks):", bot.initialYawAfterAuto);
+                telemetry.addData("Initial Yaw Angle (ticks):", Utilities000.RobotStateAfterAuto.postAutoYawAngle);
+                telemetry.addData("Was Auto Previously?", Utilities000.RobotStateAfterAuto.wasAuto);
             case CIRCUIT:
                 bot.addAmpTelemetry();
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
@@ -229,6 +231,7 @@ public class TeleOp000 extends OpMode {
 
     @Override
     public void stop(){
-        RobotStateAfterAuto.wasAuto = false;
+        Utilities000.RobotStateAfterAuto.setPostAutoState(null,0);
+        Utilities000.RobotStateAfterAuto.wasAuto = false;
     }
 }

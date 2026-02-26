@@ -11,9 +11,7 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
 
     @Override
     public void init() {
-        bot.initialize(this);
-        telemetry.addData("Status", "Initialized");
-        telemetry.update();
+        super.init();
 
         if(gamepad1.start){
             setTelemetryMode(TelemetryMode.DELIVERY);
@@ -30,6 +28,11 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
         telemetry.addLine("Please choose alliance color");
         telemetry.addLine("x - blue");
         telemetry.addLine("b - red");
+        if(gamepad1.start){
+            setTelemetryMode(TelemetryMode.DELIVERY);
+        }else{
+            setTelemetryMode(TelemetryMode.NONE);
+        }
         if (gamepad1.bWasPressed()) {
             bot.setAllianceColor(Utilities000.AllianceColor.RED);
         } else if (gamepad1.xWasPressed()) {
