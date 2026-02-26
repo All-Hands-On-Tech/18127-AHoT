@@ -33,12 +33,12 @@ public class StraightAuto extends OpMode {
     private PathChain Depo3, IntakeStart3, IntakeEnd3;
     private PathChain Depo4, Gate;
 
-    public static double DEPOSIT_TARGET_VELOCITY = 540.0;
+    public static double DEPOSIT_TARGET_VELOCITY = 550.0;
 
     public static double PID_P = 240.0;
     public static double PID_I = 0.0;
     public static double PID_D = 0.0;
-    public static double PID_F = 23.2;
+    public static double PID_F = 24.7;
 
     private double deposit1Vel = 0;
     private double deposit2Vel = 0;
@@ -49,12 +49,12 @@ public class StraightAuto extends OpMode {
     public static double SERVO_OPEN_POSITION = 0.8;
 
     public static long AUTO_SHOOT_DURATION_MS = 2100;
-    public static long AUTO_SHOOT_RECOVERY_MS = 200;
+    public static long AUTO_SHOOT_RECOVERY_MS = 0;
     public static long PRE_SHOOT_DELAY_MS = 80;
 
     // Delay before opening servo after intaking finishes
     // Prevents balls from being pushed up through motors too early
-    public static long PRE_OPEN_DELAY_MS = 200;
+    public static long PRE_OPEN_DELAY_MS = 400;
 
     public static double INTAKE1_POWER = 1.0;
     public static double INTAKE2_POWER = -1.0;

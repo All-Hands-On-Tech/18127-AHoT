@@ -15,40 +15,6 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.pedropathing.paths.PathChain;
 
 public class Constants {
-    public static final double AIM_OFFSET_DEGREES = 2.0; // Hardcoded offset for auto aiming
-    public static final double AIM_OFFSET_RADIANS = Math.toRadians(AIM_OFFSET_DEGREES);
-
-    // ══════════════════════════════════════════════════════════════
-    // SHARED AIMING CONSTANTS (used by camera and odometry)
-    // ══════════════════════════════════════════════════════════════
-
-    /** Blue alliance goal coordinates (in inches) */
-    public static final double BLUE_GOAL_X = 10.73267326732673;
-    public static final double BLUE_GOAL_Y = 136.13861386138615;
-
-    /** Red alliance goal coordinates (in inches) */
-    public static final double RED_GOAL_X = 130.85148514851485;
-    public static final double RED_GOAL_Y = 137.38613861386142;
-
-    /** Deadzone for aiming correction (degrees) */
-    public static final double AIM_DEADZONE_DEG = 2.0;
-
-    /** P gain for coarse heading correction (odometry-based) */
-    public static final double COARSE_AIM_P = 0.;
-
-    /** Maximum turn power for coarse aiming */
-    public static final double COARSE_AIM_MAX_POWER = 0.6;
-
-    /** Threshold to switch from coarse to fine aiming (degrees) */
-    public static final double COARSE_AIM_THRESHOLD_DEG = 5.0;
-
-    /** P gain for fine heading correction (camera-based) */
-    public static final double FINE_AIM_P = 0.02;
-
-    /** Maximum turn power for fine aiming */
-    public static final double FINE_AIM_MAX_POWER = 0.4;
-
-    // ══════════════════════════════════════════════════════════════
 
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(10.7955)  // TODO: Tune manually - Robot mass in kilograms
