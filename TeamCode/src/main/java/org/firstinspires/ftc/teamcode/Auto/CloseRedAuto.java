@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.ZSupport.RobotStateAfterAuto;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
 @Autonomous(name = "Close Auto Red", group = "A")
@@ -26,6 +27,10 @@ public class CloseRedAuto extends OpMode {
     public PathChain Path4;
     public PathChain Path5;
     public PathChain Path6; //Shift Paths and make Path 3 to hit gate
+    public PathChain HitGate2;
+    public PathChain LeavePath1;
+    public PathChain Spike3Intake;
+    public PathChain Spike3Return;
 
     private boolean wasBusy = false;
 
@@ -56,11 +61,11 @@ public class CloseRedAuto extends OpMode {
         Path3 = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(120, 82.909),
+                                new Pose(125.006, 75),
                                 new Pose(90, 83.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-45))
+                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-45))
                 .build();
 
         Path4 = bot.follower.pathBuilder()
@@ -85,7 +90,59 @@ public class CloseRedAuto extends OpMode {
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-45))
                 .build();
+        Path6 = bot.follower.pathBuilder() //OUT OF SEQUENCE (hit gate after path2
+                .addPath(
+                        new BezierLine(
+                                new Pose(128.905, 84.489),
+                                new Pose(115, 80)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-90))
+                .build();
+
+        HitGate2 = bot.follower.pathBuilder() //OUT OF SEQUENCE (hit gate after path2
+                .addPath(
+                        new BezierLine(
+                                new Pose(115, 80),
+                                new Pose(125.006, 75)
+                        )
+                )
+                .setConstantHeadingInterpolation(Math.toRadians(-90))
+                .build();
+
+        LeavePath1 = bot.follower.pathBuilder() // VARIABLE SEQUENCE
+                .addPath(
+                        new BezierLine(
+                                new Pose(86.522, 82.739),
+                                new Pose(100, 82.739)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(-45), Math.toRadians(-90))
+                .build();
+        Spike3Intake = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                new Pose(100, 82.739),
+                                new Pose(70, 34),
+                                new Pose(70, 34),
+                                new Pose(133.977, 34.611)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(0))
+                .build();
+
+        Spike3Return = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                new Pose(133.977, 34.611),
+                                new Pose(96.684, 40.695),
+                                new Pose(86.522, 82.739)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-45))
+                .build();
     }
+
 
 
 
@@ -129,63 +186,124 @@ public class CloseRedAuto extends OpMode {
                         clock.reset();
                     }
                     if(clock.milliseconds() > 1000){
-                        bot.follower.followPath(Path3);
+                        bot.follower.followPath(Path6);
                         setPathState(4);
                     }
                 }
                 break;
             case 4:
-                setPathState(5); // Hit Gate First!!!
+                if(!bot.follower.isBusy()){
+                    bot.follower.followPath(HitGate2);
+                    setPathState(5);
+                }
                 break;
             case 5:
-                if(!bot.follower.isBusy()) {
-                    if(wasBusy){
-                        clock.reset();
-                    }
-                    if (clock.milliseconds() > 500 && clock.milliseconds() < 1500) {
-                        bot.intakePower(1);
-                        bot.setTransferDown();
-                    } else if (clock.milliseconds() > 1500 && clock.milliseconds() < 2000) {
-                        bot.setTransferUp();
-                    } else if (clock.milliseconds() > 2000) {
-                        bot.setTransferBlock();
-                        setPathState(6);
-                    }
+                if(!bot.follower.isBusy()){
+                    bot.follower.followPath(Path3);
+                    setPathState(6);
                 }
                 break;
             case 6:
                 if(!bot.follower.isBusy()) {
-                    bot.follower.followPath(Path4,true);
-                    setPathState(7);
+                    if(wasBusy){
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
+                        bot.intakePower(-0.1);
+                        bot.setTransferDown();
+                    }
+                    if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
+                        bot.intakePower(1);
+                        bot.setTransferDown();
+                    } else if (clock.milliseconds() > 2000 && clock.milliseconds() < 2500) {
+                        bot.setTransferUp();
+                    } else if (clock.milliseconds() > 2500) {
+                        bot.setTransferBlock();
+                        setPathState(7);
+                    }
                 }
                 break;
             case 7:
                 if(!bot.follower.isBusy()) {
-                    bot.intakePower(0.8);
-                    bot.follower.followPath(Path5,true);
+
+                    bot.follower.followPath(Path4,true);
                     setPathState(8);
                 }
                 break;
             case 8:
                 if(!bot.follower.isBusy()) {
-                    if(wasBusy){
-                        clock.reset();
-                    }
-                    if (clock.milliseconds() > 500 && clock.milliseconds() < 1500) {
-                        bot.intakePower(1);
-                        bot.setTransferDown();
-                    } else if (clock.milliseconds() > 1500 && clock.milliseconds() < 2000) {
-                        bot.setTransferUp();
-                    } else if (clock.milliseconds() > 2000) {
-                        bot.setTransferBlock();
-                        bot.setHoodYawPower(0);
-                        bot.setFlywheelVolts(0);
-                        bot.intakePower(0);
-                        setPathState(9);
-                    }
+                    bot.intakePower(0.8);
+                    bot.follower.followPath(Path5,true);
+                    setPathState(9);
                 }
                 break;
             case 9:
+                if(!bot.follower.isBusy()) {
+                    if(wasBusy){
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
+                        bot.intakePower(-0.1);
+                        bot.setTransferDown();
+                    }
+                    if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
+                        bot.intakePower(1);
+                        bot.setTransferDown();
+                    } else if (clock.milliseconds() > 2000 && clock.milliseconds() < 2500) {
+                        bot.setTransferUp();
+                    } else if (clock.milliseconds() > 2500) {
+                        bot.setTransferBlock();
+                        setPathState(10);
+                    }
+                }
+                break;
+            case 10:
+                if(!bot.follower.isBusy()) {
+                    bot.follower.followPath(LeavePath1);
+                    setPathState(11);
+                }
+                break;
+            case 11:
+                if(!bot.follower.isBusy()) {
+
+                    bot.follower.followPath(Spike3Intake,true);
+                    setPathState(12);
+                }
+                break;
+            case 12:
+                if(!bot.follower.isBusy()) {
+                    bot.intakePower(0.8);
+                    bot.follower.followPath(Spike3Return,true);
+                    setPathState(13);
+                }
+                break;
+            case 13:
+                if(!bot.follower.isBusy()) {
+                    if(wasBusy){
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
+                        bot.intakePower(-0.1);
+                        bot.setTransferDown();
+                    }
+                    if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
+                        bot.intakePower(1);
+                        bot.setTransferDown();
+                    } else if (clock.milliseconds() > 2000 && clock.milliseconds() < 2500) {
+                        bot.setTransferUp();
+                    } else if (clock.milliseconds() > 2500) {
+                        bot.setTransferBlock();
+                        setPathState(14);
+                    }
+                }
+                break;
+            case 14:
+                if(!bot.follower.isBusy()) {
+                    bot.follower.followPath(LeavePath1);
+                    setPathState(15);
+                }
+                break;
+            case 15:
                 if(!bot.follower.isBusy()) {
                     setPathState(-1);
                 }
@@ -267,6 +385,7 @@ public class CloseRedAuto extends OpMode {
      **/
     @Override
     public void stop() {
+        RobotStateAfterAuto.setPostAutoState(bot.follower.getPose(), bot.getHoodYawAngleTicks());
     }
 
 }

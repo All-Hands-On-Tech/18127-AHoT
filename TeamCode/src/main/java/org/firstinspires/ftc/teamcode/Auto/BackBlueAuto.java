@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.ZSupport.RobotStateAfterAuto;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
 
@@ -203,6 +204,7 @@ public class BackBlueAuto extends OpMode {
      **/
     @Override
     public void stop() {
+        RobotStateAfterAuto.setPostAutoState(bot.follower.getPose(), bot.getHoodYawAngleTicks());
     }
 
 }

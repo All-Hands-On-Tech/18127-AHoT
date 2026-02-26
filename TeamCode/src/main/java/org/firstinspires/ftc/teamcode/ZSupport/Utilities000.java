@@ -49,6 +49,8 @@ public class Utilities000 {
     private static final double MAX_CURRENT = 3.0;
 
     public double manualFlywheelPowerConstant = 0;
+    private double manualAimOffsetX = 0.0;
+    private double manualAimOffsetY = 0.0;
 
     private DcMotorEx intakeMotor;
     private DcMotorEx flywheelR;
@@ -78,6 +80,7 @@ public class Utilities000 {
 
     public double yawShift = 0;
     public double pitchShift = 0;
+    public int initialYawAfterAuto = 0;
     /**Initialization code*/
     public Utilities000(OpMode l) {
         opMode = l;
@@ -210,7 +213,7 @@ public class Utilities000 {
         forward                = speed * deadZone(forward, 0.05);
         left                   = speed * deadZone(left, 0.05);
         rotateCounterclockwise = speed * deadZone(rotateCounterclockwise, 0.05);
-        follower.setTeleOpDrive(forward, left, rotateCounterclockwise, true);
+        follower.setTeleOpDrive(forward, left, rotateCounterclockwise, false);
     }
 
     public void setAllianceColor(AllianceColor color) {
@@ -236,7 +239,8 @@ public class Utilities000 {
         double clampedDeg = Math.min(Math.max(degrees, -120), 120);
         hoodYawMotor.setTargetPosition((int)((clampedDeg+yawShift) * YAW_PULSES_PER_DEGREE));
     }
-    public double getHoodYawAngleDegrees(){return hoodYawMotor.getCurrentPosition() / YAW_PULSES_PER_DEGREE;}
+    public int getHoodYawAngleTicks(){return hoodYawMotor.getCurrentPosition() - initialYawAfterAuto;}
+    public double getHoodYawAngleDegrees(){return getHoodYawAngleTicks() / YAW_PULSES_PER_DEGREE;}
     public void setHoodYawPower(double power) {hoodYawMotor.setPower(power);}
     public void setHoodPitchAngleTicks(double pos) {
         hoodPitchServo.setPosition(pos+pitchShift);
@@ -432,12 +436,17 @@ public class Utilities000 {
 
     public Pose getGoal(){
         if (allianceColor==AllianceColor.BLUE) {
-            return new Pose(0, 144);
+            return new Pose(0 + manualAimOffsetX, 144 + manualAimOffsetY);
         } else if (allianceColor==AllianceColor.RED) {
-            return new Pose(144, 144);
+            return new Pose(144 + manualAimOffsetX, 144 + manualAimOffsetY);
         } else {
             return new Pose(0, 0);
         }
+    }
+
+    public void setManualAimOffsets(double x, double y){
+        manualAimOffsetX = x;
+        manualAimOffsetY = y;
     }
 
     public double flywheelSpeedFit() {

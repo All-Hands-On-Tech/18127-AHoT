@@ -4,20 +4,20 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.ZSupport.RobotStateAfterAuto;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
-
-import java.util.Timer;
 
 @Disabled
 @TeleOp(name="0-0-0 TeleOp", group="A")
 public class TeleOp000 extends OpMode {
+
+    private int maxManualAimOffsetMagnitude = 10;
     Utilities000 bot = new Utilities000(this);
     private ElapsedTime loopTime = new ElapsedTime();
 
@@ -44,6 +44,10 @@ public class TeleOp000 extends OpMode {
         bot.initialize(this);
         bot.turnOffCamera();
 
+        if(RobotStateAfterAuto.wasAuto){
+            bot.follower.setPose(RobotStateAfterAuto.postAutoPose);
+            bot.initialYawAfterAuto = RobotStateAfterAuto.postAutoYawAngle;
+        }
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         telemetry.addData("Status", "Initialized");
@@ -80,7 +84,7 @@ public class TeleOp000 extends OpMode {
 
         bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
         bot.updateOdo();
-        if (limeLightStaller.seconds()>1) {
+        if (limeLightStaller.seconds()>0.5) {
             if (bot.limelightUpdate()) {
                 limeLightStaller.reset();
             }
@@ -110,19 +114,52 @@ public class TeleOp000 extends OpMode {
             aiming = !aiming;
         }
 
-        if(gamepad.leftBumperWasPressed()){
-            bot.manualFlywheelPowerConstant -= 50;
-        }
-        if(gamepad.rightBumperWasPressed()){
-            bot.manualFlywheelPowerConstant += 50;
-        }
-
         if(aiming){
             bot.turrentUpdate();
             bot.hoodYawMotor.setPower(1);
         } else{
             bot.flywheelController(0);
             bot.hoodYawMotor.setPower(0);
+        }
+    }
+
+    public void handleAimAssist(Gamepad gamepad){
+        if(gamepad.leftBumperWasPressed()){
+            bot.manualFlywheelPowerConstant -= 50;
+        }
+        if(gamepad.rightBumperWasPressed()){
+            bot.manualFlywheelPowerConstant += 50;
+        }
+        if(gamepad.y){
+            if(Math.abs(gamepad.left_stick_x) > 0.05 || Math.abs(gamepad.left_stick_y) > 0.05){
+                double x = gamepad.left_stick_x;
+                double y = -gamepad.left_stick_y;
+                double theta = Math.atan(y/x);
+                bot.setHoodYawAngleDegrees(theta);
+                if(gamepad.xWasPressed()){
+                    bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                    bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                }
+            }
+        }
+        if(Math.abs(gamepad.right_stick_x) > 0.05 || Math.abs(gamepad.right_stick_y) > 0.05){
+            double x = gamepad.right_stick_x / Math.sqrt(2);
+            double y = -gamepad.right_stick_y / Math.sqrt(2);
+            double tempX = x;
+            double tempY = y;
+            x = (tempX+tempY)/Math.sqrt(2);
+            y = (tempY-tempX)/Math.sqrt(2);
+            x *= maxManualAimOffsetMagnitude;
+            y *= maxManualAimOffsetMagnitude;
+            bot.setManualAimOffsets(x, y);
+        }else{
+            bot.setManualAimOffsets(0,0);
+        }
+        if(gamepad.aWasPressed()){
+            bot.limelightUpdate();
+        }
+        if(gamepad.left_trigger_pressed){
+            maxManualAimOffsetMagnitude = 20;
         }
     }
 
@@ -136,14 +173,10 @@ public class TeleOp000 extends OpMode {
         }
 
 
-
-
         if(gamepad.aWasPressed()){
             transfered = false;
             bot.setTransferDown();
-            if(gamepad.left_trigger < 0.01 && transferTimer.seconds() > 0.15) {
-                bot.intakePower(1);
-            }
+//            bot.intakePower(1);
         } else if(gamepad.aWasReleased()){
             transfered = true;
             bot.setTransferUp();
@@ -194,4 +227,8 @@ public class TeleOp000 extends OpMode {
         this.telemetryMode = telemetryMode;
     }
 
+    @Override
+    public void stop(){
+        RobotStateAfterAuto.wasAuto = false;
+    }
 }
