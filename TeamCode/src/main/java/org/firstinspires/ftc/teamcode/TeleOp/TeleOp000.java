@@ -28,6 +28,7 @@ public class TeleOp000 extends OpMode {
     private ElapsedTime limeLightStaller = new ElapsedTime(10);
     private boolean transfered = false;
     private boolean aiming = false;
+    private boolean shootNMove = true;
 
     public enum TelemetryMode {
         DELIVERY,
@@ -113,8 +114,17 @@ public class TeleOp000 extends OpMode {
             aiming = !aiming;
         }
 
+        if(gamepad.y){
+            if(gamepad.dpad_up){
+                shootNMove = true;
+            }
+            if(gamepad.dpad_down){
+                shootNMove = false;
+            }
+        }
+        
         if(aiming){
-            bot.turrentUpdate(gamepad.a);
+            bot.turrentUpdate(shootNMove);
             bot.hoodYawMotor.setPower(1);
         } else{
             bot.flywheelController(0);
