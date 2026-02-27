@@ -119,10 +119,10 @@ public class TeleOp000 extends OpMode {
                 shootNMove = true;
             }
             if(gamepad.dpad_down){
-                shootNMove = false;
+//                shootNMove = false;
             }
         }
-        
+
         if(aiming){
             bot.turrentUpdate(shootNMove);
             bot.hoodYawMotor.setPower(1);
