@@ -360,86 +360,86 @@ public class Utilities000 {
         }
     }
 
-//    public double aimAtPoint(Pose point) {
-//        Pose currentPose = follower.getPose();
-//        Pose path = point.minus(currentPose);
-//
-//        double dX = path.getX();
-//        double dY = path.getY();
-//
-//        double deg = Math.toDegrees(Math.atan2(dY, dX));
-//        opMode.telemetry.addData("The target is: ", deg);
-//
-//        double turretDeg = deg - (180+Math.toDegrees(currentPose.getHeading()));
-////        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
-//
-//        turretDeg = Math.min(170, Math.max(-170, turretDeg));
-//        return turretDeg;
-//    }
-
     public double aimAtPoint(Pose point) {
-
         Pose currentPose = follower.getPose();
+        Pose path = point.minus(currentPose);
 
-        // Compute vector to target
-        double dX = point.getX() - currentPose.getX();
-        double dY = point.getY() - currentPose.getY();
+        double dX = path.getX();
+        double dY = path.getY();
 
-        // Field-relative angle to target (degrees)
-        double fieldDeg = Math.toDegrees(Math.atan2(dY, dX));
+        double deg = Math.toDegrees(Math.atan2(dY, dX));
+        opMode.telemetry.addData("The target is: ", deg);
 
-        // Continuous robot heading (degrees)
-        double robotDeg = Math.toDegrees(
-                odo.getHeading(UnnormalizedAngleUnit.RADIANS)
-        );
+        double turretDeg = deg - (180+Math.toDegrees(currentPose.getHeading()));
+//        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
 
-        // Step 1: Compute pure relative error
-        double raw = fieldDeg - robotDeg;
-
-        // Step 2: Normalize relative error
-        raw = Math.toDegrees(
-                Math.atan2(
-                        Math.sin(Math.toRadians(raw)),
-                        Math.cos(Math.toRadians(raw))
-                )
-        );
-
-        // Step 3: Apply turret mounting offset (if zero faces backwards)
-        raw += 180.0;
-
-        // Step 4: Normalize again after offset
-        raw = Math.toDegrees(
-                Math.atan2(
-                        Math.sin(Math.toRadians(raw)),
-                        Math.cos(Math.toRadians(raw))
-                )
-        );
-
-        double limit = 170.0;
-        double wrapThreshold = 180.0 + (180.0 - limit); // 190
-
-        // ---- Dead Zone Handling ----
-
-        if (raw > limit && raw <= wrapThreshold) {
-            return limit;
-        }
-
-        if (raw < -limit && raw >= -wrapThreshold) {
-            return -limit;
-        }
-
-        // ---- Actual Wrap After Clearing Dead Zone ----
-
-        if (raw > wrapThreshold) {
-            return raw - 360.0;
-        }
-
-        if (raw < -wrapThreshold) {
-            return raw + 360.0;
-        }
-
-        return raw;
+        turretDeg = Math.min(170, Math.max(-170, turretDeg));
+        return turretDeg;
     }
+
+//    public double aimAtPoint(Pose point) {
+//
+//        Pose currentPose = follower.getPose();
+//
+//        // Compute vector to target
+//        double dX = point.getX() - currentPose.getX();
+//        double dY = point.getY() - currentPose.getY();
+//
+//        // Field-relative angle to target (degrees)
+//        double fieldDeg = Math.toDegrees(Math.atan2(dY, dX));
+//
+//        // Continuous robot heading (degrees)
+//        double robotDeg = Math.toDegrees(
+//                odo.getHeading(UnnormalizedAngleUnit.RADIANS)
+//        );
+//
+//        // Step 1: Compute pure relative error
+//        double raw = fieldDeg - robotDeg;
+//
+//        // Step 2: Normalize relative error
+//        raw = Math.toDegrees(
+//                Math.atan2(
+//                        Math.sin(Math.toRadians(raw)),
+//                        Math.cos(Math.toRadians(raw))
+//                )
+//        );
+////        // Step 3: Apply turret mounting offset (if zero faces backwards)
+//        raw += 180.0;
+//        opMode.telemetry.addData("RAW YAW CALCULATION", raw);
+////
+////        // Step 4: Normalize again after offset
+////        raw = Math.toDegrees(
+////                Math.atan2(
+////                        Math.sin(Math.toRadians(raw)),
+////                        Math.cos(Math.toRadians(raw))
+////                )
+////        );
+////
+////        double limit = 170.0;
+////        double wrapThreshold = 180.0 + (180.0 - limit); // 190
+////
+////        // ---- Dead Zone Handling ----
+////
+////        if (raw > limit && raw <= wrapThreshold) {
+////            return limit;
+////        }
+////
+////        if (raw < -limit && raw >= -wrapThreshold) {
+////            return -limit;
+////        }
+////
+////        // ---- Actual Wrap After Clearing Dead Zone ----
+////
+////        if (raw > wrapThreshold) {
+////            return raw - 360.0;
+////        }
+////
+////        if (raw < -wrapThreshold) {
+////            return raw + 360.0;
+////        }
+//
+//        return raw;
+//    }
 
     public double getAngleRelativeToPoint(int x, int y) {
         Pose currentPose = follower.getPose();
