@@ -38,6 +38,7 @@ import org.firstinspires.ftc.vision.opencv.ImageRegion;
 import java.util.List;
 
 public class Utilities000 {
+    private static final double VELOCITY_COMPENSATION_FACTOR = 1.6;
     OpMode opMode;
     private TelemetryManager telemetryM;
     public Follower follower;
@@ -124,7 +125,7 @@ public class Utilities000 {
         hoodYawMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         hoodYawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         setHoodYawAngleTicks(0);
-        hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+//        hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         hoodYawMotor.setPower(0);
 
@@ -239,16 +240,13 @@ public class Utilities000 {
         intakeMotor.setPower(deadZone(pow*currentMultiplier, 0.05));
     }
 
-    public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks - initialYawAfterAuto);}
+    public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
     public void setHoodYawAngleDegrees(double degrees) {
-        opMode.telemetry.addData("SETHOODYAWANGLE (1): ", degrees);
         degrees = Math.min(Math.max(degrees, -120), 120);
-        setHoodYawAngleTicks(degrees*YAW_PULSES_PER_DEGREE);
-        opMode.telemetry.addData("SETHOODYAWANGLE (2): ", degrees);
 
-//        setHoodYawAngleTicks((int)((clampedDeg+yawShift) * YAW_PULSES_PER_DEGREE));
+        setHoodYawAngleTicks((int)((degrees+yawShift) * YAW_PULSES_PER_DEGREE));
     }
-    public int getHoodYawAngleTicks(){return hoodYawMotor.getCurrentPosition() - initialYawAfterAuto;}
+    public int getHoodYawAngleTicks(){return hoodYawMotor.getCurrentPosition();}
     public double getHoodYawAngleDegrees(){return getHoodYawAngleTicks() / YAW_PULSES_PER_DEGREE;}
     public void setHoodYawPower(double power) {hoodYawMotor.setPower(power);}
     public void setHoodPitchAngleTicks(double pos) {
@@ -334,7 +332,6 @@ public class Utilities000 {
         flywheelController(shotVector[0]);
         setHoodPitchAngleTicks(shotVector[1]);
         setHoodYawAngleDegrees(shotVector[2]);
-        opMode.telemetry.addData("ShotVector 2: ", shotVector[2]);
     }
 
     public void disarmTurrent() {
@@ -375,15 +372,10 @@ public class Utilities000 {
         double dY = path.getY();
 
         double deg = Math.toDegrees(Math.atan2(dY, dX));
-        opMode.telemetry.addData("The target is: ", deg);
-        opMode.telemetry.addData("The heading is: ", odo.getHeading(UnnormalizedAngleUnit.DEGREES));
 
 
         double turretDeg = deg - (180+Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS)));
 //        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
-
-        opMode.telemetry.addData("The turretDeg is: ", turretDeg);
-        opMode.telemetry.addData("The turret angle is: ", getHoodYawAngleDegrees());
 
 //        turretDeg = Math.min(170, Math.max(-170, turretDeg));
 
@@ -574,7 +566,6 @@ public class Utilities000 {
         values[0] = flywheelSpeedFit();
         values[1] = flywheelPitchFit();
         values[2] = aimAtPoint(getGoal());
-        opMode.telemetry.addData("Aim at point deg: ", aimAtPoint(getGoal()));
         return values;
     }
 
@@ -590,8 +581,8 @@ public class Utilities000 {
         double Y = prevShot[0] * Math.cos(Math.toRadians(100.6 -  54.1 * prevShot[1])) * Math.sin(Math.toRadians(prevShot[2]));
         double Z = prevShot[0] * Math.sin(Math.toRadians(100.6 -  54.1 * prevShot[1]));
 
-        X -= movement.getXComponent();
-        Y -= movement.getYComponent();
+        X -= movement.getXComponent() * VELOCITY_COMPENSATION_FACTOR;
+        Y -= movement.getYComponent() * VELOCITY_COMPENSATION_FACTOR;
 
         double[] newShot = new double[3];
         newShot[0] = Math.sqrt(X*X + Y*Y + Z*Z) / shotFactor;

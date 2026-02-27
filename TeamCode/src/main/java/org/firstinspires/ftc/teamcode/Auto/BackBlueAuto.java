@@ -7,6 +7,7 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
@@ -255,6 +256,9 @@ public class BackBlueAuto extends OpMode {
         bot.initialize(this);
         bot.turnOffCamera();
         buildPaths();
+
+        bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
         bot.follower.setStartingPose(startPose);
         bot.setAllianceColor(Utilities000.AllianceColor.BLUE);

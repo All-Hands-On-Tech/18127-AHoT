@@ -3,10 +3,12 @@ package org.firstinspires.ftc.teamcode.Auto; // make sure this aligns with class
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
@@ -28,6 +30,7 @@ public class CloseRedAuto extends OpMode {
     public PathChain Path6; //Shift Paths and make Path 3 to hit gate
     public PathChain HitGate2;
     public PathChain LeavePath1;
+    public PathChain Spike3PreIntake;
     public PathChain Spike3Intake;
     public PathChain Spike3Return;
 
@@ -118,16 +121,25 @@ public class CloseRedAuto extends OpMode {
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-45), Math.toRadians(-90))
                 .build();
-        Spike3Intake = bot.follower.pathBuilder()
+
+        Spike3PreIntake = bot.follower.pathBuilder()
                 .addPath(
-                        new BezierCurve(
+                        new BezierLine(
                                 new Pose(100, 82.739),
-                                new Pose(70, 34),
-                                new Pose(70, 34),
-                                new Pose(133.977, 34.611)
+                                new Pose(100, 34.611)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(0))
+                .build();
+
+        Spike3Intake = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(100, 34.611),
+                                new Pose(133.977, 34.611)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                 .build();
 
         Spike3Return = bot.follower.pathBuilder()
@@ -265,18 +277,25 @@ public class CloseRedAuto extends OpMode {
             case 11:
                 if(!bot.follower.isBusy()) {
 
-                    bot.follower.followPath(Spike3Intake,true);
+                    bot.follower.followPath(Spike3PreIntake,true);
                     setPathState(12);
                 }
                 break;
             case 12:
                 if(!bot.follower.isBusy()) {
-                    bot.intakePower(0.8);
-                    bot.follower.followPath(Spike3Return,true);
+
+                    bot.follower.followPath(Spike3Intake,true);
                     setPathState(13);
                 }
                 break;
             case 13:
+                if(!bot.follower.isBusy()) {
+                    bot.intakePower(0.8);
+                    bot.follower.followPath(Spike3Return,true);
+                    setPathState(14);
+                }
+                break;
+            case 14:
                 if(!bot.follower.isBusy()) {
                     if(wasBusy){
                         clock.reset();
@@ -292,17 +311,17 @@ public class CloseRedAuto extends OpMode {
                         bot.setTransferUp();
                     } else if (clock.milliseconds() > 2500) {
                         bot.setTransferBlock();
-                        setPathState(14);
+                        setPathState(15);
                     }
                 }
                 break;
-            case 14:
+            case 15:
                 if(!bot.follower.isBusy()) {
                     bot.follower.followPath(LeavePath1);
-                    setPathState(15);
+                    setPathState(16);
                 }
                 break;
-            case 15:
+            case 17:
                 if(!bot.follower.isBusy()) {
                     setPathState(-1);
                 }
@@ -354,8 +373,12 @@ public class CloseRedAuto extends OpMode {
         bot.turnOffCamera();
         buildPaths();
 
+        bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
         bot.follower.setStartingPose(startPose);
         bot.setAllianceColor(Utilities000.AllianceColor.RED);
+        bot.setManualAimOffsets(10, 5);
 
     }
 

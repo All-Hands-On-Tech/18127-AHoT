@@ -133,11 +133,11 @@ public class TeleOp000 extends OpMode {
     }
 
     public void handleAimAssist(Gamepad gamepad){
-        if(gamepad.leftBumperWasPressed()){
-            bot.manualFlywheelPowerConstant -= 50;
+        if(gamepad.dpadUpWasPressed()){
+            bot.manualFlywheelPowerConstant += 100;
         }
-        if(gamepad.rightBumperWasPressed()){
-            bot.manualFlywheelPowerConstant += 50;
+        if(gamepad.dpadDownWasPressed()){
+            bot.manualFlywheelPowerConstant -= 100;
         }
         if(gamepad.y){
             if(Math.abs(gamepad.left_stick_x) > 0.05 || Math.abs(gamepad.left_stick_y) > 0.05){
@@ -145,6 +145,8 @@ public class TeleOp000 extends OpMode {
                 double y = -gamepad.left_stick_y;
                 double theta = Math.atan(y/x);
                 bot.setHoodYawAngleDegrees(theta);
+                aiming = false;
+                bot.setHoodYawPower(1);
                 if(gamepad.xWasPressed()){
                     bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
                     bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -182,11 +184,43 @@ public class TeleOp000 extends OpMode {
         }
 
 
-        if(gamepad.aWasPressed()){
+        if(gamepad.aWasPressed() || gamepad.rightBumperWasPressed()){
             transfered = false;
             bot.setTransferDown();
 //            bot.intakePower(1);
-        } else if(gamepad.aWasReleased()){
+        } else if(gamepad.aWasReleased() || gamepad.rightBumperWasReleased()){
+            transfered = true;
+            bot.setTransferUp();
+            transferTimer.reset();
+        } else if(transfered && transferTimer.seconds() > 0.5){
+            bot.setTransferBlock();
+            transfered = false;
+        }
+    }
+
+    public void handleIntake(Gamepad gamepad, Gamepad auxGamepad){
+        if(gamepad.right_trigger > 0.01){
+            bot.intakePower(gamepad.right_trigger);
+        } else if(gamepad.left_trigger > 0.01){
+            bot.intakePower(-gamepad.left_trigger * 0.5);
+        }
+
+        if(auxGamepad.right_trigger > 0.01){
+            bot.intakePower(auxGamepad.right_trigger);
+        }else if(auxGamepad.left_trigger > 0.01){
+            bot.intakePower(-auxGamepad.left_trigger * 0.5);
+        }
+
+        if(gamepad.right_trigger < 0.01 && gamepad.left_trigger < 0.01 && auxGamepad.right_trigger < 0.01 && auxGamepad.left_trigger < 0.01){
+            bot.intakePower(0);
+        }
+
+
+        if(auxGamepad.aWasPressed() || auxGamepad.rightBumperWasPressed()){
+            transfered = false;
+            bot.setTransferDown();
+//            bot.intakePower(1);
+        } else if(auxGamepad.aWasReleased() || auxGamepad.rightBumperWasReleased()){
             transfered = true;
             bot.setTransferUp();
             transferTimer.reset();
