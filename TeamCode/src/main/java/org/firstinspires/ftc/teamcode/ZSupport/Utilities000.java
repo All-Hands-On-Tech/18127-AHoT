@@ -309,6 +309,18 @@ public class Utilities000 {
         setHoodYawAngleDegrees(shotVector[2]);
     }
 
+    public void turrentUpdate(boolean subtractMovement) {
+        double[] shotVector;
+        if(subtractMovement){
+            shotVector = subtractMovement();
+        }else {
+            shotVector = findShot();
+        }
+        flywheelController(shotVector[0]);
+        setHoodPitchAngleTicks(shotVector[1]);
+        setHoodYawAngleDegrees(shotVector[2]);
+    }
+
     public void disarmTurrent() {
         flywheelController(0);
     }
