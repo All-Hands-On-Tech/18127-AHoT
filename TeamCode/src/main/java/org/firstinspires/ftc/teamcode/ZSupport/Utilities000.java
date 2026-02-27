@@ -11,6 +11,7 @@ import com.pedropathing.math.Vector;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathBuilder;
 import com.pedropathing.paths.PathChain;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
@@ -26,6 +27,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
+import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.opencv.Circle;
@@ -39,6 +41,7 @@ public class Utilities000 {
     OpMode opMode;
     private TelemetryManager telemetryM;
     public Follower follower;
+    private GoBildaPinpointDriver odo;
 
     private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
     private static final double PITCH_PULSES_PER_DEGREE = 0;
@@ -351,21 +354,78 @@ public class Utilities000 {
         }
     }
 
+//    public double aimAtPoint(Pose point) {
+//        Pose currentPose = follower.getPose();
+//        Pose path = point.minus(currentPose);
+//
+//        double dX = path.getX();
+//        double dY = path.getY();
+//
+//        double deg = Math.toDegrees(Math.atan2(dY, dX));
+//        opMode.telemetry.addData("The target is: ", deg);
+//
+//        double turretDeg = deg - (180+Math.toDegrees(currentPose.getHeading()));
+////        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
+//
+//        turretDeg = Math.min(170, Math.max(-170, turretDeg));
+//        return turretDeg;
+//    }
+
     public double aimAtPoint(Pose point) {
+
         Pose currentPose = follower.getPose();
-        Pose path = point.minus(currentPose);
 
-        double dX = path.getX();
-        double dY = path.getY();
+        // Compute vector to target
+        double dX = point.getX() - currentPose.getX();
+        double dY = point.getY() - currentPose.getY();
 
-        double deg = Math.toDegrees(Math.atan2(dY, dX));
-        opMode.telemetry.addData("The target is: ", deg);
+        // Field-relative angle to target (degrees)
+        double fieldDeg = Math.toDegrees(Math.atan2(dY, dX));
 
-        double turretDeg = deg - (180+Math.toDegrees(currentPose.getHeading()));
-//        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
+        // Robot heading (degrees)
+        double robotDeg = Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS));
 
-        turretDeg = Math.min(170, Math.max(-170, turretDeg));
-        return turretDeg;
+        // If turret zero faces backwards, keep this -180 offset
+        double raw = fieldDeg - (robotDeg + 180);
+
+        // Normalize to [-180, 180]
+        raw = Math.toDegrees(
+                Math.atan2(
+                        Math.sin(Math.toRadians(raw)),
+                        Math.cos(Math.toRadians(raw))
+                )
+        );
+
+        double limit = 170.0;
+
+        // Dead zone edge for ±170 turret
+        // For ±170°, wrap should occur at ±190°
+        double wrapThreshold = 180.0 + (180.0 - limit);  // = 190
+
+        // ---- Dead Zone Handling ----
+
+        // If inside unreachable positive dead zone, stay pinned at +limit
+        if (raw > limit && raw <= wrapThreshold) {
+            return limit;
+        }
+
+        // If inside unreachable negative dead zone, stay pinned at -limit
+        if (raw < -limit && raw >= -wrapThreshold) {
+            return -limit;
+        }
+
+        // ---- Actual Wrap After Clearing Dead Zone ----
+
+        if (raw > wrapThreshold) {
+            return raw - 360.0;
+        }
+
+        if (raw < -wrapThreshold) {
+            return raw + 360.0;
+        }
+
+        // Otherwise normal valid region
+        return raw;
     }
 
     public double getAngleRelativeToPoint(int x, int y) {

@@ -16,7 +16,7 @@ public class SinglePlayerTeleOp000 extends TeleOp000 {
         telemetry.update();
 
         if(gamepad1.start){
-            setTelemetryMode(TelemetryMode.DELIVERY);
+            setTelemetryMode(TelemetryMode.DEBUG);
         }else{
             setTelemetryMode(TelemetryMode.NONE);
         }
