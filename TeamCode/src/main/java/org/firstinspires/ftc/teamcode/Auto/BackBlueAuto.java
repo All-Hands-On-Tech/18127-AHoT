@@ -23,8 +23,13 @@ public class BackBlueAuto extends OpMode {
     public PathChain Path1;
     public PathChain Path2;
     public PathChain Path3;
+    public PathChain Spike3PreIntake;
+    public PathChain Spike3Intake;
+    public PathChain Spike3Return;
 
     public Pose startPose = new Pose(55, 10, Math.toRadians(-90));
+
+    private boolean wasBusy = false;
 
 
     public void buildPaths() {
@@ -36,7 +41,6 @@ public class BackBlueAuto extends OpMode {
                                 new Pose(6.225, 7.118)
                         )
                 ).setTangentHeadingInterpolation()
-
                 .build();
 
         Path2 = bot.follower.pathBuilder().addPath(
@@ -45,8 +49,38 @@ public class BackBlueAuto extends OpMode {
 
                                 new Pose(55, 13)
                         )
-                ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90))
+                ).setConstantHeadingInterpolation(Math.toRadians(-90))
+                .build();
 
+        Spike3PreIntake = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(55, 13),
+                                new Pose(42.886, 35.152)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(180))
+                .build();
+
+        Spike3Intake = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(42.886, 35.152),
+                                new Pose(9.107, 35.289)
+                        )
+                )
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
+
+        Spike3Return = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                new Pose(9.107, 35.289),
+                                new Pose(50.300, 36.860),
+                                new Pose(55, 13)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-90))
                 .build();
 
         Path3 = bot.follower.pathBuilder().addPath(
@@ -55,8 +89,7 @@ public class BackBlueAuto extends OpMode {
 
                                 new Pose(55, 30)
                         )
-                ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90))
-
+                ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(180))
                 .build();
     }
 
@@ -65,7 +98,8 @@ public class BackBlueAuto extends OpMode {
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                bot.follower.setPose(new Pose(60, 0, Math.toRadians(-90)));
+//                bot.follower.setPose(new Pose(84, 0, Math.toRadians(-90)));
+                bot.setManualAimOffsets(-5,10);
                 if(clock.milliseconds()>3000 && clock.milliseconds()<5000){
                     bot.intakePower(1);
                     bot.setTransferDown();
@@ -102,27 +136,77 @@ public class BackBlueAuto extends OpMode {
                 }
                 break;
             case 4:
-                bot.follower.setPose(new Pose(60, 3, Math.toRadians(-90)));
-                if(clock.milliseconds()>1000 && clock.milliseconds()<3000){
-                    bot.intakePower(1);
-                    bot.setTransferDown();
-                } else if(clock.milliseconds()>3000){
-                    bot.setTransferUp();
-                } else if(clock.milliseconds()>4000){
-                    bot.setTransferBlock();
-                }
-                if(clock.milliseconds()>4000) {
-                    bot.follower.setPose(new Pose(55, 13));
-                    bot.follower.followPath(Path3,true);
-                    setPathState(5);
-                    bot.hoodYawMotor.setPower(0);
-                    bot.intakePower(0);
-                    bot.setFlywheelVolts(0);
+                if(!bot.follower.isBusy()) {
+                    if(wasBusy){
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1500) {
+                        bot.intakePower(-0.1);
+                        bot.setTransferDown();
+                    }
+                    if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
+                        bot.intakePower(0.8);
+                        bot.setTransferDown();
+                    } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
+                        bot.setTransferUp();
+                    } else if (clock.milliseconds() > 3000) {
+                        bot.setTransferBlock();
+                        setPathState(5);
+                    }
                 }
                 break;
             case 5:
                 if(!bot.follower.isBusy()) {
+                    bot.follower.followPath(Spike3PreIntake);
+                    setPathState(6);
+                }
+                break;
+            case 6:
+                if(!bot.follower.isBusy()) {
+                    bot.intakePower(1);
+                    bot.follower.followPath(Spike3Intake);
+                    setPathState(7);
+                }
+                break;
+            case 7:
+                if(!bot.follower.isBusy()) {
+                    bot.intakePower(0.8);
+                    bot.follower.followPath(Spike3Return);
+                    setPathState(8);
+                }
+                break;
+            case 8:
+                if(!bot.follower.isBusy()) {
+                    if(wasBusy){
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1500) {
+                        bot.intakePower(-0.1);
+                        bot.setTransferDown();
+                    }
+                    if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
+                        bot.intakePower(0.8);
+                        bot.setTransferDown();
+                    } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
+                        bot.setTransferUp();
+                    } else if (clock.milliseconds() > 3000) {
+                        bot.setTransferBlock();
+                        setPathState(9);
+                    }
+                }
+                break;
+            case 9:
+                if(!bot.follower.isBusy()){
+                    bot.follower.followPath(Path3);
                     setPathState(-1);
+                } //lofan was here
+                break;
+            case -1:
+                if(!bot.follower.isBusy()){
+                    bot.setFlywheelVolts(0);
+                    bot.setHoodYawPower(0);
+                    bot.intakePower(0);
+                    bot.setTransferBlock();
                 }
                 break;
         }
@@ -148,6 +232,8 @@ public class BackBlueAuto extends OpMode {
             bot.turrentUpdate();
         }
         autonomousPathUpdate();
+
+        wasBusy = bot.follower.isBusy();
 
         // Feedback to Driver Hub for debugging
         telemetry.addData("path state", pathState);

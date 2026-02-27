@@ -152,7 +152,6 @@ public class BackRedAuto extends OpMode {
                         bot.setTransferUp();
                     } else if (clock.milliseconds() > 3000) {
                         bot.setTransferBlock();
-                        bot.follower.setPose(new Pose(89, 13, Math.toRadians(-90)));
                         setPathState(5);
                     }
                 }
@@ -193,7 +192,6 @@ public class BackRedAuto extends OpMode {
                         bot.setTransferUp();
                     } else if (clock.milliseconds() > 3000) {
                         bot.setTransferBlock();
-                        bot.follower.setPose(new Pose(89, 13, Math.toRadians(-90)));
                         setPathState(9);
                     }
                 }
@@ -202,7 +200,7 @@ public class BackRedAuto extends OpMode {
                 if(!bot.follower.isBusy()){
                     bot.follower.followPath(Path3);
                     setPathState(-1);
-                }
+                } //lofan was here
                 break;
             case -1:
                 if(!bot.follower.isBusy()){
@@ -289,15 +287,9 @@ public class BackRedAuto extends OpMode {
      **/
     @Override
     public void stop() {
-
-        int yaw = bot.getHoodYawAngleTicks();
-
-        telemetry.addData("Yaw in stop()", yaw);
-        telemetry.update();
-
         Utilities000.RobotStateAfterAuto.setPostAutoState(
                 bot.follower.getPose(),
-                yaw
+                bot.getHoodYawAngleTicks()
         );
     }
 

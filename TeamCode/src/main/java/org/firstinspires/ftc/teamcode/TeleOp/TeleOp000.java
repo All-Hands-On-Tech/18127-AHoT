@@ -209,6 +209,7 @@ public class TeleOp000 extends OpMode {
                 telemetry.addData("Flywheel speed: ", bot.getFlywheelSpeed());
                 telemetry.addData("Flywheel yaw:     ", yaw);
                 telemetry.addData("Flywheel pitch:   ", pitch);
+                telemetry.addData("Unnormalized Heading", bot.getUnnormalizedRobotHeading());
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
             case DELIVERY:
                 telemetry.addData("Turret Yaw Deg: ", bot.getHoodYawAngleDegrees());
@@ -217,7 +218,6 @@ public class TeleOp000 extends OpMode {
                 telemetry.addData("Flywheel yaw:     ", yaw);
                 telemetry.addData("Flywheel pitch:   ", pitch);
                 telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
-                telemetry.addData("Initial Yaw Angle (ticks):", bot.initialYawAfterAuto);
                 telemetry.addData("Initial Yaw Angle (ticks):", Utilities000.RobotStateAfterAuto.postAutoYawAngle);
                 telemetry.addData("Was Auto Previously?", Utilities000.RobotStateAfterAuto.wasAuto);
             case CIRCUIT:

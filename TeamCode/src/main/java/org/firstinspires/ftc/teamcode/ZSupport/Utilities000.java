@@ -107,6 +107,8 @@ public class Utilities000 {
         bl.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
 
+        odo = l.hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+
         intakeMotor = l.hardwareMap.get(DcMotorEx.class, "intake");
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -259,6 +261,10 @@ public class Utilities000 {
         double currentVoltage = voltageSensor.getVoltage();
         flywheelL.setPower(volts/currentVoltage);
         flywheelR.setPower(volts/currentVoltage);
+    }
+
+    public double getUnnormalizedRobotHeading(){
+        return odo.getHeading(UnnormalizedAngleUnit.DEGREES);
     }
 
     public void turnOffCamera() {
