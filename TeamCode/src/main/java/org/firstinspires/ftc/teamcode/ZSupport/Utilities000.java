@@ -382,13 +382,26 @@ public class Utilities000 {
         // Field-relative angle to target (degrees)
         double fieldDeg = Math.toDegrees(Math.atan2(dY, dX));
 
-        // Robot heading (degrees)
-        double robotDeg = Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS));
+        // Continuous robot heading (degrees)
+        double robotDeg = Math.toDegrees(
+                odo.getHeading(UnnormalizedAngleUnit.RADIANS)
+        );
 
-        // If turret zero faces backwards, keep this -180 offset
-        double raw = fieldDeg - (robotDeg + 180);
+        // Step 1: Compute pure relative error
+        double raw = fieldDeg - robotDeg;
 
-        // Normalize to [-180, 180]
+        // Step 2: Normalize relative error
+        raw = Math.toDegrees(
+                Math.atan2(
+                        Math.sin(Math.toRadians(raw)),
+                        Math.cos(Math.toRadians(raw))
+                )
+        );
+
+        // Step 3: Apply turret mounting offset (if zero faces backwards)
+        raw += 180.0;
+
+        // Step 4: Normalize again after offset
         raw = Math.toDegrees(
                 Math.atan2(
                         Math.sin(Math.toRadians(raw)),
@@ -397,19 +410,14 @@ public class Utilities000 {
         );
 
         double limit = 170.0;
-
-        // Dead zone edge for ±170 turret
-        // For ±170°, wrap should occur at ±190°
-        double wrapThreshold = 180.0 + (180.0 - limit);  // = 190
+        double wrapThreshold = 180.0 + (180.0 - limit); // 190
 
         // ---- Dead Zone Handling ----
 
-        // If inside unreachable positive dead zone, stay pinned at +limit
         if (raw > limit && raw <= wrapThreshold) {
             return limit;
         }
 
-        // If inside unreachable negative dead zone, stay pinned at -limit
         if (raw < -limit && raw >= -wrapThreshold) {
             return -limit;
         }
@@ -424,7 +432,6 @@ public class Utilities000 {
             return raw + 360.0;
         }
 
-        // Otherwise normal valid region
         return raw;
     }
 
