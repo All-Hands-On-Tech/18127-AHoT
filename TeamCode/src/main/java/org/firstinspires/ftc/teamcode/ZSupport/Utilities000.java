@@ -241,8 +241,12 @@ public class Utilities000 {
 
     public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks - initialYawAfterAuto);}
     public void setHoodYawAngleDegrees(double degrees) {
-        double clampedDeg = Math.min(Math.max(degrees, -120), 120);
-        setHoodYawAngleTicks((int)((clampedDeg+yawShift) * YAW_PULSES_PER_DEGREE));
+        opMode.telemetry.addData("SETHOODYAWANGLE (1): ", degrees);
+        degrees = Math.min(Math.max(degrees, -120), 120);
+        setHoodYawAngleTicks(degrees*YAW_PULSES_PER_DEGREE);
+        opMode.telemetry.addData("SETHOODYAWANGLE (2): ", degrees);
+
+//        setHoodYawAngleTicks((int)((clampedDeg+yawShift) * YAW_PULSES_PER_DEGREE));
     }
     public int getHoodYawAngleTicks(){return hoodYawMotor.getCurrentPosition() - initialYawAfterAuto;}
     public double getHoodYawAngleDegrees(){return getHoodYawAngleTicks() / YAW_PULSES_PER_DEGREE;}
@@ -316,6 +320,7 @@ public class Utilities000 {
         flywheelController(shotVector[0]);
         setHoodPitchAngleTicks(shotVector[1]);
         setHoodYawAngleDegrees(shotVector[2]);
+//        opMode.telemetry.addData("Turrent: ", shotVector[2]);
     }
 
     public void turrentUpdate(boolean subtractMovement) {
@@ -325,9 +330,11 @@ public class Utilities000 {
         }else {
             shotVector = findShot();
         }
+
         flywheelController(shotVector[0]);
         setHoodPitchAngleTicks(shotVector[1]);
         setHoodYawAngleDegrees(shotVector[2]);
+        opMode.telemetry.addData("ShotVector 2: ", shotVector[2]);
     }
 
     public void disarmTurrent() {
@@ -369,11 +376,24 @@ public class Utilities000 {
 
         double deg = Math.toDegrees(Math.atan2(dY, dX));
         opMode.telemetry.addData("The target is: ", deg);
+        opMode.telemetry.addData("The heading is: ", odo.getHeading(UnnormalizedAngleUnit.DEGREES));
 
-        double turretDeg = deg - (180+Math.toDegrees(currentPose.getHeading()));
+
+        double turretDeg = deg - (180+Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS)));
 //        double turretDeg = - odo.getHeading(AngleUnit.DEGREES);
 
-        turretDeg = Math.min(170, Math.max(-170, turretDeg));
+        opMode.telemetry.addData("The turretDeg is: ", turretDeg);
+        opMode.telemetry.addData("The turret angle is: ", getHoodYawAngleDegrees());
+
+//        turretDeg = Math.min(170, Math.max(-170, turretDeg));
+
+        turretDeg = Math.toDegrees(
+                Math.atan2(
+                        Math.sin(Math.toRadians(turretDeg)),
+                        Math.cos(Math.toRadians(turretDeg))
+                )
+        );
+
         return turretDeg;
     }
 
@@ -554,6 +574,7 @@ public class Utilities000 {
         values[0] = flywheelSpeedFit();
         values[1] = flywheelPitchFit();
         values[2] = aimAtPoint(getGoal());
+        opMode.telemetry.addData("Aim at point deg: ", aimAtPoint(getGoal()));
         return values;
     }
 
@@ -575,7 +596,17 @@ public class Utilities000 {
         double[] newShot = new double[3];
         newShot[0] = Math.sqrt(X*X + Y*Y + Z*Z) / shotFactor;
         newShot[1] = (90-Math.toDegrees(Math.atan(Math.sqrt(X*X + Y*Y)/Z))-100.6)/(-54.1);
-        newShot[2] = Math.toDegrees(Math.atan2(Y, X))-(180+Math.toDegrees(currentPose.getHeading()));
+        newShot[2] = Math.toDegrees(Math.atan2(Y, X))-(180+Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS)));
+//        double turretDeg = deg - (180+Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS)));
+
+        newShot[2] = Math.toDegrees(
+                Math.atan2(
+                        Math.sin(Math.toRadians(newShot[2])),
+                        Math.cos(Math.toRadians(newShot[2]))
+                )
+        );
+
+
         return newShot;
     }
 
