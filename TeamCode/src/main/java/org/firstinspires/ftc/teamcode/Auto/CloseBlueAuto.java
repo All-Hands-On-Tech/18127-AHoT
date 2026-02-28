@@ -192,7 +192,7 @@ public class CloseBlueAuto extends OpMode {
 
             case 3:
                 if(!bot.follower.isBusy()){
-                    bot.intakePower(0.8);
+                    bot.intakePower(1);
                     if(wasBusy){
                         clock.reset();
                     }
@@ -220,7 +220,7 @@ public class CloseBlueAuto extends OpMode {
                         clock.reset();
                     }
                     if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
-                        bot.intakePower(-0.1);
+                        bot.intakePower(-0.0);
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
@@ -243,7 +243,7 @@ public class CloseBlueAuto extends OpMode {
                 break;
             case 8:
                 if(!bot.follower.isBusy()) {
-                    bot.intakePower(0.8);
+                    bot.intakePower(1);
                     bot.follower.followPath(Path5,true);
                     setPathState(9);
                 }
@@ -254,7 +254,7 @@ public class CloseBlueAuto extends OpMode {
                         clock.reset();
                     }
                     if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
-                        bot.intakePower(-0.1);
+                        bot.intakePower(-0.0);
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
@@ -290,7 +290,7 @@ public class CloseBlueAuto extends OpMode {
                 break;
             case 12:
                 if(!bot.follower.isBusy()) {
-                    bot.intakePower(0.8);
+                    bot.intakePower(1);
                     bot.follower.followPath(Spike3Return,true);
                     setPathState(13);
                 }
@@ -301,7 +301,7 @@ public class CloseBlueAuto extends OpMode {
                         clock.reset();
                     }
                     if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
-                        bot.intakePower(-0.1);
+                        bot.intakePower(-0.0);
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {

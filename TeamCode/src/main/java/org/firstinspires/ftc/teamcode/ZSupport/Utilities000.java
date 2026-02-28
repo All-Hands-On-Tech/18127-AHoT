@@ -136,6 +136,10 @@ public class Utilities000 {
         PIDFCoefficients pCoefficients = new PIDFCoefficients(10, 0,0,0);
         hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION, pCoefficients);
 
+        PIDFCoefficients flywheelCoefficients = new PIDFCoefficients(125, 0, 0, 11.5);
+        flywheelL.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, flywheelCoefficients);
+        flywheelR.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, flywheelCoefficients);
+
         hoodPitchServo = l.hardwareMap.get(Servo.class, "hoodPitch");
         transferServo = l.hardwareMap.get(Servo.class, "transfer");
         transferServo.scaleRange(TRANSFER_MIN, TRANSFER_MAX);
@@ -548,7 +552,7 @@ public class Utilities000 {
 
     public double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-        double speed = distance * 7.05 + 945;
+        double speed = distance * 7.05 + 945;//Khai added 1 to slope
         return speed + manualFlywheelPowerConstant; //HUY ADJUSTMENT REMOVE LATER
     }
     private double flywheelPitchFit() {
@@ -608,6 +612,18 @@ public class Utilities000 {
         Path a = new Path(new BezierLine(currentPose, artifactPoses[0]));
         a.setTangentHeadingInterpolation();
         robotPath.addPath(a);
+        return robotPath.build();
+    }
+    public PathChain pathToArtifactsAndReturn(Pose[] artifactPoses) {
+        Pose currentPose = follower.getPose();
+
+        PathBuilder robotPath = new PathBuilder(follower);
+        Path a = new Path(new BezierLine(currentPose, artifactPoses[0]));
+        Path b = new Path(new BezierLine(artifactPoses[0], currentPose));
+        a.setTangentHeadingInterpolation();
+        b.setLinearHeadingInterpolation(0, 0);
+        robotPath.addPath(a);
+        robotPath.addPath(b);
         return robotPath.build();
     }
 

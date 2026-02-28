@@ -142,11 +142,11 @@ public class BackBlueAuto extends OpMode {
                         clock.reset();
                     }
                     if (clock.milliseconds() > 0 && clock.milliseconds() < 1500) {
-                        bot.intakePower(-0.1);
+                        bot.intakePower(-0.0);
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(0.8);
+                        bot.intakePower(1);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();
@@ -182,11 +182,11 @@ public class BackBlueAuto extends OpMode {
                         clock.reset();
                     }
                     if (clock.milliseconds() > 0 && clock.milliseconds() < 1500) {
-                        bot.intakePower(-0.1);
+                        bot.intakePower(-0.0);
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(0.8);
+                        bot.intakePower(1);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();

@@ -82,7 +82,11 @@ public class TeleOp000 extends OpMode {
             bot.turnOffCamera();
         }
 
-        bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
+        if(bot.getAllianceColor() == Utilities000.AllianceColor.BLUE){
+            bot.move(gamepad.left_stick_y, gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
+        }else {
+            bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
+        }
         bot.updateOdo();
         if (limeLightStaller.seconds()>0.5) {
             if (bot.limelightUpdate()) {
