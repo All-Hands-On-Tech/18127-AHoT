@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.Auto; // make sure this aligns with class
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -14,7 +13,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
 @Autonomous(name = "Close Auto Red", group = "A")
-public class CloseRedAuto extends OpMode {
+public class NOSPIKE3_CloseRedAuto extends OpMode {
 
     Utilities000 bot = new Utilities000(this);
     private Timer pathTimer, actionTimer, opmodeTimer;
@@ -271,7 +270,7 @@ public class CloseRedAuto extends OpMode {
             case 10:
                 if(!bot.follower.isBusy()) {
                     bot.follower.followPath(LeavePath1);
-                    setPathState(11);
+                    setPathState(17); //SKIP SPIKE 3
                 }
                 break;
             case 11:

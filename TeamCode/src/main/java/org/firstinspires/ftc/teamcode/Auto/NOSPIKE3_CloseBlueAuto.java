@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.Auto; // make sure this aligns with class
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -13,8 +12,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
-@Autonomous(name = "Close Auto Red", group = "A")
-public class CloseRedAuto extends OpMode {
+@Autonomous(name = "Close Auto Blue", group = "A")
+public class NOSPIKE3_CloseBlueAuto extends OpMode {
 
     Utilities000 bot = new Utilities000(this);
     private Timer pathTimer, actionTimer, opmodeTimer;
@@ -36,7 +35,7 @@ public class CloseRedAuto extends OpMode {
 
     private boolean wasBusy = false;
 
-    public Pose startPose = new Pose(117.414, 131.042, Math.toRadians(-143));
+    public Pose startPose = new Pose(26.586, 131.042, Math.toRadians(-37));
 
 
     public void buildPaths() {
@@ -44,69 +43,70 @@ public class CloseRedAuto extends OpMode {
                 .addPath(
                         new BezierLine(
                                 new Pose(startPose.getX(), startPose.getY()),
-                                new Pose(90.489, 92.069)
+                                new Pose(53.511, 92.069)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(-143), Math.toRadians(-45))
+                .setLinearHeadingInterpolation(Math.toRadians(-37), Math.toRadians(-135))
                 .build();
 
         Path2 = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(90.489, 92.069),
-                                new Pose(120, 82.909)
+                                new Pose(53.511, 92.069),
+                                new Pose(24, 82.909)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(-45), Math.toRadians(0))
+                .setLinearHeadingInterpolation(Math.toRadians(-135), Math.toRadians(180))
                 .build();
 
         Path3 = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(125.006, 75),
-                                new Pose(90, 83.000)
+                                new Pose(18.994, 75),
+                                new Pose(54, 83.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-45))
+                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-135))
                 .build();
 
         Path4 = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(90, 83.000),
-                                new Pose(106.087, 82.306),
-                                new Pose(77.628, 53),
-                                new Pose(125, 53)
+                                new Pose(54, 83.000),
+                                new Pose(37.913, 82.306),
+                                new Pose(66.372, 53),
+                                new Pose(19, 53)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(-45), Math.toRadians(0))
+                .setLinearHeadingInterpolation(Math.toRadians(-135), Math.toRadians(180))
                 .build();
 
         Path5 = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(125, 53),
-                                new Pose(77.913, 58.488),
-                                new Pose(86.522, 82.739)
+                                new Pose(19, 53),
+                                new Pose(66.087, 58.488),
+                                new Pose(57.478, 82.739)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-45))
-                .build();
-        Path6 = bot.follower.pathBuilder() //OUT OF SEQUENCE (hit gate after path2
-                .addPath(
-                        new BezierLine(
-                                new Pose(128.905, 84.489),
-                                new Pose(115, 80)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-90))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-135))
                 .build();
 
-        HitGate2 = bot.follower.pathBuilder() //OUT OF SEQUENCE (hit gate after path2
+        Path6 = bot.follower.pathBuilder() //OUT OF SEQUENCE (hit gate after path2)
                 .addPath(
                         new BezierLine(
-                                new Pose(115, 80),
-                                new Pose(125.006, 75)
+                                new Pose(15.095, 84.489),
+                                new Pose(29, 80)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-90))
+                .build();
+
+        HitGate2 = bot.follower.pathBuilder() //OUT OF SEQUENCE (hit gate after path2)
+                .addPath(
+                        new BezierLine(
+                                new Pose(29, 80),
+                                new Pose(18.994, 75)
                         )
                 )
                 .setConstantHeadingInterpolation(Math.toRadians(-90))
@@ -115,42 +115,42 @@ public class CloseRedAuto extends OpMode {
         LeavePath1 = bot.follower.pathBuilder() // VARIABLE SEQUENCE
                 .addPath(
                         new BezierLine(
-                                new Pose(86.522, 82.739),
-                                new Pose(100, 82.739)
+                                new Pose(57.478, 82.739),
+                                new Pose(44, 82.739)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(-45), Math.toRadians(-90))
+                .setLinearHeadingInterpolation(Math.toRadians(-135), Math.toRadians(-90))
                 .build();
 
         Spike3PreIntake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(90, 82.739),
-                                new Pose(90, 34.611)
+                                new Pose(54, 82.739),
+                                new Pose(54, 34.611)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(0))
+                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(180))
                 .build();
 
         Spike3Intake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(100, 34.611),
-                                new Pose(133.977, 34.611)
+                                new Pose(44, 34.611),
+                                new Pose(10.023, 34.611)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .build();
 
         Spike3Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(133.977, 34.611),
-                                new Pose(96.684, 40.695),
-                                new Pose(86.522, 82.739)
+                                new Pose(10.023, 34.611),
+                                new Pose(47.316, 40.695),
+                                new Pose(57.478, 82.739)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-45))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-135))
                 .build();
     }
 
@@ -196,7 +196,7 @@ public class CloseRedAuto extends OpMode {
                     if(wasBusy){
                         clock.reset();
                     }
-                    if(clock.milliseconds() > 100){
+                    if(clock.milliseconds() > 1000){
                         bot.follower.followPath(Path6);
                         setPathState(4);
                     }
@@ -271,31 +271,31 @@ public class CloseRedAuto extends OpMode {
             case 10:
                 if(!bot.follower.isBusy()) {
                     bot.follower.followPath(LeavePath1);
+                    setPathState(15); //SKIP SPIKE 3
+                }
+                break;
+            case 99:
+                if(!bot.follower.isBusy()) {
+
+                    bot.follower.followPath(Spike3PreIntake,true);
                     setPathState(11);
                 }
                 break;
             case 11:
                 if(!bot.follower.isBusy()) {
 
-                    bot.follower.followPath(Spike3PreIntake,true);
+                    bot.follower.followPath(Spike3Intake,true);
                     setPathState(12);
                 }
                 break;
             case 12:
                 if(!bot.follower.isBusy()) {
-
-                    bot.follower.followPath(Spike3Intake,true);
+                    bot.intakePower(1);
+                    bot.follower.followPath(Spike3Return,true);
                     setPathState(13);
                 }
                 break;
             case 13:
-                if(!bot.follower.isBusy()) {
-                    bot.intakePower(1);
-                    bot.follower.followPath(Spike3Return,true);
-                    setPathState(14);
-                }
-                break;
-            case 14:
                 if(!bot.follower.isBusy()) {
                     if(wasBusy){
                         clock.reset();
@@ -311,17 +311,17 @@ public class CloseRedAuto extends OpMode {
                         bot.setTransferUp();
                     } else if (clock.milliseconds() > 2500) {
                         bot.setTransferBlock();
-                        setPathState(15);
+                        setPathState(14);
                     }
                 }
                 break;
-            case 15:
+            case 14:
                 if(!bot.follower.isBusy()) {
                     bot.follower.followPath(LeavePath1);
-                    setPathState(16);
+                    setPathState(15);
                 }
                 break;
-            case 17:
+            case 15:
                 if(!bot.follower.isBusy()) {
                     setPathState(-1);
                 }
@@ -377,8 +377,8 @@ public class CloseRedAuto extends OpMode {
         bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
         bot.follower.setStartingPose(startPose);
-        bot.setAllianceColor(Utilities000.AllianceColor.RED);
-        bot.setManualAimOffsets(10, 5);
+        bot.setAllianceColor(Utilities000.AllianceColor.BLUE);
+        bot.setManualAimOffsets(-10, 5);
 
     }
 

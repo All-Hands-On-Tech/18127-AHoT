@@ -125,8 +125,8 @@ public class CloseBlueAuto extends OpMode {
         Spike3PreIntake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(44, 82.739),
-                                new Pose(44, 34.611)
+                                new Pose(54, 82.739),
+                                new Pose(54, 34.611)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(180))

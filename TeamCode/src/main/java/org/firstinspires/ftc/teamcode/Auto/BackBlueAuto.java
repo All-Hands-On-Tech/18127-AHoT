@@ -23,10 +23,13 @@ public class BackBlueAuto extends OpMode {
 
     public PathChain Path1;
     public PathChain Path2;
-    public PathChain Path3;
     public PathChain Spike3PreIntake;
     public PathChain Spike3Intake;
     public PathChain Spike3Return;
+    public PathChain Path3;
+    public PathChain LeftoverPreIntake;
+    public PathChain LeftoverIntake;
+    public PathChain LeftoverReturn;
 
     public Pose startPose = new Pose(55, 10, Math.toRadians(-90));
 
@@ -92,6 +95,36 @@ public class BackBlueAuto extends OpMode {
                         )
                 ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(180))
                 .build();
+
+        LeftoverPreIntake = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(55, 30),
+                                new Pose(15, 40)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-120))
+                .build();
+
+        LeftoverIntake = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(15, 40),
+                                new Pose(13, 15)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(-120), Math.toRadians(-90))
+                .build();
+
+        LeftoverReturn = bot.follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(13, 15),
+                                new Pose(55, 13)
+                        )
+                )
+                .setConstantHeadingInterpolation(Math.toRadians(-90))
+                .build();
     }
 
 
@@ -100,13 +133,13 @@ public class BackBlueAuto extends OpMode {
         switch (pathState) {
             case 0:
 //                bot.follower.setPose(new Pose(84, 0, Math.toRadians(-90)));
-                bot.setManualAimOffsets(-5,10);
-                if(clock.milliseconds()>3000 && clock.milliseconds()<5000){
+                bot.setManualAimOffsets(5,10);
+                if(clock.milliseconds()>2000 && clock.milliseconds()<4000){
                     bot.intakePower(1);
                     bot.setTransferDown();
-                } else if(clock.milliseconds()>5000 && clock.milliseconds()<6000){
+                } else if(clock.milliseconds()>4000 && clock.milliseconds()<5000){
                     bot.setTransferUp();
-                } else if(clock.milliseconds()>6000){
+                } else if(clock.milliseconds()>5000){
                     bot.follower.setPose(startPose);
                     bot.setTransferBlock();
                     setPathState(1);
@@ -199,8 +232,52 @@ public class BackBlueAuto extends OpMode {
             case 9:
                 if(!bot.follower.isBusy()){
                     bot.follower.followPath(Path3);
-                    setPathState(-1);
+                    setPathState(10);
                 } //lofan was here
+                break;
+            case 10:
+                if(!bot.follower.isBusy()){
+                    bot.follower.followPath(LeftoverPreIntake);
+                    setPathState(11);
+                }
+                break;
+            case 11:
+                if(!bot.follower.isBusy()){
+                    bot.follower.followPath(LeftoverIntake);
+                    setPathState(12);
+                }
+                break;
+            case 12:
+                if(!bot.follower.isBusy()){
+                    bot.follower.followPath(LeftoverReturn);
+                    setPathState(13);
+                }
+                break;
+            case 13:
+                if(!bot.follower.isBusy()) {
+                    if(wasBusy){
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1500) {
+                        bot.intakePower(-0.0);
+                        bot.setTransferDown();
+                    }
+                    if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
+                        bot.intakePower(1);
+                        bot.setTransferDown();
+                    } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
+                        bot.setTransferUp();
+                    } else if (clock.milliseconds() > 3000) {
+                        bot.setTransferBlock();
+                        setPathState(14);
+                    }
+                }
+                break;
+            case 14:
+                if(!bot.follower.isBusy()){
+                    bot.follower.followPath(Path3);
+                    setPathState(-1);
+                }
                 break;
             case -1:
                 if(!bot.follower.isBusy()){
