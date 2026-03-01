@@ -38,7 +38,7 @@ import org.firstinspires.ftc.vision.opencv.ImageRegion;
 import java.util.List;
 
 public class Utilities000 {
-    private static final double VELOCITY_COMPENSATION_FACTOR = 1.6;
+    private static final double VELOCITY_COMPENSATION_FACTOR = 1.2;
     OpMode opMode;
     private TelemetryManager telemetryM;
     public Follower follower;
@@ -248,7 +248,8 @@ public class Utilities000 {
     public void setHoodYawAngleDegrees(double degrees) {
         degrees = Math.min(Math.max(degrees, -120), 120);
 
-        setHoodYawAngleTicks((int)((degrees+yawShift) * YAW_PULSES_PER_DEGREE));
+        setHoodYawAngleTicks((int)((degrees) * YAW_PULSES_PER_DEGREE) + yawShift);
+        opMode.telemetry.addData("yawShift: ", yawShift);
     }
     public int getHoodYawAngleTicks(){return hoodYawMotor.getCurrentPosition();}
     public double getHoodYawAngleDegrees(){return getHoodYawAngleTicks() / YAW_PULSES_PER_DEGREE;}

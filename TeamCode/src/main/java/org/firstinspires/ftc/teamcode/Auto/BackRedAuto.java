@@ -136,7 +136,7 @@ public class BackRedAuto extends OpMode {
 //                bot.follower.setPose(new Pose(84, 0, Math.toRadians(-90)));
                 bot.setManualAimOffsets(5,10);
                 if(clock.milliseconds()>2000 && clock.milliseconds()<4000){
-                    bot.intakePower(1);
+                    bot.intakePower(0.7);
                     bot.setTransferDown();
                 } else if(clock.milliseconds()>4000 && clock.milliseconds()<5000){
                     bot.setTransferUp();
@@ -147,6 +147,14 @@ public class BackRedAuto extends OpMode {
                 }
                 break;
             case 1:
+                if(wasBusy){
+                    clock.reset();
+                }
+                if(clock.milliseconds() > 5000){
+                    setPathState(2);
+                    bot.follower.breakFollowing();
+                }
+
                 bot.follower.followPath(Path1);
                 setPathState(2);
                 break;
@@ -180,7 +188,7 @@ public class BackRedAuto extends OpMode {
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(1);
+                        bot.intakePower(0.8);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();
@@ -220,7 +228,7 @@ public class BackRedAuto extends OpMode {
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(1);
+                        bot.intakePower(0.8);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();
@@ -264,7 +272,7 @@ public class BackRedAuto extends OpMode {
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(1);
+                        bot.intakePower(0.8);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();

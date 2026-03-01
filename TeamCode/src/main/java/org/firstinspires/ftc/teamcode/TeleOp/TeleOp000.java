@@ -96,11 +96,6 @@ public class TeleOp000 extends OpMode {
     }
 
     public void handleDelivery(Gamepad gamepad){
-        if(gamepad.dpad_right) {
-            bot.yawShift += 0.1;
-        } else if (gamepad.dpad_left) {
-            bot.yawShift -= 0.1;
-        }
 
         if(gamepad.dpad_up) {
             bot.pitchShift += 0.003;
@@ -137,6 +132,12 @@ public class TeleOp000 extends OpMode {
     }
 
     public void handleAimAssist(Gamepad gamepad){
+        if(gamepad.dpadRightWasPressed()) {
+            bot.yawShift += 2;
+        } else if (gamepad.dpadLeftWasPressed()) {
+            bot.yawShift -= 2;
+        }
+
         if(gamepad.dpadUpWasPressed()){
             bot.manualFlywheelPowerConstant += 100;
         }
@@ -148,7 +149,7 @@ public class TeleOp000 extends OpMode {
                 double x = gamepad.left_stick_x;
                 double y = -gamepad.left_stick_y;
                 double theta = Math.atan(y/x);
-                bot.setHoodYawAngleDegrees(theta);
+                bot.setHoodYawAngleDegrees(Math.toDegrees(theta));
                 aiming = false;
                 bot.setHoodYawPower(1);
                 if(gamepad.xWasPressed()){
@@ -160,6 +161,10 @@ public class TeleOp000 extends OpMode {
         if(Math.abs(gamepad.right_stick_x) > 0.05 || Math.abs(gamepad.right_stick_y) > 0.05){
             double x = gamepad.right_stick_x / Math.sqrt(2);
             double y = -gamepad.right_stick_y / Math.sqrt(2);
+            if(bot.getAllianceColor() == Utilities000.AllianceColor.BLUE){
+                x = -x;
+                y = -y;
+            }
             double tempX = x;
             double tempY = y;
             x = (tempX+tempY)/Math.sqrt(2);
@@ -174,7 +179,7 @@ public class TeleOp000 extends OpMode {
             bot.limelightUpdate();
         }
         if(gamepad.left_trigger_pressed){
-            maxManualAimOffsetMagnitude = 20;
+            maxManualAimOffsetMagnitude = 30;
         }
     }
 

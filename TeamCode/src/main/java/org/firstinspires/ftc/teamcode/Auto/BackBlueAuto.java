@@ -133,9 +133,9 @@ public class BackBlueAuto extends OpMode {
         switch (pathState) {
             case 0:
 //                bot.follower.setPose(new Pose(84, 0, Math.toRadians(-90)));
-                bot.setManualAimOffsets(5,10);
+                bot.setManualAimOffsets(-5,10);
                 if(clock.milliseconds()>2000 && clock.milliseconds()<4000){
-                    bot.intakePower(1);
+                    bot.intakePower(0.7);
                     bot.setTransferDown();
                 } else if(clock.milliseconds()>4000 && clock.milliseconds()<5000){
                     bot.setTransferUp();
@@ -146,6 +146,15 @@ public class BackBlueAuto extends OpMode {
                 }
                 break;
             case 1:
+
+                if(wasBusy){
+                    clock.reset();
+                }
+                if(clock.milliseconds() > 5000){
+                    setPathState(2);
+                    bot.follower.breakFollowing();
+                }
+
                 bot.follower.followPath(Path1);
                 setPathState(2);
                 break;
@@ -153,7 +162,6 @@ public class BackBlueAuto extends OpMode {
 
                 /* This case checks the robot's position and will wait until the robot position is close (1 inch away) from the scorePose's position */
                 if(!bot.follower.isBusy()) {
-                    /* Score Preload */
 
                     /* Since this is a pathChain, we can have Pedro hold the end point while we are grabbing the sample */
                     bot.follower.followPath(Path2,true);
@@ -179,7 +187,7 @@ public class BackBlueAuto extends OpMode {
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(1);
+                        bot.intakePower(0.8);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();
@@ -219,7 +227,7 @@ public class BackBlueAuto extends OpMode {
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(1);
+                        bot.intakePower(0.8);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();
@@ -263,7 +271,7 @@ public class BackBlueAuto extends OpMode {
                         bot.setTransferDown();
                     }
                     if (clock.milliseconds() > 1500 && clock.milliseconds() < 2500) {
-                        bot.intakePower(1);
+                        bot.intakePower(0.8);
                         bot.setTransferDown();
                     } else if (clock.milliseconds() > 2500 && clock.milliseconds() < 3000) {
                         bot.setTransferUp();
