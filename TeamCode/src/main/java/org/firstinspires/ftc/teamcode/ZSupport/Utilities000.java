@@ -77,6 +77,11 @@ public class Utilities000 {
     private static final double webcamA = 120;
     private Limelight3A limelight;
 
+    public Servo tilt;
+    private final double TILT_UP = 0.0;
+    private final double TILT_DOWN = 0.35;
+    private double targetTilt = TILT_UP;
+
     private VoltageSensor voltageSensor;
 
     public enum AllianceColor {RED, BLUE, UNKNOWN;}
@@ -107,6 +112,8 @@ public class Utilities000 {
         bl = l.hardwareMap.get(DcMotor.class, "bl");
         bl.setDirection(DcMotorSimple.Direction.REVERSE);
         fl.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        tilt = l.hardwareMap.get(Servo.class, "tilt");
 
         odo = l.hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
@@ -356,8 +363,17 @@ public class Utilities000 {
         return updated;
     }
 
+    public Pose readLimeLight(){
+        LLResult result = limelight.getLatestResult();
+        Pose3D pose = result.getBotpose();
+        return new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw(AngleUnit.DEGREES)+90);
+    }
+
     public void updateOdo(){
         follower.update();
+    }
+    public void resetOdo(){
+        odo.resetPosAndIMU();
     }
 
     /**Internal utilities*/
@@ -626,6 +642,20 @@ public class Utilities000 {
         robotPath.addPath(a);
         robotPath.addPath(b);
         return robotPath.build();
+    }
+
+    public void deployTilt(){
+        if(targetTilt <= TILT_DOWN){
+            targetTilt += 0.05;
+        }
+        tilt.setPosition(targetTilt);
+    }
+
+    public void retractTilt(){
+        if(targetTilt > TILT_UP){
+            targetTilt -= 0.05;
+        }
+        tilt.setPosition(targetTilt);
     }
 
     public static class RobotStateAfterAuto {

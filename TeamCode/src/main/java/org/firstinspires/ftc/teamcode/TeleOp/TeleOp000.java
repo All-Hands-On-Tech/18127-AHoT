@@ -19,6 +19,7 @@ public class TeleOp000 extends OpMode {
     private int maxManualAimOffsetMagnitude = 10;
     Utilities000 bot = new Utilities000(this);
     private ElapsedTime loopTime = new ElapsedTime();
+    private ElapsedTime cameraDelay = new ElapsedTime();
 
     private int shotPower = 0;
     private double yaw = 0;
@@ -131,6 +132,15 @@ public class TeleOp000 extends OpMode {
         }
     }
 
+    public void handleDelivery(Gamepad gamepad, boolean isCameraOnly){
+        if(Math.floor(cameraDelay.milliseconds()) > 10) {
+            bot.updateOdo();
+            bot.limelightUpdate();
+            cameraDelay.reset();
+        }
+        handleDelivery(gamepad);
+    }
+
     public void handleAimAssist(Gamepad gamepad){
         if(gamepad.dpadRightWasPressed()) {
             bot.yawShift += 2;
@@ -239,6 +249,15 @@ public class TeleOp000 extends OpMode {
         }
     }
 
+    public void handleTilt(Gamepad gamepad){
+        if(gamepad.dpad_up){
+            bot.retractTilt();
+        }
+        if(gamepad.dpad_down){
+            bot.deployTilt();
+        }
+    }
+
     public void handleTelemetry(){
         telemetry.addData("Telemetry Mode: ", telemetryMode);
         telemetry.addLine("=========");
@@ -254,6 +273,12 @@ public class TeleOp000 extends OpMode {
                 telemetry.addData("Flywheel pitch:   ", pitch);
                 telemetry.addData("Unnormalized Heading", bot.getUnnormalizedRobotHeading());
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
+                telemetry.addData("Limelight Readout X: ", bot.readLimeLight().getX());
+                telemetry.addData("Limelight Readout Y: ", bot.readLimeLight().getY());
+                telemetry.addData("Limelight Readout YAW: ", bot.readLimeLight().getHeading());
+                telemetry.addData("Follower Pose X: ", bot.follower.getPose().getX());
+                telemetry.addData("Follower Pose Y: ", bot.follower.getPose().getY());
+                telemetry.addData("Follower Pose YAW: ", bot.follower.getPose().getHeading());
             case DELIVERY:
                 telemetry.addData("Turret Yaw Deg: ", bot.getHoodYawAngleDegrees());
                 telemetry.addData("Flywheel ticks/s: ", bot.flywheelSpeedFit());

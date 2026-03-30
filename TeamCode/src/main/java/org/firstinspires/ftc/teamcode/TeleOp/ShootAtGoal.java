@@ -5,8 +5,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
-@TeleOp(name="HUY KHAI 0-0-0 TeleOp", group="A")
-public class HUYKHAITeleOp000 extends TeleOp000 {
+@TeleOp(name="Shoot At Goal (No Drivetrain)", group="DEMO")
+public class ShootAtGoal extends TeleOp000 {
     private ElapsedTime loopTime = new ElapsedTime();
 
     @Override
@@ -14,6 +14,7 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
         super.init();
 
         bot.setTransferBlock();
+        bot.updateOdo();
         loopTime.reset();
     }
 
@@ -47,11 +48,7 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
     @Override
     public void loop() {
 
-        handleDrivetrain(gamepad1);
-
-        handleTilt(gamepad1);
-
-        handleDelivery(gamepad1);
+        handleDelivery(gamepad1, true);
 
         handleAimAssist(gamepad2);
 
