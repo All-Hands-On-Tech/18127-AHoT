@@ -78,8 +78,8 @@ public class Utilities000 {
     private Limelight3A limelight;
 
     public Servo tilt;
-    private final double TILT_UP = 0.0;
-    private final double TILT_DOWN = 0.35;
+    private final double TILT_UP = -1;
+    private final double TILT_DOWN = 0.8;
     private double targetTilt = TILT_UP;
 
     private VoltageSensor voltageSensor;
@@ -645,17 +645,19 @@ public class Utilities000 {
     }
 
     public void deployTilt(){
-        if(targetTilt <= TILT_DOWN){
-            targetTilt += 0.05;
-        }
-        tilt.setPosition(targetTilt);
+//        if(targetTilt <= TILT_DOWN){
+//            targetTilt += 0.05;
+//        }
+//        tilt.setPosition(targetTilt);
+        tilt.setPosition(TILT_DOWN);
     }
 
     public void retractTilt(){
-        if(targetTilt > TILT_UP){
-            targetTilt -= 0.05;
-        }
-        tilt.setPosition(targetTilt);
+//        if(targetTilt > TILT_UP){
+//            targetTilt -= 0.05;
+//        }
+//        tilt.setPosition(targetTilt);
+        tilt.setPosition(TILT_UP);
     }
 
     public static class RobotStateAfterAuto {
