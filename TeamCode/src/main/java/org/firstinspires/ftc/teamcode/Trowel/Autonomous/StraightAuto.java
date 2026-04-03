@@ -9,7 +9,6 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.Trowel.Configs.TrowelHardware;
 import org.firstinspires.ftc.teamcode.Trowel.pedroPathing.Constants;
 
@@ -25,7 +24,6 @@ public class StraightAuto extends OpMode {
     private TelemetryManager panelsTelemetry;
     public Follower follower;
     private int pathState = 0;
-    private ElapsedTime timer;
     private TrowelHardware robot;
 
     private PathChain Depo1, IntakeStart1, IntakeEnd1;
@@ -59,6 +57,9 @@ public class StraightAuto extends OpMode {
     public static double INTAKE1_POWER = 1.0;
     public static double INTAKE2_POWER = -1.0;
 
+    // Path timeout configuration
+    public static long PATH_TIMEOUT_MS = 2000; // 2 second timeout per path
+
     public static double RED_START_X = 120.741;
     public static double RED_START_Y = 127.624;
     public static double RED_START_HEADING_DEG = 35.0;
@@ -78,6 +79,10 @@ public class StraightAuto extends OpMode {
     private int stateAfterOpen = 0;
     private PathChain pathAfterOpen = null;
 
+    // Path timeout tracking
+    private long pathStartTimeMs = 0;
+    private boolean pathTimedOut = false;
+
     @Override
     public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
@@ -89,7 +94,6 @@ public class StraightAuto extends OpMode {
     @Override
     public void start() {
         robot = new TrowelHardware(hardwareMap);
-        timer = new ElapsedTime();
 
         initDepositMotors();
         setDepositVelocity(DEPOSIT_TARGET_VELOCITY);
@@ -160,7 +164,7 @@ public class StraightAuto extends OpMode {
                 break;
         }
         telemetry.addLine("");
-        telemetry.addData("Servo", String.format("closed=%.2f open=%.2f", SERVO_CLOSED_POSITION, SERVO_OPEN_POSITION));
+        telemetry.addData("Servo", String.format(Locale.US, "closed=%.2f open=%.2f", SERVO_CLOSED_POSITION, SERVO_OPEN_POSITION));
         telemetry.addData("Shoot", AUTO_SHOOT_DURATION_MS + "ms (delay " + PRE_SHOOT_DELAY_MS + "ms)");
         telemetry.addData("Pre-Open Delay", PRE_OPEN_DELAY_MS + "ms");
         telemetry.addData("PIDF", String.format(Locale.US, "P=%.0f I=%.0f D=%.0f F=%.1f", PID_P, PID_I, PID_D, PID_F));
@@ -186,6 +190,7 @@ public class StraightAuto extends OpMode {
         if (waitingToOpen && System.currentTimeMillis() >= openServoAtMs) {
             setServoOpen();
             follower.followPath(pathAfterOpen);
+            startPathTimer();  // Start the timer for the new path
             pathState = stateAfterOpen;
             waitingToOpen = false;
         }
@@ -288,6 +293,40 @@ public class StraightAuto extends OpMode {
     }
 
     // ══════════════════════════════════════════════════════════════
+    // PATH TIMEOUT
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Start tracking time for the current path.
+     * Call this whenever follower.followPath() is called.
+     */
+    private void startPathTimer() {
+        pathStartTimeMs = System.currentTimeMillis();
+        pathTimedOut = false;
+    }
+
+    /**
+     * Check if the current path has exceeded the timeout.
+     * Returns true if timeout exceeded, false otherwise.
+     */
+    private boolean isPathTimedOut() {
+        if (pathTimedOut) return true;
+        if (System.currentTimeMillis() - pathStartTimeMs > PATH_TIMEOUT_MS) {
+            pathTimedOut = true;
+            panelsTelemetry.debug("TIMEOUT", "Path exceeded " + PATH_TIMEOUT_MS + "ms");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check if path is done (either reached target or timed out).
+     */
+    private boolean isPathDone() {
+        return !follower.isBusy() || isPathTimedOut();
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // SHOOTING
     // ══════════════════════════════════════════════════════════════
 
@@ -341,6 +380,13 @@ public class StraightAuto extends OpMode {
         panelsTelemetry.debug("Deposit %", String.format(Locale.US, "%.1f%%",
                 (avgDepositVel / DEPOSIT_TARGET_VELOCITY) * 100));
 
+        // Display path timer
+        long elapsedMs = System.currentTimeMillis() - pathStartTimeMs;
+        if (follower.isBusy()) {
+            panelsTelemetry.debug("Path Timer", String.format(Locale.US, "%.1fs / %.1fs",
+                    elapsedMs / 1000.0, PATH_TIMEOUT_MS / 1000.0));
+        }
+
         if (shooting) {
             panelsTelemetry.debug("Shooting", "ACTIVE (" +
                     (shootHoldEndMs - System.currentTimeMillis()) + "ms left)");
@@ -361,6 +407,13 @@ public class StraightAuto extends OpMode {
         telemetry.addData("Deposit", String.format(Locale.US, "%.0f / %.0f (%.0f%%)",
                 avgDepositVel, DEPOSIT_TARGET_VELOCITY,
                 (avgDepositVel / DEPOSIT_TARGET_VELOCITY) * 100));
+
+        // Display path timeout status
+        if (follower.isBusy()) {
+            long elapsed = System.currentTimeMillis() - pathStartTimeMs;
+            telemetry.addData("Path Timer", String.format(Locale.US, "%.1fs / %.1fs",
+                    elapsed / 1000.0, PATH_TIMEOUT_MS / 1000.0));
+        }
 
         if (shooting) {
             telemetry.addData("SHOOTING", (shootHoldEndMs - System.currentTimeMillis()) + "ms left");
@@ -385,10 +438,11 @@ public class StraightAuto extends OpMode {
             case 0:
                 setServoOpen();
                 follower.followPath(Depo1);
+                startPathTimer();
                 pathState = 1;
                 break;
             case 1:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     startShooting();
                     pathState = 14;
                 }
@@ -398,25 +452,27 @@ public class StraightAuto extends OpMode {
                     startIntakes();
                     setServoClosed();
                     follower.followPath(IntakeStart1);
+                    startPathTimer();
                     pathState = 2;
                 }
                 break;
             case 2:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     follower.followPath(IntakeEnd1);
+                    startPathTimer();
                     pathState = 3;
                 }
                 break;
 
             // ── CYCLE 2 ──
             case 3:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     // Stop intakes, wait, then open servo and follow Depo2
                     scheduleOpenAndFollow(Depo2, 4);
                 }
                 break;
             case 4:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     startShooting();
                     pathState = 15;
                 }
@@ -426,24 +482,26 @@ public class StraightAuto extends OpMode {
                     startIntakes();
                     setServoClosed();
                     follower.followPath(IntakeStart2);
+                    startPathTimer();
                     pathState = 5;
                 }
                 break;
             case 5:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     follower.followPath(IntakeEnd2);
+                    startPathTimer();
                     pathState = 6;
                 }
                 break;
 
             // ── CYCLE 3 ──
             case 6:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     scheduleOpenAndFollow(Depo3, 7);
                 }
                 break;
             case 7:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     startShooting();
                     pathState = 16;
                 }
@@ -453,24 +511,26 @@ public class StraightAuto extends OpMode {
                     startIntakes();
                     setServoClosed();
                     follower.followPath(IntakeStart3);
+                    startPathTimer();
                     pathState = 8;
                 }
                 break;
             case 8:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     follower.followPath(IntakeEnd3);
+                    startPathTimer();
                     pathState = 9;
                 }
                 break;
 
             // ── CYCLE 4 ──
             case 9:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     scheduleOpenAndFollow(Depo4, 10);
                 }
                 break;
             case 10:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     startShooting();
                     pathState = 17;
                 }
@@ -478,13 +538,14 @@ public class StraightAuto extends OpMode {
             case 17:
                 if (updateShooting()) {
                     follower.followPath(Gate);
+                    startPathTimer();
                     pathState = 11;
                 }
                 break;
 
             // ── DONE ──
             case 11:
-                if (!follower.isBusy()) {
+                if (isPathDone()) {
                     pathState = 12;
                 }
                 break;
