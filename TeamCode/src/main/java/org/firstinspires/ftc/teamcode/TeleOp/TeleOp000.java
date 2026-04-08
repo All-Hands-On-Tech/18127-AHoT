@@ -31,6 +31,8 @@ public class TeleOp000 extends OpMode {
     private boolean aiming = false;
     private boolean shootNMove = true;
 
+    public boolean flyWheelPowerIsAllowed = true;
+
     public enum TelemetryMode {
         DELIVERY,
         CIRCUIT,
@@ -256,6 +258,13 @@ public class TeleOp000 extends OpMode {
         if(gamepad.dpad_down){
             bot.deployTilt();
         }
+    }
+
+    public void toggleFlywheelPower(Gamepad gamepad){
+        if(gamepad.rightStickButtonWasPressed()){
+            flyWheelPowerIsAllowed = !flyWheelPowerIsAllowed;
+        }
+        if(!flyWheelPowerIsAllowed) bot.zeroFlywheelPower();
     }
 
     public void handleTelemetry(){

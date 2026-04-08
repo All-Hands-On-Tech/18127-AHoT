@@ -57,6 +57,9 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
 
         handleIntake(gamepad1);
 
+        toggleFlywheelPower(gamepad1);//b to toggle
+        toggleFlywheelPower(gamepad2);//b to toggle
+
         handleTelemetry();
     }
 }

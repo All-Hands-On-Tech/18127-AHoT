@@ -255,7 +255,7 @@ public class Utilities000 {
     public void setHoodYawAngleDegrees(double degrees) {
         degrees = Math.min(Math.max(degrees, -120), 120);
 
-        setHoodYawAngleTicks((int)((degrees) * YAW_PULSES_PER_DEGREE) + yawShift);
+        setHoodYawAngleTicks((int)((degrees+yawShift) * YAW_PULSES_PER_DEGREE));
         opMode.telemetry.addData("yawShift: ", yawShift);
     }
     public int getHoodYawAngleTicks(){return hoodYawMotor.getCurrentPosition();}
@@ -348,6 +348,10 @@ public class Utilities000 {
 
     public void disarmTurrent() {
         flywheelController(0);
+    }
+    public void zeroFlywheelPower(){
+        flywheelL.setPower(0);
+        flywheelR.setPower(0);
     }
 
     public boolean limelightUpdate() {
