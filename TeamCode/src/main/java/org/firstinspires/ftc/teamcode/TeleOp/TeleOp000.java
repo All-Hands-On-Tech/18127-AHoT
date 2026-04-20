@@ -273,6 +273,12 @@ public class TeleOp000 extends OpMode {
         switch (telemetryMode){
             case DEBUG:
                 bot.addAmpTelemetry();
+                Pose LLResult = bot.readLimeLight();
+                telemetry.addData("LLResult x - offset", LLResult.getX());
+                telemetry.addData("LLResult Y - offset", LLResult.getY());
+                telemetry.addData("LLResult Heading - offset", LLResult.getHeading());
+                telemetry.addLine();
+                telemetry.addLine();
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
                 telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
                 telemetry.addData("Turret Yaw Deg: ", bot.getHoodYawAngleDegrees());

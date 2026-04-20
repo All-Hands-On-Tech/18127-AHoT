@@ -49,7 +49,7 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
 
         handleDrivetrain(gamepad1);
 
-        handleTilt(gamepad1);
+//        handleTilt(gamepad1);
 
         handleDelivery(gamepad1);
 
