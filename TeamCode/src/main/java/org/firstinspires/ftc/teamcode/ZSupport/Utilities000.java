@@ -26,12 +26,8 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.opencv.Circle;
@@ -51,8 +47,8 @@ public class Utilities000 {
     private static final double YAW_PULSES_PER_DEGREE = (1.0/360.0) * (70.0/10.0) * (384.5);
     private static final double PITCH_PULSES_PER_DEGREE = 0;
 
-    private static final double TRANSFER_MIN = 0.0;
-    private static final double TRANSFER_MAX = 0.5;
+    private static final double TRANSFER_MIN = 0.2;
+    private static final double TRANSFER_MAX = 0.82;
     private static final double SAFE_CURRENT = 1.5;
     private static final double MAX_CURRENT = 3.0;
 
@@ -80,7 +76,7 @@ public class Utilities000 {
     private static final double webcamY = 0;
     private static final double webcamA = 120;
     private Limelight3A limelight;
-    private Pose limelightBotPoseOffset = null;
+
     public Servo tilt;
     private final double TILT_UP = -1;
     private final double TILT_DOWN = 0.8;
@@ -129,7 +125,7 @@ public class Utilities000 {
         flywheelR.setDirection(DcMotorSimple.Direction.FORWARD);
         flywheelR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         flywheelL   = l.hardwareMap.get(DcMotorEx.class, "flyL");
-        flywheelL.setDirection(DcMotorSimple.Direction.REVERSE);
+        flywheelL.setDirection(DcMotorSimple.Direction.FORWARD);
         flywheelL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         hoodYawMotor = l.hardwareMap.get(DcMotorEx.class, "hoodYaw");
@@ -141,7 +137,7 @@ public class Utilities000 {
         hoodYawMotor.setPower(0);
 
 
-        PIDFCoefficients vCoefficients = new PIDFCoefficients(5, 3, 2, 35);
+        PIDFCoefficients vCoefficients = new PIDFCoefficients(5, 3, 2, 5); //was 35 
         hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, vCoefficients);
 
         PIDFCoefficients pCoefficients = new PIDFCoefficients(10, 0,0,0);
@@ -297,14 +293,14 @@ public class Utilities000 {
     }
 
     public void setTransferBlock(){
-        transferServo.setPosition(1); //was 0.4
+        transferServo.setPosition(0.5); //was 0.4
     }
 
     public void setTransferUp(){
-        transferServo.setPosition(1.0);
+        transferServo.setPosition(0.0);
     }
     public void setTransferDown(){
-        transferServo.setPosition(0);
+        transferServo.setPosition(1.0);
     }
     public void setFlywheelSpeed_DO_NOT_USE(int tickRate) {
         flywheelL.setVelocity(tickRate);
@@ -359,38 +355,22 @@ public class Utilities000 {
     }
 
     public boolean limelightUpdate() {
-//        updateLimelightPoseOnRobot();
         boolean updated = false;
         LLResult result = limelight.getLatestResult();
         if (result.isValid()) {
             Pose3D pose = result.getBotpose();
-//            pose.getPosition().x -= limelightBotPoseOffset.getX();
-//            pose.getPosition().y -= limelightBotPoseOffset.getY();
             if (pose.getPosition().x!=0 || pose.getPosition().y!=0) {
                 updated = true;
-                //FIXME: The limelight is now mounted on the turret!!!
-                follower.setPose(new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw(AngleUnit.RADIANS)+90/*-limelightBotPoseOffset.getHeading()*/));
+                follower.setPose(new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw(AngleUnit.RADIANS)+(Math.PI/2)-Math.toRadians(getHoodYawAngleDegrees())));
             }
         }
         return updated;
     }
 
-    private void updateLimelightPoseOnRobot(){
-        double r = 0.15403; // XYOffsetRadius meters
-        double theta = getHoodYawAngleDegrees();
-
-        double x = r * Math.sin(theta);
-        double y = r * Math.cos(theta);
-
-        limelightBotPoseOffset = new Pose(x, y, theta);
-    }
     public Pose readLimeLight(){
-//        updateLimelightPoseOnRobot();
         LLResult result = limelight.getLatestResult();
         Pose3D pose = result.getBotpose();
-//        pose.getPosition().x -= limelightBotPoseOffset.getX();
-//        pose.getPosition().y -= limelightBotPoseOffset.getY();
-        return new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw(AngleUnit.DEGREES)+90/*-limelightBotPoseOffset.getHeading()*/);
+        return new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw(AngleUnit.DEGREES)+90-getHoodYawAngleDegrees());
     }
 
     public void updateOdo(){
