@@ -251,6 +251,9 @@ public class Utilities000 {
         intakeMotor.setPower(deadZone(pow*currentMultiplier, 0.05));
     }
 
+    public void setHoodYawMode(DcMotor.RunMode mode){
+        hoodYawMotor.setMode(mode);
+    }
     public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
     public void setHoodYawAngleDegrees(double degrees) {
         degrees = Math.min(Math.max(degrees, -120), 120);
@@ -371,6 +374,10 @@ public class Utilities000 {
         LLResult result = limelight.getLatestResult();
         Pose3D pose = result.getBotpose();
         return new Pose(72+pose.getPosition().y/0.0254, 72-pose.getPosition().x/0.0254, pose.getOrientation().getYaw(AngleUnit.DEGREES)+90-getHoodYawAngleDegrees());
+    }
+
+    public LLResult getLimeLightResults(){
+        return limelight.getLatestResult();
     }
 
     public void updateOdo(){

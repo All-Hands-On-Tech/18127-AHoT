@@ -260,12 +260,14 @@ public class TeleOp000 extends OpMode {
         }
     }
 
+
     public void toggleFlywheelPower(Gamepad gamepad){
         if(gamepad.rightStickButtonWasPressed()){
             flyWheelPowerIsAllowed = !flyWheelPowerIsAllowed;
         }
         if(!flyWheelPowerIsAllowed) bot.zeroFlywheelPower();
     }
+
 
     public void handleTelemetry(){
         telemetry.addData("Telemetry Mode: ", telemetryMode);
