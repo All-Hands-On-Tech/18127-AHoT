@@ -20,7 +20,10 @@ public class Sleepinator extends OpMode {
     private ElapsedTime loopTime = new ElapsedTime();
     private int targetID = 0;
     private double flywheelSpeed = 0;
+    private double hoodPitch = 0;
+    private static final int PITCH_INC = 10;
     private double pCoef = 0.03;
+    private double fCoef = 0.01;
 
     private boolean targetIsDetected = false;
     Utilities000 bot = new Utilities000(this);
@@ -30,6 +33,7 @@ public class Sleepinator extends OpMode {
         bot.initialize(this);
         bot.setHoodYawMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         loopTime.reset();
+        bot.setLimelightPipeline(0);
     }
 
     @Override
@@ -64,14 +68,26 @@ public class Sleepinator extends OpMode {
         if(gamepad1.right_trigger > 0.1){
             bot.intakePower(gamepad1.right_trigger);
         } else if(gamepad1.left_trigger > 0.1){
-            bot.intakePower(gamepad1.left_trigger);
+            bot.intakePower(-gamepad1.left_trigger);
         } else{
             bot.intakePower(0);
+        }
+
+        if(gamepad1.yWasPressed()){
+            hoodPitch -= PITCH_INC;
+            bot.setHoodPitchAngleDegrees(hoodPitch);
+        }
+        if(gamepad1.aWasPressed()){
+            hoodPitch += PITCH_INC;
+            bot.setHoodPitchAngleDegrees(hoodPitch);
         }
 
         bot.flywheelController(flywheelSpeed);
 
         telemetry.addData("Flywheel Speed", bot.getFlywheelSpeed());
+        telemetry.addData("Hood Pitch", hoodPitch);
+        telemetry.addData("TARGETING: ", targetID);
+        telemetry.addLine("--------------------------------------");
 
         LLResult results = bot.getLimeLightResults();
 
@@ -87,12 +103,17 @@ public class Sleepinator extends OpMode {
 
             if(id == targetID){
                 targetIsDetected = true;
-                bot.setHoodYawPower(-x * pCoef);
+                double fTerm = -x/Math.abs(x) * fCoef;
+                bot.setHoodYawPower(-x * pCoef + fTerm);
             }
         }
 
         if(!targetIsDetected){
             bot.setHoodYawPower(0);
+        }
+
+        if(Math.abs(gamepad1.left_stick_x) > 0.1){
+            bot.setHoodYawPower(gamepad1.left_stick_x * -0.2);
         }
 
         telemetry.update();

@@ -205,17 +205,24 @@ public class TeleOp000 extends OpMode {
         }
 
 
+//        if(gamepad.aWasPressed() || gamepad.rightBumperWasPressed()){
+//            transfered = false;
+//            bot.setTransferDown();
+////            bot.intakePower(1);
+//        } else if(gamepad.aWasReleased() || gamepad.rightBumperWasReleased()){
+//            transfered = true;
+//            bot.setTransferUp();
+//            transferTimer.reset();
+//        } else if(transfered && transferTimer.seconds() > 0.5){
+//            bot.setTransferBlock();
+//            transfered = false;
+//        }
+
         if(gamepad.aWasPressed() || gamepad.rightBumperWasPressed()){
-            transfered = false;
-            bot.setTransferDown();
-//            bot.intakePower(1);
-        } else if(gamepad.aWasReleased() || gamepad.rightBumperWasReleased()){
-            transfered = true;
             bot.setTransferUp();
-            transferTimer.reset();
-        } else if(transfered && transferTimer.seconds() > 0.5){
-            bot.setTransferBlock();
-            transfered = false;
+        }
+        if(!gamepad.a && !gamepad.right_bumper){
+            bot.setTransferDown();
         }
     }
 
@@ -237,18 +244,18 @@ public class TeleOp000 extends OpMode {
         }
 
 
-        if(auxGamepad.aWasPressed() || auxGamepad.rightBumperWasPressed()){
-            transfered = false;
-            bot.setTransferDown();
-//            bot.intakePower(1);
-        } else if(auxGamepad.aWasReleased() || auxGamepad.rightBumperWasReleased()){
-            transfered = true;
-            bot.setTransferUp();
-            transferTimer.reset();
-        } else if(transfered && transferTimer.seconds() > 0.5){
-            bot.setTransferBlock();
-            transfered = false;
-        }
+//        if(auxGamepad.aWasPressed() || auxGamepad.rightBumperWasPressed()){
+//            transfered = false;
+//            bot.setTransferDown();
+////            bot.intakePower(1);
+//        } else if(auxGamepad.aWasReleased() || auxGamepad.rightBumperWasReleased()){
+//            transfered = true;
+//            bot.setTransferUp();
+//            transferTimer.reset();
+//        } else if(transfered && transferTimer.seconds() > 0.5){
+//            bot.setTransferBlock();
+//            transfered = false;
+//        }
     }
 
     public void handleTilt(Gamepad gamepad){

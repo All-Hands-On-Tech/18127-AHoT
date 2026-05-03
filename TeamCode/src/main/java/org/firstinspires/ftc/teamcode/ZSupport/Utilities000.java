@@ -188,12 +188,13 @@ public class Utilities000 {
 
                 .build();
 
-        portal = new VisionPortal.Builder()
-                .addProcessor(colorLocatorPurple)
-                .addProcessor(colorLocatorGreen)
-                .setCameraResolution(new Size((int)resHorz, (int)resVert))
-                .setCamera(l.hardwareMap.get(WebcamName.class, "Webcam 1"))
-                .build();
+        //If reimplementing, uncomment all mentions of portal
+//        portal = new VisionPortal.Builder()
+//                .addProcessor(colorLocatorPurple)
+//                .addProcessor(colorLocatorGreen)
+//                .setCameraResolution(new Size((int)resHorz, (int)resVert))
+//                .setCamera(l.hardwareMap.get(WebcamName.class, "Webcam 1"))
+//                .build();
 
         voltageSensor = l.hardwareMap.get(VoltageSensor.class, "Control Hub");
     }
@@ -285,14 +286,14 @@ public class Utilities000 {
     }
 
     public void turnOffCamera() {
-        portal.stopLiveView();
-        portal.setProcessorEnabled(colorLocatorGreen, false);
-        portal.setProcessorEnabled(colorLocatorPurple, false);
+//        portal.stopLiveView();
+//        portal.setProcessorEnabled(colorLocatorGreen, false);
+//        portal.setProcessorEnabled(colorLocatorPurple, false);
     }
 
     public void turnOnCamera() {
-        portal.setProcessorEnabled(colorLocatorGreen, true);
-        portal.setProcessorEnabled(colorLocatorPurple, true);
+//        portal.setProcessorEnabled(colorLocatorGreen, true);
+//        portal.setProcessorEnabled(colorLocatorPurple, true);
     }
 
     public void setTransferBlock(){
@@ -303,7 +304,7 @@ public class Utilities000 {
         transferServo.setPosition(0.0);
     }
     public void setTransferDown(){
-        transferServo.setPosition(1.0);
+        transferServo.setPosition(0.5);
     }
     public void setFlywheelSpeed_DO_NOT_USE(int tickRate) {
         flywheelL.setVelocity(tickRate);
@@ -378,6 +379,10 @@ public class Utilities000 {
 
     public LLResult getLimeLightResults(){
         return limelight.getLatestResult();
+    }
+
+    public void setLimelightPipeline(int i){
+        limelight.pipelineSwitch(i);
     }
 
     public void updateOdo(){
