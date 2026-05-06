@@ -49,7 +49,7 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
 
         handleDrivetrain(gamepad1);
 
-//        handleTilt(gamepad1);
+        handleTilt(gamepad1);
 
         handleDelivery(gamepad1);
 
@@ -59,6 +59,7 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
 
         toggleFlywheelPower(gamepad1);//b to toggle
         toggleFlywheelPower(gamepad2);//b to toggle
+
 
         handleTelemetry();
     }

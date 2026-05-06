@@ -111,6 +111,12 @@ public class DepoLookUpTableDataCollection extends LinearOpMode {
 
         public void initTable(){
 //            LOOKUP_TABLE.put(); // Distance, new RobotState(rpm, pitch)
+//            LOOKUP_TABLE.put(92.7, new RobotState(1200,48));
+//            LOOKUP_TABLE.put(113.4, new RobotState(1050,54));
+//            LOOKUP_TABLE.put(115.9, new RobotState(900,66));
+//            LOOKUP_TABLE.put(120.97, new RobotState(750,80));
+            LOOKUP_TABLE.put(0.0, new RobotState(0,80));
+
         }
 
         public RobotState getInterpolatedState(double distance){

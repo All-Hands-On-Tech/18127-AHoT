@@ -28,6 +28,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
+import org.firstinspires.ftc.teamcode.TeleOp.DepoLookUpTableDataCollection;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants000;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.opencv.Circle;
@@ -78,8 +79,8 @@ public class Utilities000 {
     private Limelight3A limelight;
 
     public Servo tilt;
-    private final double TILT_UP = -1;
-    private final double TILT_DOWN = 0.8;
+    private final double TILT_UP = 0;
+    private final double TILT_DOWN = 0.75;
     private double targetTilt = TILT_UP;
 
     private VoltageSensor voltageSensor;
@@ -90,12 +91,15 @@ public class Utilities000 {
     public double yawShift = 0;
     public double pitchShift = 0;
     public int initialYawAfterAuto;
+    DepoLookUpTableDataCollection.DepoLookupTable LOOKUP_TABLE = new DepoLookUpTableDataCollection.DepoLookupTable();
     /**Initialization code*/
     public Utilities000(OpMode l) {
         opMode = l;
     }
 
     public void initialize(OpMode l) {
+        LOOKUP_TABLE.initTable();
+
         follower = Constants000.createFollower(l.hardwareMap);
         follower.startTeleOpDrive();
 //        telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
@@ -585,13 +589,18 @@ public class Utilities000 {
 
     public double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-        double speed = distance * 7.05 + 945;//Khai added 1 to slope
+//        double speed = distance * 7.05 + 945;//Khai added 1 to slope
+        double speed = distance * 7.05 + 300;
+
+//        double speed = LOOKUP_TABLE.getInterpolatedState(distance).getRPM();
         return speed + manualFlywheelPowerConstant; //HUY ADJUSTMENT REMOVE LATER
     }
     private double flywheelPitchFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
 //        double pitch = distance * 0.0034 + 0.331;
         double pitch = distance * 0.00554285714286 + 0.3; // Khai-tuned line
+
+//        double pitch = LOOKUP_TABLE.getInterpolatedState(distance).getPitch();
         return pitch;
     }
 
