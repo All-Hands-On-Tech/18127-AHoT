@@ -39,7 +39,7 @@ import org.firstinspires.ftc.vision.opencv.ImageRegion;
 import java.util.List;
 
 public class Utilities000 {
-    private static final double VELOCITY_COMPENSATION_FACTOR = 1.2;
+    private static final double VELOCITY_COMPENSATION_FACTOR = 0.25;
     OpMode opMode;
     private TelemetryManager telemetryM;
     public Follower follower;
@@ -129,7 +129,7 @@ public class Utilities000 {
         flywheelR.setDirection(DcMotorSimple.Direction.FORWARD);
         flywheelR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         flywheelL   = l.hardwareMap.get(DcMotorEx.class, "flyL");
-        flywheelL.setDirection(DcMotorSimple.Direction.FORWARD);
+        flywheelL.setDirection(DcMotorSimple.Direction.REVERSE);
         flywheelL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         hoodYawMotor = l.hardwareMap.get(DcMotorEx.class, "hoodYaw");
@@ -141,13 +141,13 @@ public class Utilities000 {
         hoodYawMotor.setPower(0);
 
 
-        PIDFCoefficients vCoefficients = new PIDFCoefficients(5, 3, 2, 5); //was 35 
+        PIDFCoefficients vCoefficients = new PIDFCoefficients(5, 5, 0.1, 5); //was 35
         hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, vCoefficients);
 
-        PIDFCoefficients pCoefficients = new PIDFCoefficients(10, 0,0,0);
+        PIDFCoefficients pCoefficients = new PIDFCoefficients(12, 0,0,0);
         hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION, pCoefficients);
 
-        PIDFCoefficients flywheelCoefficients = new PIDFCoefficients(125, 0, 0, 11.5);
+        PIDFCoefficients flywheelCoefficients = new PIDFCoefficients(300, 0, 0, 11.5);
         flywheelL.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, flywheelCoefficients);
         flywheelR.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, flywheelCoefficients);
 
@@ -589,8 +589,8 @@ public class Utilities000 {
 
     public double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-//        double speed = distance * 7.05 + 945;//Khai added 1 to slope
-        double speed = distance * 7.05 + 300;
+        double speed = distance * 7.25 + 975;//Khai added 1 to slope
+//        double speed = distance * 6.75 + 400;
 
 //        double speed = LOOKUP_TABLE.getInterpolatedState(distance).getRPM();
         return speed + manualFlywheelPowerConstant; //HUY ADJUSTMENT REMOVE LATER
@@ -598,7 +598,8 @@ public class Utilities000 {
     private double flywheelPitchFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
 //        double pitch = distance * 0.0034 + 0.331;
-        double pitch = distance * 0.00554285714286 + 0.3; // Khai-tuned line
+//        double pitch = distance * 0.00554285714286 + 0.25; // Khai-tuned line
+        double pitch = distance * 0.00554285714286 + 0.1; // Huy-tuned line
 
 //        double pitch = LOOKUP_TABLE.getInterpolatedState(distance).getPitch();
         return pitch;

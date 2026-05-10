@@ -33,8 +33,12 @@ public class MotorTunerOpMode extends LinearOpMode {
 
         waitForStart();
         while (opModeIsActive()) {
+            telemetry.addData("Status", "Active");
+            telemetry.addData("Motor:", TunerParams.motorName);
+            telemetry.addData("Last Motor:", lastMotorName);
 
             if(!TunerParams.motorName.equals(lastMotorName)){
+                telemetry.addLine("CHANGED FIELD");
                 try{
                     motor = hardwareMap.get(DcMotorEx.class, TunerParams.motorName);
                     motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -64,10 +68,11 @@ public class MotorTunerOpMode extends LinearOpMode {
                 telemetry.addData("Power: ", motor.getPower());
                 telemetry.addData("Current Velocity: ", motor.getVelocity());
                 telemetry.addData("Current (A): ", motor.getCurrent(CurrentUnit.AMPS));
-
-                telemetry.update();
             }
-
+            else{
+                telemetry.addLine("Motor not found");
+            }
+            telemetry.update();
         }
 
     }
@@ -85,7 +90,7 @@ public class MotorTunerOpMode extends LinearOpMode {
 
     @Config
     public static class TunerParams{
-        public static String motorName = "";
+        public static String motorName = "hoodYaw";
         public static double P = 10, I = 3, D = 0, F = 0, pP = 0;
         public static int target = 0;
         public static double power = 0;

@@ -90,7 +90,7 @@ public class NewLimelightMountingDebugging extends LinearOpMode {
 //        motor.setPower(TunerParams.power);
 //    }
 
-    @Config
+//    @Config
     public static class TunerParams{
         public static String motorName = "";
         public static double P = 10, I = 3, D = 0, F = 0, pP = 0;
