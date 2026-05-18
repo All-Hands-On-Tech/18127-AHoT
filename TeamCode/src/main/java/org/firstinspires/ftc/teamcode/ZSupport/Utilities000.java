@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.ZSupport;
 import android.graphics.Color;
 import android.util.Size;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
@@ -91,6 +92,8 @@ public class Utilities000 {
     public double yawShift = 0;
     public double pitchShift = 0;
     public int initialYawAfterAuto;
+
+    private RegressionParams regression = new RegressionParams();
     DepoLookUpTableDataCollection.DepoLookupTable LOOKUP_TABLE = new DepoLookUpTableDataCollection.DepoLookupTable();
     /**Initialization code*/
     public Utilities000(OpMode l) {
@@ -589,7 +592,7 @@ public class Utilities000 {
 
     public double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-        double speed = distance * 7.25 + 975;//Khai added 1 to slope
+        double speed = distance * regression.speedSlope + regression.speedYInt;//Khai added 1 to slope
 //        double speed = distance * 6.75 + 400;
 
 //        double speed = LOOKUP_TABLE.getInterpolatedState(distance).getRPM();
@@ -599,7 +602,7 @@ public class Utilities000 {
         double distance = getGoal().distanceFrom(follower.getPose());
 //        double pitch = distance * 0.0034 + 0.331;
 //        double pitch = distance * 0.00554285714286 + 0.25; // Khai-tuned line
-        double pitch = distance * 0.00554285714286 + 0.1; // Huy-tuned line
+        double pitch = distance * regression.pitchSlope + regression.pitchYInt; // Huy-tuned line
 
 //        double pitch = LOOKUP_TABLE.getInterpolatedState(distance).getPitch();
         return pitch;
@@ -706,6 +709,17 @@ public class Utilities000 {
             setPostAutoYawTicks(t);
             wasAuto = true;
         }
+    }
+
+
+    @Config
+    public static class RegressionParams{
+        public static double speedSlope = 7.5;
+        public static double speedYInt = 975;
+
+        public static double pitchSlope = 0.00704285714286;
+        public static double pitchYInt = 0.1;
+
     }
 
 }
