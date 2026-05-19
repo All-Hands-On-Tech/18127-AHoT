@@ -6,13 +6,14 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
-
-@Autonomous(name = "Close Auto Red", group = "A")
+@Disabled
+@Autonomous(name = "Close Auto Red_NOSPIKE3", group = "A")
 public class NOSPIKE3_CloseRedAuto extends OpMode {
 
     Utilities000 bot = new Utilities000(this);

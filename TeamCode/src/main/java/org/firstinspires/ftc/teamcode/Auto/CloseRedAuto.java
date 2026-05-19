@@ -14,13 +14,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
 @Autonomous(name = "Close Auto Red", group = "A")
-public class CloseRedAuto extends OpMode {
-
-    Utilities000 bot = new Utilities000(this);
-    private Timer pathTimer, actionTimer, opmodeTimer;
-    private ElapsedTime clock = new ElapsedTime();
-
-    private int pathState;
+public class CloseRedAuto extends Auto000 {
 
     public PathChain Path1;
     public PathChain Path2;
@@ -33,8 +27,6 @@ public class CloseRedAuto extends OpMode {
     public PathChain Spike3PreIntake;
     public PathChain Spike3Intake;
     public PathChain Spike3Return;
-
-    private boolean wasBusy = false;
 
     public Pose startPose = new Pose(117.414, 131.042, Math.toRadians(-143));
 
@@ -126,7 +118,7 @@ public class CloseRedAuto extends OpMode {
                 .addPath(
                         new BezierLine(
                                 new Pose(90, 82.739),
-                                new Pose(90, 34.611)
+                                new Pose(90, 38)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(0))
@@ -135,8 +127,8 @@ public class CloseRedAuto extends OpMode {
         Spike3Intake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(100, 34.611),
-                                new Pose(133.977, 34.611)
+                                new Pose(100, 38),
+                                new Pose(130, 38)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
@@ -145,7 +137,7 @@ public class CloseRedAuto extends OpMode {
         Spike3Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(133.977, 34.611),
+                                new Pose(130, 34.611),
                                 new Pose(96.684, 40.695),
                                 new Pose(86.522, 82.739)
                         )
@@ -165,19 +157,7 @@ public class CloseRedAuto extends OpMode {
                 break;
             case 1:
                 if(!bot.follower.isBusy()) {
-                    if(wasBusy){
-                        clock.reset();
-                    }
-                    //bot.follower.setPose(new Pose(60, 0, Math.toRadians(-90))); Removed because Khai doesn't understand why it was used in Back Autos
-                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
-                        bot.intakePower(1);
-                        bot.setTransferDown();
-                    } else if (clock.milliseconds() > 1000 && clock.milliseconds() < 1500) {
-                        bot.setTransferUp();
-                    } else if (clock.milliseconds() > 1500) {
-                        bot.setTransferBlock();
-                        setPathState(2);
-                    }
+                    deliver(2);
                 }
                 break;
             case 2:
@@ -216,22 +196,7 @@ public class CloseRedAuto extends OpMode {
                 break;
             case 6:
                 if(!bot.follower.isBusy()) {
-                    if(wasBusy){
-                        clock.reset();
-                    }
-                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
-                        bot.intakePower(-0.0);
-                        bot.setTransferDown();
-                    }
-                    if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
-                        bot.intakePower(1);
-                        bot.setTransferDown();
-                    } else if (clock.milliseconds() > 2000 && clock.milliseconds() < 2500) {
-                        bot.setTransferUp();
-                    } else if (clock.milliseconds() > 2500) {
-                        bot.setTransferBlock();
-                        setPathState(7);
-                    }
+                    deliver(7);
                 }
                 break;
             case 7:
@@ -250,22 +215,7 @@ public class CloseRedAuto extends OpMode {
                 break;
             case 9:
                 if(!bot.follower.isBusy()) {
-                    if(wasBusy){
-                        clock.reset();
-                    }
-                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
-                        bot.intakePower(-0.0);
-                        bot.setTransferDown();
-                    }
-                    if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
-                        bot.intakePower(1);
-                        bot.setTransferDown();
-                    } else if (clock.milliseconds() > 2000 && clock.milliseconds() < 2500) {
-                        bot.setTransferUp();
-                    } else if (clock.milliseconds() > 2500) {
-                        bot.setTransferBlock();
-                        setPathState(10);
-                    }
+                    deliver(10);
                 }
                 break;
             case 10:
@@ -297,22 +247,7 @@ public class CloseRedAuto extends OpMode {
                 break;
             case 14:
                 if(!bot.follower.isBusy()) {
-                    if(wasBusy){
-                        clock.reset();
-                    }
-                    if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
-                        bot.intakePower(-0.0);
-                        bot.setTransferDown();
-                    }
-                    if (clock.milliseconds() > 1000 && clock.milliseconds() < 2000) {
-                        bot.intakePower(1);
-                        bot.setTransferDown();
-                    } else if (clock.milliseconds() > 2000 && clock.milliseconds() < 2500) {
-                        bot.setTransferUp();
-                    } else if (clock.milliseconds() > 2500) {
-                        bot.setTransferBlock();
-                        setPathState(15);
-                    }
+                    deliver(15);
                 }
                 break;
             case 15:
@@ -329,13 +264,6 @@ public class CloseRedAuto extends OpMode {
         }
     }
 
-    /**
-     * These change the states of the paths and actions. It will also reset the timers of the individual switches
-     **/
-    public void setPathState(int pState) {
-        pathState = pState;
-        pathTimer.resetTimer();
-    }
 
     /**
      * This is the main loop of the OpMode, it will run repeatedly after clicking "Play".
@@ -352,12 +280,7 @@ public class CloseRedAuto extends OpMode {
 
         wasBusy = bot.follower.isBusy();
 
-        // Feedback to Driver Hub for debugging
-        telemetry.addData("path state", pathState);
-        telemetry.addData("x", bot.follower.getPose().getX());
-        telemetry.addData("y", bot.follower.getPose().getY());
-        telemetry.addData("heading", bot.follower.getPose().getHeading());
-        telemetry.update();
+        super.loop(); //Just runs telemetry
     }
 
     /**
@@ -365,28 +288,9 @@ public class CloseRedAuto extends OpMode {
      **/
     @Override
     public void init() {
-        pathTimer = new Timer();
-        opmodeTimer = new Timer();
-        opmodeTimer.resetTimer();
-
-        bot.initialize(this);
-        bot.turnOffCamera();
+        super.init();
         buildPaths();
-
-        bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-
         bot.follower.setStartingPose(startPose);
-        bot.setAllianceColor(Utilities000.AllianceColor.RED);
-        bot.setManualAimOffsets(10, 5);
-
-    }
-
-    /**
-     * This method is called continuously after Init while waiting for "play".
-     **/
-    @Override
-    public void init_loop() {
     }
 
     /**
@@ -395,11 +299,7 @@ public class CloseRedAuto extends OpMode {
      **/
     @Override
     public void start() {
-        opmodeTimer.resetTimer();
-        bot.hoodYawMotor.setPower(1);
-        clock.reset();
-        setPathState(0);
-        bot.setTransferBlock();
+        super.start();
     }
 
     /**
@@ -407,7 +307,7 @@ public class CloseRedAuto extends OpMode {
      **/
     @Override
     public void stop() {
-        Utilities000.RobotStateAfterAuto.setPostAutoState(bot.follower.getPose(), bot.getHoodYawAngleTicks());
+        super.stop();
     }
 
 }
