@@ -74,12 +74,10 @@ public class Auto000 extends OpMode {
         if(wasBusy){
             clock.reset();
         }
-        if (clock.milliseconds() > 0 && clock.milliseconds() < 120) {
-            bot.intakePower(-1);
-            bot.setTransferUp();
-        } else if (clock.milliseconds() > 120 && clock.milliseconds() < 1500) {
+        if (clock.milliseconds() > 0 && clock.milliseconds() < 2000) {
             bot.intakePower(1);
-        } else if (clock.milliseconds() > 1500) {
+            bot.setTransferUp();
+        } else if (clock.milliseconds() > 2000) {
             bot.setTransferDown();
             setPathState(nextState);
         }
@@ -89,12 +87,13 @@ public class Auto000 extends OpMode {
         if(wasBusy){
             clock.reset();
         }
-        if (clock.milliseconds() > 0 && clock.milliseconds() < 250) {
-            bot.intakePower(-1);
-            bot.setTransferUp();
-        } else if (clock.milliseconds() > 250 && clock.milliseconds() < 1500) {
+        if(clock.milliseconds() > 0 && clock.milliseconds() < 1500){
+
+        }
+        else if (clock.milliseconds() > 1500 && clock.milliseconds() < 3000) {
             bot.intakePower(1);
-        } else if (clock.milliseconds() > 1500) {
+            bot.setTransferUp();
+        } else if (clock.milliseconds() > 4500) {
             bot.setTransferDown();
             setPathState(nextState);
         }

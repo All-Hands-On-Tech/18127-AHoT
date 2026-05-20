@@ -67,8 +67,8 @@ public class CloseRedAuto extends Auto000 {
                         new BezierCurve(
                                 new Pose(90, 83.000),
                                 new Pose(106.087, 82.306),
-                                new Pose(77.628, 53),
-                                new Pose(125, 53)
+                                new Pose(77.628, 48),
+                                new Pose(125, 48)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-45), Math.toRadians(0))
@@ -127,8 +127,8 @@ public class CloseRedAuto extends Auto000 {
         Spike3Intake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(100, 38),
-                                new Pose(130, 38)
+                                new Pose(90, 38),
+                                new Pose(117, 38)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
