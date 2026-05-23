@@ -291,6 +291,9 @@ public class Utilities000 {
     public double getUnnormalizedRobotHeading(){
         return odo.getHeading(UnnormalizedAngleUnit.DEGREES);
     }
+    public double getRobotHeading(){
+        return odo.getHeading(AngleUnit.DEGREES);
+    }
 
     public void turnOffCamera() {
 //        portal.stopLiveView();
@@ -592,7 +595,7 @@ public class Utilities000 {
 
     public double flywheelSpeedFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
-        double speed = distance * regression.speedSlope + regression.speedYInt;//Khai added 1 to slope
+        double speed = distance * regression.speedSlope + regression.speedYInt;
 //        double speed = distance * 6.75 + 400;
 
 //        double speed = LOOKUP_TABLE.getInterpolatedState(distance).getRPM();
@@ -714,10 +717,10 @@ public class Utilities000 {
 
     @Config
     public static class RegressionParams{
-        public static double speedSlope = 7.5;
+        public static double speedSlope = 7.7;
         public static double speedYInt = 975;
 
-        public static double pitchSlope = 0.00704285714286;
+        public static double pitchSlope = 0.00604285714286;
         public static double pitchYInt = 0.1;
 
     }

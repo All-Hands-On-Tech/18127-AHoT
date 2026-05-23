@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
@@ -32,6 +33,8 @@ public class TeleOp000 extends OpMode {
     private boolean shootNMove = true;
 
     public boolean flyWheelPowerIsAllowed = true;
+
+    private boolean gateCycleMode = false;
 
     public enum TelemetryMode {
         DELIVERY,
@@ -67,31 +70,42 @@ public class TeleOp000 extends OpMode {
     public void loop() {}
 
     public void handleDrivetrain(Gamepad gamepad){
+        if(gamepad.dpadUpWasPressed()){
+            gateCycleMode = !gateCycleMode;
+        }
+
         if(gamepad.left_bumper){
             speedFactor = 0.3;
         }else{
             speedFactor = 1.0;
         }
 
-        if (gamepad.yWasPressed()) {
-            bot.turnOnCamera();
-            Pose[] blobs = bot.getArtifactPoses();
-            if (blobs.length>0) {
-                telemetry.addData("blobbby: ",    blobs[0].getX());
-                bot.follower.followPath(bot.pathToArtifacts(blobs));
-            }
-        } else if(gamepad.yWasReleased()) {
-            bot.follower.startTeleOpDrive();
-            bot.turnOffCamera();
+        double rotateBias = 0;
+
+        if (gateCycleMode) {
+            double currentHeading = bot.getRobotHeading();
+            double error = Math.toDegrees(slopeFieldGateCycleAutomation(bot.getPosition().getX(),0)) - currentHeading;
+
+            rotateBias = (MacroParams.Kp * error) / 180;
+            rotateBias = Math.max(-1, Math.min(1, rotateBias));
         }
 
-        if(bot.getAllianceColor() == Utilities000.AllianceColor.BLUE){
-            bot.move(gamepad.left_stick_y, gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
-        }else {
-            bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, -gamepad.right_stick_x, speedFactor);
+        double rotate = -gamepad.right_stick_x + rotateBias;
+        rotate = Math.max(-1, Math.min(1, rotate));
+
+        if (bot.getAllianceColor() == Utilities000.AllianceColor.BLUE) {
+            bot.move(gamepad.left_stick_y, gamepad.left_stick_x, rotate, speedFactor);
+        } else {
+            bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, rotate, speedFactor);
         }
         bot.updateOdo();
-        if (limeLightStaller.seconds()>0.5) {
+        if(aiming){
+            if (limeLightStaller.seconds()>0.1) {
+                if (bot.limelightUpdate()) {
+                    limeLightStaller.reset();
+                }
+            }
+        }else if (limeLightStaller.seconds()>0.5) {
             if (bot.limelightUpdate()) {
                 limeLightStaller.reset();
             }
@@ -106,11 +120,6 @@ public class TeleOp000 extends OpMode {
             bot.pitchShift -= 0.003;
         }
 
-//        if(gamepad.xWasPressed() && !aiming) {
-//            aiming = true;
-//        } else if(gamepad.xWasPressed() && aiming){
-//            aiming = false;
-//        }
 
         if(gamepad.xWasPressed()){
             aiming = !aiming;
@@ -150,6 +159,10 @@ public class TeleOp000 extends OpMode {
             bot.yawShift -= 2;
         }
 
+        if(gamepad.xWasPressed()){
+            aiming = !aiming;
+        }
+
         if(gamepad.dpadUpWasPressed()){
             bot.manualFlywheelPowerConstant += 100;
         }
@@ -183,9 +196,9 @@ public class TeleOp000 extends OpMode {
             y = (tempY-tempX)/Math.sqrt(2);
             x *= maxManualAimOffsetMagnitude;
             y *= maxManualAimOffsetMagnitude;
-            bot.setManualAimOffsets(x, y);
+            bot.setManualAimOffsets(x + DefaultManualAimOffset.x, y + DefaultManualAimOffset.y);
         }else{
-            bot.setManualAimOffsets(0,0);
+            bot.setManualAimOffsets(DefaultManualAimOffset.x,DefaultManualAimOffset.y);
         }
         if(gamepad.aWasPressed()){
             bot.limelightUpdate();
@@ -218,10 +231,10 @@ public class TeleOp000 extends OpMode {
 //            transfered = false;
 //        }
 
-        if(gamepad.aWasPressed() || gamepad.rightBumperWasPressed()){
+        if(gamepad.rightBumperWasPressed()){
             bot.setTransferUp();
         }
-        if(!gamepad.a && !gamepad.right_bumper){
+        if(!gamepad.right_bumper){
             bot.setTransferDown();
         }
     }
@@ -281,6 +294,10 @@ public class TeleOp000 extends OpMode {
         telemetry.addLine("=========");
         switch (telemetryMode){
             case DEBUG:
+                telemetry.addData("Target Macro Angle:", Math.toDegrees(slopeFieldGateCycleAutomation(bot.getPosition().getX(),0)));
+                telemetry.addData("Current Heading: ", bot.getRobotHeading());
+                telemetry.addData("Macro Error: ", Math.toDegrees(slopeFieldGateCycleAutomation(bot.getPosition().getX(),0))-bot.getRobotHeading());
+
                 bot.addAmpTelemetry();
                 Pose LLResult = bot.readLimeLight();
                 telemetry.addData("LLResult x - offset", LLResult.getX());
@@ -331,9 +348,38 @@ public class TeleOp000 extends OpMode {
         this.telemetryMode = telemetryMode;
     }
 
+    private double slopeFieldGateCycleAutomation(double x, double y){
+        double xPrime = x - MacroParams.gateXRed; //x position relative to gate
+        double dydx = 2*MacroParams.a*x + MacroParams.b;
+        return Math.atan(dydx)/* + Math.PI*/; // CHANGE IF USING BLUE SIDE
+    }
+
     @Override
     public void stop(){
         Utilities000.RobotStateAfterAuto.setPostAutoState(null,0);
         Utilities000.RobotStateAfterAuto.wasAuto = false;
+    }
+
+
+    @Config
+    public static class MacroParams{
+        public static double Kp = 1.5;
+        public static double Ki = 0;
+        public static double Kd = 5;
+        public static double Kf = 10;
+        public static double macroHeading = 35;
+
+        public static double minBias = 0.1;
+
+        public static double a = 0.025;
+        public static double b = Math.tan(30);
+
+        public static double gateXRed = 128;
+    }
+
+    @Config
+    public static class DefaultManualAimOffset{
+        public static double x = -5;
+        public static double y = -5;
     }
 }
