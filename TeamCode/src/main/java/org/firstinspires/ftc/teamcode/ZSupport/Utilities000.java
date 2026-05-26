@@ -720,8 +720,8 @@ public class Utilities000 {
         public static double speedSlope = 7.7;
         public static double speedYInt = 975;
 
-        public static double pitchSlope = 0.00604285714286;
-        public static double pitchYInt = 0.1;
+        public static double pitchSlope = 0.00704285714286;
+        public static double pitchYInt = 0.08;
 
     }
 

@@ -23,6 +23,7 @@ public class BackRedAuto extends Auto000 {
     public PathChain LeftoverPreIntake;
     public PathChain LeftoverIntake;
     public PathChain LeftoverReturn;
+    public PathChain FinalPath3;
 
     public Pose startPose = new Pose(89, 10, Math.toRadians(-90));
 
@@ -31,27 +32,26 @@ public class BackRedAuto extends Auto000 {
         Path1 = bot.follower.pathBuilder().addPath(
                         new BezierCurve(
                                 startPose,
-                                new Pose(99.465, 12.861),
+                                new Pose(97.980, 14.346),
                                 new Pose(133.239, 36.778),
-                                new Pose(137.775, 7.118)
+                                new Pose(134.805, 9.683)
                         )
                 ).setTangentHeadingInterpolation()
                 .build();
 
         Path2 = bot.follower.pathBuilder().addPath(
                         new BezierLine(
-                                new Pose(137.775, 7.118),
-
+                                new Pose(134.805, 9.683),
                                 new Pose(89, 13)
                         )
-                ).setConstantHeadingInterpolation(Math.toRadians(-90))
+                ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90))
                 .build();
 
         Spike3PreIntake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
                                 new Pose(89, 13),
-                                new Pose(101.114, 35.152)
+                                new Pose(101.114, 38.122)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(0))
@@ -60,17 +60,17 @@ public class BackRedAuto extends Auto000 {
         Spike3Intake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(101.114, 35.152),
-                                new Pose(134.893, 35.289)
+                                new Pose(101.114, 38.122),
+                                new Pose(128.952, 39.475)
                         )
                 )
-                .setConstantHeadingInterpolation(Math.toRadians(0))
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                 .build();
 
         Spike3Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(134.893, 35.289),
+                                new Pose(128.952, 39.475),
                                 new Pose(93.700, 36.860),
                                 new Pose(89, 13)
                         )
@@ -81,8 +81,7 @@ public class BackRedAuto extends Auto000 {
         Path3 = bot.follower.pathBuilder().addPath(
                         new BezierLine(
                                 new Pose(89, 13),
-
-                                new Pose(89, 30)
+                                new Pose(88.865, 32.970)
                         )
                 ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(0))
                 .build();
@@ -90,7 +89,7 @@ public class BackRedAuto extends Auto000 {
         LeftoverPreIntake = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(89, 30),
+                                new Pose(88.865, 32.970),
                                 new Pose(129, 40)
                         )
                 )
@@ -101,7 +100,7 @@ public class BackRedAuto extends Auto000 {
                 .addPath(
                         new BezierLine(
                                 new Pose(129, 40),
-                                new Pose(131, 15)
+                                new Pose(128.840, 15.000)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-60), Math.toRadians(-90))
@@ -110,11 +109,19 @@ public class BackRedAuto extends Auto000 {
         LeftoverReturn = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(131, 15),
+                                new Pose(128.840, 15.000),
                                 new Pose(89, 13)
                         )
                 )
-                .setConstantHeadingInterpolation(Math.toRadians(-90))
+                .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90))
+                .build();
+
+        FinalPath3 = bot.follower.pathBuilder().addPath(
+                        new BezierLine(
+                                new Pose(89, 13),
+                                new Pose(88.865, 32.700)
+                        )
+                ).setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(0))
                 .build();
     }
 
@@ -124,7 +131,7 @@ public class BackRedAuto extends Auto000 {
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                if(clock.milliseconds() > 750) {
+                if(clock.milliseconds() > 650) {
                     deliverBackZone(1);
                 }
                 break;
@@ -221,7 +228,7 @@ public class BackRedAuto extends Auto000 {
                 break;
             case 14:
                 if(!bot.follower.isBusy()){
-                    bot.follower.followPath(Path3);
+                    bot.follower.followPath(FinalPath3);
                     setPathState(-1);
                 }
                 break;

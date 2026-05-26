@@ -1,0 +1,401 @@
+{
+  "startPoint": {
+    "x": 114.634,
+    "y": 130.457,
+    "heading": "linear",
+    "startDeg": -143,
+    "endDeg": -30,
+    "locked": false
+  },
+  "lines": [
+    {
+      "id": "line-preload",
+      "name": "Preload to Shot",
+      "endPoint": {
+        "x": 85,
+        "y": 85,
+        "heading": "linear",
+        "startDeg": -143,
+        "endDeg": -30
+      },
+      "controlPoints": [],
+      "color": "#FF0000",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": "Deliver Preload"
+    },
+    {
+      "id": "line-farspike-out",
+      "name": "To Far Spike",
+      "endPoint": {
+        "x": 118.997,
+        "y": 82.888,
+        "heading": "linear",
+        "startDeg": -30,
+        "endDeg": 0
+      },
+      "controlPoints": [],
+      "color": "#00FF00",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": ""
+    },
+    {
+      "id": "line-farspike-return",
+      "name": "Far Spike Return",
+      "endPoint": {
+        "x": 85,
+        "y": 85,
+        "heading": "linear",
+        "startDeg": 0,
+        "endDeg": -30
+      },
+      "controlPoints": [],
+      "color": "#00FF00",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": "Deliver Far Spike"
+    },
+    {
+      "id": "line-closespike-out",
+      "name": "To Close Spike",
+      "endPoint": {
+        "x": 114.131,
+        "y": 50.588,
+        "heading": "linear",
+        "startDeg": -30,
+        "endDeg": 0
+      },
+      "controlPoints": [
+        {
+          "x": 82.855,
+          "y": 57.759
+        }
+      ],
+      "color": "#0088FF",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": ""
+    },
+    {
+      "id": "line-closespike-return",
+      "name": "Close Spike Return",
+      "endPoint": {
+        "x": 85,
+        "y": 85,
+        "heading": "linear",
+        "startDeg": 0,
+        "endDeg": -30
+      },
+      "controlPoints": [],
+      "color": "#0088FF",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": "Deliver Close Spike"
+    },
+    {
+      "id": "line-gate1-approach",
+      "name": "Gate 1 Approach",
+      "endPoint": {
+        "x": 132.380,
+        "y": 54.000,
+        "heading": "linear",
+        "startDeg": -30,
+        "endDeg": 45
+      },
+      "controlPoints": [
+        {
+          "x": 103.196,
+          "y": 48.482
+        }
+      ],
+      "color": "#FF8800",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": ""
+    },
+    {
+      "id": "line-gate1-return",
+      "name": "Gate 1 Return",
+      "endPoint": {
+        "x": 85,
+        "y": 85,
+        "heading": "linear",
+        "startDeg": 45,
+        "endDeg": -30
+      },
+      "controlPoints": [
+        {
+          "x": 103.369,
+          "y": 48.078
+        }
+      ],
+      "color": "#FF8800",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": "Deliver Gate 1"
+    },
+    {
+      "id": "line-gate2-approach",
+      "name": "Gate 2 Approach",
+      "endPoint": {
+        "x": 132.515,
+        "y": 54.000,
+        "heading": "linear",
+        "startDeg": -30,
+        "endDeg": 45
+      },
+      "controlPoints": [
+        {
+          "x": 103.466,
+          "y": 48.347
+        }
+      ],
+      "color": "#FF00FF",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": ""
+    },
+    {
+      "id": "line-gate2-return",
+      "name": "Gate 2 Return",
+      "endPoint": {
+        "x": 85,
+        "y": 85,
+        "heading": "linear",
+        "startDeg": 45,
+        "endDeg": -30
+      },
+      "controlPoints": [
+        {
+          "x": 103.774,
+          "y": 49.293
+        }
+      ],
+      "color": "#FF00FF",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": "Deliver Gate 2"
+    },
+    {
+      "id": "line-park",
+      "name": "Park",
+      "endPoint": {
+        "x": 86.13,
+        "y": 67.718,
+        "heading": "tangent",
+        "startDeg": -30,
+        "endDeg": -90
+      },
+      "controlPoints": [],
+      "color": "#FFFFFF",
+      "locked": false,
+      "waitBeforeMs": 0,
+      "waitAfterMs": 0,
+      "waitBeforeName": "",
+      "waitAfterName": ""
+    }
+  ],
+  "shapes": [
+    {
+      "id": "triangle-1",
+      "name": "Red Goal",
+      "vertices": [
+        {
+          "x": 141.5,
+          "y": 70
+        },
+        {
+          "x": 141.5,
+          "y": 141.5
+        },
+        {
+          "x": 120,
+          "y": 141.5
+        },
+        {
+          "x": 138,
+          "y": 119
+        },
+        {
+          "x": 138,
+          "y": 70
+        }
+      ],
+      "color": "#dc2626",
+      "fillColor": "#ff6b6b"
+    },
+    {
+      "id": "triangle-2",
+      "name": "Blue Goal",
+      "vertices": [
+        {
+          "x": 6,
+          "y": 119
+        },
+        {
+          "x": 25,
+          "y": 141.5
+        },
+        {
+          "x": 0,
+          "y": 141.5
+        },
+        {
+          "x": 0,
+          "y": 70
+        },
+        {
+          "x": 6,
+          "y": 70
+        }
+      ],
+      "color": "#2563eb",
+      "fillColor": "#60a5fa"
+    }
+  ],
+  "slowZones": [],
+  "sequence": [
+    {
+      "kind": "path",
+      "lineId": "line-preload"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-farspike-out"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-farspike-return"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-closespike-out"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-closespike-return"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-gate1-approach"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-gate1-return"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-gate2-approach"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-gate2-return"
+    },
+    {
+      "kind": "path",
+      "lineId": "line-park"
+    }
+  ],
+  "pathChains": [
+    {
+      "id": "chain-preload",
+      "name": "1 - Preload (Red)",
+      "color": "#FF0000",
+      "lineIds": [
+        "line-preload"
+      ]
+    },
+    {
+      "id": "chain-farspike",
+      "name": "2 - Far Spike (Green)",
+      "color": "#00FF00",
+      "lineIds": [
+        "line-farspike-out",
+        "line-farspike-return"
+      ]
+    },
+    {
+      "id": "chain-closespike",
+      "name": "3 - Close Spike (Blue)",
+      "color": "#0088FF",
+      "lineIds": [
+        "line-closespike-out",
+        "line-closespike-return"
+      ]
+    },
+    {
+      "id": "chain-gate1",
+      "name": "4 - Gate 1 (Orange)",
+      "color": "#FF8800",
+      "lineIds": [
+        "line-gate1-approach",
+        "line-gate1-return"
+      ]
+    },
+    {
+      "id": "chain-gate2",
+      "name": "5 - Gate 2 (Magenta)",
+      "color": "#FF00FF",
+      "lineIds": [
+        "line-gate2-approach",
+        "line-gate2-return"
+      ]
+    },
+    {
+      "id": "chain-park",
+      "name": "6 - Park (White)",
+      "color": "#FFFFFF",
+      "lineIds": [
+        "line-park"
+      ]
+    }
+  ],
+  "activePaths": [],
+  "settings": {
+    "xVelocity": 75,
+    "yVelocity": 65,
+    "aVelocity": 3.141592653589793,
+    "kFriction": 0.1,
+    "rWidth": 17.5,
+    "rHeight": 14.25,
+    "safetyMargin": 1,
+    "maxVelocity": 40,
+    "maxAcceleration": 30,
+    "maxDeceleration": 30,
+    "fieldMap": "decode.webp",
+    "robotImage": "/robot.png",
+    "theme": "dark",
+    "showGhostPaths": false,
+    "showOnionLayers": false,
+    "onionLayerSpacing": 3,
+    "onionColor": "#dc2626",
+    "onionNextPointOnly": false,
+    "showHeadingArrow": false,
+    "headingArrowLength": 50,
+    "headingArrowColor": "#ffffff",
+    "headingArrowThickness": 2,
+    "pathOpacity": 1
+  },
+  "version": "1.3.0",
+  "timestamp": "2026-05-24T19:32:22.500Z"
+}
+

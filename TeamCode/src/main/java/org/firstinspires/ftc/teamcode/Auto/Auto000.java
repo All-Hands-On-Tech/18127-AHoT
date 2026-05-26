@@ -74,10 +74,10 @@ public class Auto000 extends OpMode {
         if(wasBusy){
             clock.reset();
         }
-        if (clock.milliseconds() > 0 && clock.milliseconds() < 2000) {
+        if (clock.milliseconds() > 0 && clock.milliseconds() < 1650) {
             bot.intakePower(1);
             bot.setTransferUp();
-        } else if (clock.milliseconds() > 2000) {
+        } else if (clock.milliseconds() > 1650) {
             bot.setTransferDown();
             setPathState(nextState);
         }
