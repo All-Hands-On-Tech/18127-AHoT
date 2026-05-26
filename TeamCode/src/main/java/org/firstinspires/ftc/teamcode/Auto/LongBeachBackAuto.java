@@ -4,16 +4,10 @@ import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
-import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
-
-@Autonomous(name = "Back Auto Red", group = "A")
-public class BackRedAuto extends Auto000 {
+@Autonomous(name = "Long Beach Back Auto", group = "A")
+public class LongBeachBackAuto extends Auto000 {
     public PathChain Path1;
     public PathChain Path2;
     public PathChain Spike3PreIntake;

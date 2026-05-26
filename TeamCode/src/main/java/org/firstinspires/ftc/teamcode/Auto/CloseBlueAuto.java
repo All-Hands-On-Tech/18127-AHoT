@@ -12,7 +12,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
-@Autonomous(name = "Close Auto Blue", group = "A")
+@Autonomous(name = "DO NOT USE Close Auto Blue", group = "A")
 public class CloseBlueAuto extends OpMode {
 
     Utilities000 bot = new Utilities000(this);

@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 
-@Autonomous(name = "Close Auto Red", group = "A")
+@Autonomous(name = "DO NOT USE Close Auto Red", group = "A")
 public class CloseRedAuto extends Auto000 {
 
     public PathChain Path1;

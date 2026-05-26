@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
 @Disabled
-@Autonomous(name = "Close Auto Blue_NOSPIKE3", group = "A")
+@Autonomous(name = "DO NOT USE Close Auto Blue_NOSPIKE", group = "A")
 public class NOSPIKE3_CloseBlueAuto extends OpMode {
 
     Utilities000 bot = new Utilities000(this);

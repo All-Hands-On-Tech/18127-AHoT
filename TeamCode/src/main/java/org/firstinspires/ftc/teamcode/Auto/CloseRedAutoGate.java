@@ -7,7 +7,7 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@Autonomous(name = "Close Auto Red (Gate)", group = "A")
+@Autonomous(name = "DO NOT USE Close Auto Red (Gate)", group = "A")
 public class CloseRedAutoGate extends Auto000 {
 
     public PathChain pathChain11PreloadRed;
