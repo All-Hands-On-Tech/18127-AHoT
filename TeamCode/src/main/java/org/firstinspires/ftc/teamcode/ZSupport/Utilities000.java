@@ -264,7 +264,7 @@ public class Utilities000 {
     }
     public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
     public void setHoodYawAngleDegrees(double degrees) {
-        degrees = Math.min(Math.max(degrees, -120), 90);
+        degrees = Math.min(Math.max(degrees, -120), 119);
 
         setHoodYawAngleTicks((int)((degrees+yawShift) * YAW_PULSES_PER_DEGREE));
         opMode.telemetry.addData("yawShift: ", yawShift);

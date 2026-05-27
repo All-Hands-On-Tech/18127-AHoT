@@ -21,6 +21,9 @@ public class Auto000 extends OpMode {
 
     boolean wasBusy = false;
 
+    public enum Alliance { RED, BLUE }
+    public Alliance alliance = Alliance.RED;
+
     @Override
     public void init() {
         pathTimer = new Timer();
@@ -29,12 +32,10 @@ public class Auto000 extends OpMode {
 
         bot.initialize(this);
         bot.turnOffCamera();
-//        buildPaths();
 
         bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
-//        bot.follower.setStartingPose(startPose);
         bot.setAllianceColor(Utilities000.AllianceColor.RED);
     }
 
@@ -44,11 +45,16 @@ public class Auto000 extends OpMode {
         bot.hoodYawMotor.setPower(1);
         clock.reset();
         bot.setTransferBlock();
+
+        if (alliance == Alliance.BLUE) {
+            bot.setAllianceColor(Utilities000.AllianceColor.BLUE);
+        } else {
+            bot.setAllianceColor(Utilities000.AllianceColor.RED);
+        }
     }
 
     @Override
     public void loop() {
-        // Feedback to Driver Hub for debugging
         telemetry.addData("path state", pathState);
         telemetry.addData("x", bot.follower.getPose().getX());
         telemetry.addData("y", bot.follower.getPose().getY());
@@ -56,44 +62,37 @@ public class Auto000 extends OpMode {
         telemetry.update();
     }
 
-
-
     @Override
     public void stop(){
         Utilities000.RobotStateAfterAuto.setPostAutoState(bot.follower.getPose(), bot.getHoodYawAngleTicks());
     }
 
-    /**
-     * These change the states of the paths and actions. It will also reset the timers of the individual switches
-     **/
     public void setPathState(int pState) {
         pathState = pState;
         pathTimer.resetTimer();
     }
+
     void deliver(int nextState){
         if(wasBusy){
             clock.reset();
         }
-        if (clock.milliseconds() > 0 && clock.milliseconds() < 1650) {
-            bot.intakePower(1);
+        if (clock.milliseconds() > 0 && clock.milliseconds() < 1800) {
+            bot.intakePower(0.9);
             bot.setTransferUp();
-        } else if (clock.milliseconds() > 1650) {
+        } else if (clock.milliseconds() > 1800) {
             bot.setTransferDown();
             setPathState(nextState);
         }
     }
 
-    void deliverBackZone(int nextState){
+    void deliverBackZone(int nextState, int intakePower){
         if(wasBusy){
             clock.reset();
         }
-        if(clock.milliseconds() > 0 && clock.milliseconds() < 1500){
-
-        }
-        else if (clock.milliseconds() > 1500 && clock.milliseconds() < 3000) {
-            bot.intakePower(1);
+        if (clock.milliseconds() < 4000) {
+            bot.intakePower(intakePower);
             bot.setTransferUp();
-        } else if (clock.milliseconds() > 4500) {
+        } else if (clock.milliseconds() > 4000) {
             bot.setTransferDown();
             setPathState(nextState);
         }

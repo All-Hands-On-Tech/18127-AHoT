@@ -9,10 +9,6 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 @Autonomous(name = "Long Beach Close Auto (Gate)", group = "A")
 public class LongBeachCloseAuto extends Auto000 {
 
-    // Alliance selection
-    private enum Alliance { RED, BLUE }
-    private Alliance alliance = Alliance.RED;
-
     // Preload
     public PathChain preload;
 
@@ -48,7 +44,6 @@ public class LongBeachCloseAuto extends Auto000 {
     private void buildRedPaths() {
         startPose = new Pose(115.579, 129.107, Math.toRadians(-143));
 
-        // ===== PRELOAD =====
         preload = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
@@ -59,7 +54,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(-143), Math.toRadians(-30))
                 .build();
 
-        // ===== CYCLE 1: Far spike =====
         farSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
@@ -77,26 +71,24 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-30))
                 .build();
 
-        // ===== CYCLE 2: Close spike =====
         closeSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
                                 new Pose(85.000, 85.000),
                                 new Pose(79.885, 46.822),
-                                new Pose(116.650, 49.286)
+                                new Pose(114.760, 49.421)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-30), Math.toRadians(0))
                 .addPath(
                         new BezierLine(
-                                new Pose(116.650, 49.286),
+                                new Pose(114.760, 49.421),
                                 new Pose(85.000, 85.000)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-30))
                 .build();
 
-        // ===== CYCLE 3: Gate 1 =====
         gate1Approach = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
@@ -112,8 +104,8 @@ public class LongBeachCloseAuto extends Auto000 {
                 .addPath(
                         new BezierCurve(
                                 new Pose(123.253, 53.229),
-                                new Pose(120.807, 46.900),
-                                new Pose(127.052, 47.897)
+                                new Pose(120.267, 45.145),
+                                new Pose(124.157, 47.671)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
@@ -122,7 +114,7 @@ public class LongBeachCloseAuto extends Auto000 {
         gate1Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(127.052, 47.897),
+                                new Pose(124.157, 47.671),
                                 new Pose(107.821, 65.249),
                                 new Pose(85.000, 85.000)
                         )
@@ -130,7 +122,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(-30))
                 .build();
 
-        // ===== CYCLE 4: Gate 2 =====
         gate2Approach = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
@@ -146,8 +137,8 @@ public class LongBeachCloseAuto extends Auto000 {
                 .addPath(
                         new BezierCurve(
                                 new Pose(123.412, 53.118),
-                                new Pose(120.996, 46.642),
-                                new Pose(127.187, 47.897)
+                                new Pose(120.456, 45.832),
+                                new Pose(124.157, 47.266)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
@@ -156,7 +147,7 @@ public class LongBeachCloseAuto extends Auto000 {
         gate2Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(127.187, 47.897),
+                                new Pose(124.157, 47.266),
                                 new Pose(107.113, 65.987),
                                 new Pose(85.000, 85.000)
                         )
@@ -164,7 +155,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(-30))
                 .build();
 
-        // ===== PARK =====
         park = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
@@ -178,7 +168,6 @@ public class LongBeachCloseAuto extends Auto000 {
     private void buildBluePaths() {
         startPose = new Pose(25.921, 129.107, Math.toRadians(323));
 
-        // ===== PRELOAD =====
         preload = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
@@ -189,7 +178,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(323), Math.toRadians(210))
                 .build();
 
-        // ===== CYCLE 1: Far spike =====
         farSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
@@ -207,7 +195,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(210))
                 .build();
 
-        // ===== CYCLE 2: Close spike =====
         closeSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
@@ -226,7 +213,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(210))
                 .build();
 
-        // ===== CYCLE 3: Gate 1 =====
         gate1Approach = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
@@ -243,7 +229,7 @@ public class LongBeachCloseAuto extends Auto000 {
                         new BezierCurve(
                                 new Pose(18.247, 53.229),
                                 new Pose(21.233, 45.145),
-                                new Pose(18.093, 47.221)
+                                new Pose(18.543, 46.171)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(135))
@@ -252,7 +238,7 @@ public class LongBeachCloseAuto extends Auto000 {
         gate1Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(18.093, 47.221),
+                                new Pose(18.543, 46.171),
                                 new Pose(33.679, 65.249),
                                 new Pose(56.500, 85.000)
                         )
@@ -260,7 +246,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(210))
                 .build();
 
-        // ===== CYCLE 4: Gate 2 =====
         gate2Approach = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
@@ -277,7 +262,7 @@ public class LongBeachCloseAuto extends Auto000 {
                         new BezierCurve(
                                 new Pose(18.088, 53.118),
                                 new Pose(21.044, 45.832),
-                                new Pose(18.093, 46.816)
+                                new Pose(18.393, 46.516)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(135))
@@ -286,7 +271,7 @@ public class LongBeachCloseAuto extends Auto000 {
         gate2Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(18.093, 46.816),
+                                new Pose(18.393, 46.516),
                                 new Pose(34.387, 65.987),
                                 new Pose(56.500, 85.000)
                         )
@@ -294,7 +279,6 @@ public class LongBeachCloseAuto extends Auto000 {
                 .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(210))
                 .build();
 
-        // ===== PARK =====
         park = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
@@ -479,12 +463,11 @@ public class LongBeachCloseAuto extends Auto000 {
 
     @Override
     public void init_loop() {
-        // Alliance selection during init phase
-        if (gamepad1.x) {
-            alliance = Alliance.BLUE;
-        }
         if (gamepad1.b) {
             alliance = Alliance.RED;
+        }
+        if (gamepad1.x) {
+            alliance = Alliance.BLUE;
         }
 
         telemetry.addLine("=== ALLIANCE SELECTION ===");
@@ -500,7 +483,6 @@ public class LongBeachCloseAuto extends Auto000 {
 
     @Override
     public void start() {
-        // Build paths based on selected alliance when the match actually starts
         buildPaths();
         bot.follower.setStartingPose(startPose);
         super.start();
