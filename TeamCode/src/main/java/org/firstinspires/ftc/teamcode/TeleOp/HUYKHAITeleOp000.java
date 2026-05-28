@@ -46,6 +46,7 @@ public class HUYKHAITeleOp000 extends TeleOp000 {
 
     @Override
     public void loop() {
+//        super.loop();
 
         handleDrivetrain(gamepad1);
 

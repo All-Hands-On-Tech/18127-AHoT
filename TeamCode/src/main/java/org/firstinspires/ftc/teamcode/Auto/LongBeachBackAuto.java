@@ -17,9 +17,16 @@ public class LongBeachBackAuto extends Auto000 {
     private PathChain LeftoverCycle;
     private PathChain FinalPath3;
 
-    private Pose startPose = new Pose(88.5, 9.2, Math.toRadians(-90));
+    private Pose startPose;
     private boolean declogStarted = false;
 
+    public void buildPaths() {
+        if (alliance == Alliance.RED) {
+            buildRedPaths();
+        } else {
+            buildBluePaths();
+        }
+    }
     private void buildRedPaths() {
         startPose = new Pose(88.5, 9.2, Math.toRadians(-90));
         // First: spike mark cycle
@@ -113,7 +120,7 @@ public class LongBeachBackAuto extends Auto000 {
                                 new Pose(89.000, 30.000)
                         )
                 )
-                .setConstantHeadingInterpolation(Math.toRadians(180-(-90)))
+                .setConstantHeadingInterpolation(Math.toRadians(-90))
                 .build();
     }
 
@@ -124,13 +131,13 @@ public class LongBeachBackAuto extends Auto000 {
                 .addPath(
                         new BezierLine(
                                 new Pose(144-88.5, 9.2),
-                                new Pose(144-94.512, 36.352)
+                                new Pose(144-89.512, 36.352)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(180-(-90)), Math.toRadians(180-(0)))
                 .addPath(
                         new BezierLine(
-                                new Pose(144-94.512, 36.352),
+                                new Pose(144-89.512, 36.352),
                                 new Pose(144-120, 36.352)
                         )
                 )
@@ -138,8 +145,8 @@ public class LongBeachBackAuto extends Auto000 {
                 .addPath(
                         new BezierCurve(
                                 new Pose(144-120, 36.352),
-                                new Pose(144-93.700, 36.860),
-                                new Pose(144-88.249, 17.352)
+                                new Pose(144-89.700, 36.860),
+                                new Pose(144-89.512, 15.352)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(180-(0)), Math.toRadians(180-(-30)))
@@ -149,8 +156,8 @@ public class LongBeachBackAuto extends Auto000 {
         Path1 = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(144-88.249, 17.352),
-                                new Pose(144-92.713, 28.316),
+                                new Pose(144-89.512, 15.352),
+                                new Pose(144-89.713, 28.316),
                                 new Pose(144-137.074, 36.778),
                                 new Pose(144-137.074, 9.669)
                         )
@@ -164,63 +171,23 @@ public class LongBeachBackAuto extends Auto000 {
                         new BezierCurve(
                                 new Pose(144-137.074, 9.669),
                                 new Pose(144-137.074, 7),
-                                new Pose(144-88.249, 17.201)
+                                new Pose(144-89.512, 15.201)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(180-(-25)), Math.toRadians(180-(-30)))
                 .build();
 
-        // Leftover cycle
-        LeftoverCycle = bot.follower.pathBuilder()
-                .addPath(
-                        new BezierLine(
-                                new Pose(144-88.249, 17.201),
-                                new Pose(144-89.000, 30.000)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(180-(-90)), Math.toRadians(180-(0)))
-                .addPath(
-                        new BezierLine(
-                                new Pose(144-89.000, 30.000),
-                                new Pose(144-129.000, 40.000)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(180-(0)), Math.toRadians(180-(-60)))
-                .addPath(
-                        new BezierLine(
-                                new Pose(144-129.000, 40.000),
-                                new Pose(144-131.000, 15.000)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(180-(-60)), Math.toRadians(180-(-90)))
-                .addPath(
-                        new BezierLine(
-                                new Pose(144-131.000, 15.000),
-                                new Pose(144-88.099, 17.352)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(180-(-90)), Math.toRadians(180-(-90)))
-                .build();
 
         // Final park path
         FinalPath3 = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(144-88.099, 17.352),
-                                new Pose(144-89.000, 30.000)
+                                new Pose(144-89.512, 17.352),
+                                new Pose(144-89.512, 30.000)
                         )
                 )
                 .setConstantHeadingInterpolation(Math.toRadians(180-(-90)))
                 .build();
-    }
-
-    public void buildPaths() {
-        if(bot.getAllianceColor() == Utilities000.AllianceColor.RED){
-            buildRedPaths();
-        }else{
-            buildBluePaths();
-        }
-        bot.follower.setStartingPose(startPose);
     }
 
     void deliverBackZone(int nextState, double intakePower) {
@@ -429,7 +396,6 @@ public class LongBeachBackAuto extends Auto000 {
     @Override
     public void init() {
         super.init();
-        buildPaths();
     }
 
     @Override
@@ -455,6 +421,8 @@ public class LongBeachBackAuto extends Auto000 {
     @Override
     public void start() {
         super.start();
+        buildPaths();
+        bot.follower.setStartingPose(startPose);
     }
 
     @Override

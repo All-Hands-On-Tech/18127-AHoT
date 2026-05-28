@@ -1,10 +1,12 @@
 package org.firstinspires.ftc.teamcode.Auto;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
@@ -35,6 +37,9 @@ public class Auto000 extends OpMode {
 
         bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+        PIDFCoefficients vCoefficients = new PIDFCoefficients(10, 5, 1, 0); //was 35
+        bot.hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, vCoefficients);
     }
 
     @Override
@@ -94,5 +99,10 @@ public class Auto000 extends OpMode {
             bot.setTransferDown();
             setPathState(nextState);
         }
+    }
+
+    @Config
+    public static class AutoYawTuning{
+
     }
 }

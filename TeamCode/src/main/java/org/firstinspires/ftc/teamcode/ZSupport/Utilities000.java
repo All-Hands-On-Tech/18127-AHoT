@@ -794,4 +794,17 @@ public class Utilities000 {
 
     }
 
+    @Config
+    public static class yawPIDTeleOp{
+        public static double p = 10;
+        public static double i = 5;
+
+        public static double d = 1;
+        public static double f = 0;
+        public static boolean shouldUpdate = false;
+
+    }
+
+
+
 }

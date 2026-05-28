@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
@@ -68,7 +69,9 @@ public class TeleOp000 extends OpMode {
     }
 
     @Override
-    public void loop() {}
+    public void loop() {
+        updateYawPID();
+    }
 
     public void handleDrivetrain(Gamepad gamepad){
         if(gamepad.rightStickButtonWasPressed()){
@@ -113,7 +116,7 @@ public class TeleOp000 extends OpMode {
                     limeLightStaller.reset();
                 }
             }
-        }else if (limeLightStaller.seconds()>0.5) {
+        }else if (limeLightStaller.seconds()>0.25) {
             if (bot.limelightUpdate()) {
                 limeLightStaller.reset();
             }
@@ -372,6 +375,13 @@ public class TeleOp000 extends OpMode {
             double xPrime = x - (144 - MacroParams.gateXRed); //x position relative to gate
             double dydx = 2 * MacroParams.a * xPrime - MacroParams.b;
             return Math.atan(dydx) - Math.PI;
+        }
+    }
+
+    private void updateYawPID(){
+        if(Utilities000.yawPIDTeleOp.shouldUpdate){
+            PIDFCoefficients vCoefficients = new PIDFCoefficients(Utilities000.yawPIDTeleOp.p, Utilities000.yawPIDTeleOp.i,Utilities000.yawPIDTeleOp.d,Utilities000.yawPIDTeleOp.f);
+            bot.hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION, vCoefficients);
         }
     }
 
