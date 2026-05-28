@@ -144,7 +144,7 @@ public class Utilities000 {
         hoodYawMotor.setPower(0);
 
 
-        PIDFCoefficients vCoefficients = new PIDFCoefficients(5, 5, 0.1, 5); //was 35
+        PIDFCoefficients vCoefficients = new PIDFCoefficients(10, 5, 1, 0); //was 35
         hoodYawMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, vCoefficients);
 
         PIDFCoefficients pCoefficients = new PIDFCoefficients(12, 0,0,0);
@@ -255,8 +255,9 @@ public class Utilities000 {
         return 1.0 - (current - SAFE_CURRENT) / (MAX_CURRENT - SAFE_CURRENT);
     }
     public void intakePower(double pow) {
-        double currentMultiplier = computeCurrentMultiplier(intakeMotor.getCurrent(CurrentUnit.AMPS));
-        intakeMotor.setPower(deadZone(pow*currentMultiplier, 0.05));
+//        double currentMultiplier = computeCurrentMultiplier(intakeMotor.getCurrent(CurrentUnit.AMPS));
+//        intakeMotor.setPower(deadZone(pow*currentMultiplier, 0.05));
+        intakeMotor.setPower(pow);
     }
 
     public void setHoodYawMode(DcMotor.RunMode mode){
@@ -281,6 +282,13 @@ public class Utilities000 {
     public double getFlywheelSpeed() {
         double average = (flywheelL.getVelocity()+flywheelR.getVelocity()) / 2;
         return average;
+    }
+    public double getLeftFlywheelSpeed() {
+        return flywheelL.getVelocity();
+    }
+
+    public double getRightFlywheelSpeed() {
+        return flywheelR.getVelocity();
     }
     public void setFlywheelVolts(double volts) {
         double currentVoltage = voltageSensor.getVoltage();
@@ -351,6 +359,27 @@ public class Utilities000 {
         double[] shotVector;
         if(subtractMovement){
             shotVector = subtractMovement();
+        }else {
+            shotVector = findShot();
+        }
+
+        flywheelController(shotVector[0]);
+        setHoodPitchAngleTicks(shotVector[1]);
+        setHoodYawAngleDegrees(shotVector[2]);
+    }
+
+    public void turrentUpdateAuto() {
+        double[] shotVector = findShotAuto();//subtractMovement();
+        flywheelController(shotVector[0]);
+        setHoodPitchAngleTicks(shotVector[1]);
+        setHoodYawAngleDegrees(shotVector[2]);
+//        opMode.telemetry.addData("Turrent: ", shotVector[2]);
+    }
+
+    public void turrentUpdateAuto(boolean subtractMovement) {
+        double[] shotVector;
+        if(subtractMovement){
+            shotVector = subtractMovementAuto();
         }else {
             shotVector = findShot();
         }
@@ -622,10 +651,50 @@ public class Utilities000 {
         return values;
     }
 
+    private double[] findShotAuto() {
+        double[] values = new double[3];
+        values[0] = flywheelSpeedFit();
+        values[1] = flywheelPitchFit() - 0.002;
+        values[2] = aimAtPoint(getGoal());
+        return values;
+    }
+
     private double[] subtractMovement() {
         Vector movement = follower.getVelocity();
         Pose currentPose = follower.getPose();
         double[] prevShot = findShot();
+        double shotFactor = 2.83*3.14/56;
+        prevShot[0] *= shotFactor;
+        prevShot[2] += (180+Math.toDegrees(currentPose.getHeading()));
+
+        double X = prevShot[0] * Math.cos(Math.toRadians(100.6 -  54.1 * prevShot[1])) * Math.cos(Math.toRadians(prevShot[2]));
+        double Y = prevShot[0] * Math.cos(Math.toRadians(100.6 -  54.1 * prevShot[1])) * Math.sin(Math.toRadians(prevShot[2]));
+        double Z = prevShot[0] * Math.sin(Math.toRadians(100.6 -  54.1 * prevShot[1]));
+
+        X -= movement.getXComponent() * VELOCITY_COMPENSATION_FACTOR;
+        Y -= movement.getYComponent() * VELOCITY_COMPENSATION_FACTOR;
+
+        double[] newShot = new double[3];
+        newShot[0] = Math.sqrt(X*X + Y*Y + Z*Z) / shotFactor;
+        newShot[1] = (90-Math.toDegrees(Math.atan(Math.sqrt(X*X + Y*Y)/Z))-100.6)/(-54.1);
+        newShot[2] = Math.toDegrees(Math.atan2(Y, X))-(180+Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS)));
+//        double turretDeg = deg - (180+Math.toDegrees(odo.getHeading(UnnormalizedAngleUnit.RADIANS)));
+
+        newShot[2] = Math.toDegrees(
+                Math.atan2(
+                        Math.sin(Math.toRadians(newShot[2])),
+                        Math.cos(Math.toRadians(newShot[2]))
+                )
+        );
+
+
+        return newShot;
+    }
+
+    private double[] subtractMovementAuto() {
+        Vector movement = follower.getVelocity();
+        Pose currentPose = follower.getPose();
+        double[] prevShot = findShotAuto();
         double shotFactor = 2.83*3.14/56;
         prevShot[0] *= shotFactor;
         prevShot[2] += (180+Math.toDegrees(currentPose.getHeading()));
@@ -718,10 +787,10 @@ public class Utilities000 {
     @Config
     public static class RegressionParams{
         public static double speedSlope = 7.7;
-        public static double speedYInt = 975;
+        public static double speedYInt = 1050;
 
         public static double pitchSlope = 0.00704285714286;
-        public static double pitchYInt = 0.08;
+        public static double pitchYInt = 0.00;
 
     }
 

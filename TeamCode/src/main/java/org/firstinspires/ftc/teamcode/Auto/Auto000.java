@@ -35,8 +35,6 @@ public class Auto000 extends OpMode {
 
         bot.hoodYawMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         bot.hoodYawMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-
-        bot.setAllianceColor(Utilities000.AllianceColor.RED);
     }
 
     @Override
@@ -76,10 +74,10 @@ public class Auto000 extends OpMode {
         if(wasBusy){
             clock.reset();
         }
-        if (clock.milliseconds() > 0 && clock.milliseconds() < 1800) {
+        if (clock.milliseconds() > 0 && clock.milliseconds() < 1400) {
             bot.intakePower(0.9);
             bot.setTransferUp();
-        } else if (clock.milliseconds() > 1800) {
+        } else if (clock.milliseconds() > 1400) {
             bot.setTransferDown();
             setPathState(nextState);
         }

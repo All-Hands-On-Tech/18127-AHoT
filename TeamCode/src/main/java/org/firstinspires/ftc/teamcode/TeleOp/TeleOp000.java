@@ -35,6 +35,7 @@ public class TeleOp000 extends OpMode {
     public boolean flyWheelPowerIsAllowed = true;
 
     private boolean gateCycleMode = false;
+    private boolean prevGateCycleMode = false;
 
     public enum TelemetryMode {
         DELIVERY,
@@ -70,7 +71,7 @@ public class TeleOp000 extends OpMode {
     public void loop() {}
 
     public void handleDrivetrain(Gamepad gamepad){
-        if(gamepad.dpadUpWasPressed()){
+        if(gamepad.rightStickButtonWasPressed()){
             gateCycleMode = !gateCycleMode;
         }
 
@@ -82,13 +83,20 @@ public class TeleOp000 extends OpMode {
 
         double rotateBias = 0;
 
+        double currentHeading;
+        double startHeading = 0;
+        if(!prevGateCycleMode && gateCycleMode){
+            startHeading = bot.getUnnormalizedRobotHeading();
+        }
+
         if (gateCycleMode) {
-            double currentHeading = bot.getRobotHeading();
+            currentHeading = bot.getUnnormalizedRobotHeading() - (startHeading % 360);
             double error = Math.toDegrees(slopeFieldGateCycleAutomation(bot.getPosition().getX(),0)) - currentHeading;
 
             rotateBias = (MacroParams.Kp * error) / 180;
             rotateBias = Math.max(-1, Math.min(1, rotateBias));
         }
+        prevGateCycleMode = gateCycleMode;
 
         double rotate = -gamepad.right_stick_x + rotateBias;
         rotate = Math.max(-1, Math.min(1, rotate));
@@ -196,9 +204,17 @@ public class TeleOp000 extends OpMode {
             y = (tempY-tempX)/Math.sqrt(2);
             x *= maxManualAimOffsetMagnitude;
             y *= maxManualAimOffsetMagnitude;
-            bot.setManualAimOffsets(x + DefaultManualAimOffset.x, y + DefaultManualAimOffset.y);
+            if(bot.getAllianceColor() == Utilities000.AllianceColor.RED) {
+                bot.setManualAimOffsets(x + DefaultManualAimOffset.x, y + DefaultManualAimOffset.y);
+            }else{
+                bot.setManualAimOffsets(x - DefaultManualAimOffset.x, y + DefaultManualAimOffset.y);
+            }
         }else{
-            bot.setManualAimOffsets(DefaultManualAimOffset.x,DefaultManualAimOffset.y);
+            if(bot.getAllianceColor() == Utilities000.AllianceColor.RED) {
+                bot.setManualAimOffsets(DefaultManualAimOffset.x, DefaultManualAimOffset.y);
+            }else{
+                bot.setManualAimOffsets(-DefaultManualAimOffset.x, DefaultManualAimOffset.y);
+            }
         }
         if(gamepad.aWasPressed()){
             bot.limelightUpdate();
@@ -306,10 +322,9 @@ public class TeleOp000 extends OpMode {
                 telemetry.addLine();
                 telemetry.addLine();
                 telemetry.addData("loop time: ", (int)loopTime.milliseconds());
-                telemetry.addData("Angle to point: ", bot.getAngleRelativeToPoint(0,0));
-                telemetry.addData("Turret Yaw Deg: ", bot.getHoodYawAngleDegrees());
-                telemetry.addData("Flywheel ticks/s: ", shotPower);
-                telemetry.addData("Flywheel speed: ", bot.getFlywheelSpeed());
+                telemetry.addData("FlywheelL speed", bot.getLeftFlywheelSpeed());
+                telemetry.addData("FlywheelR speed", bot.getRightFlywheelSpeed());
+                telemetry.addData("Average Flywheel Speed", bot.getFlywheelSpeed());
                 telemetry.addData("Flywheel yaw:     ", yaw);
                 telemetry.addData("Flywheel pitch:   ", pitch);
                 telemetry.addData("Unnormalized Heading", bot.getUnnormalizedRobotHeading());
@@ -349,9 +364,15 @@ public class TeleOp000 extends OpMode {
     }
 
     private double slopeFieldGateCycleAutomation(double x, double y){
-        double xPrime = x - MacroParams.gateXRed; //x position relative to gate
-        double dydx = 2*MacroParams.a*x + MacroParams.b;
-        return Math.atan(dydx)/* + Math.PI*/; // CHANGE IF USING BLUE SIDE
+        if(bot.getAllianceColor() == Utilities000.AllianceColor.RED) {
+            double xPrime = x - MacroParams.gateXRed; //x position relative to gate
+            double dydx = 2 * MacroParams.a * xPrime + MacroParams.b;
+            return Math.atan(dydx);
+        }else{
+            double xPrime = x - (144 - MacroParams.gateXRed); //x position relative to gate
+            double dydx = 2 * MacroParams.a * xPrime - MacroParams.b;
+            return Math.atan(dydx) - Math.PI;
+        }
     }
 
     @Override
@@ -371,8 +392,8 @@ public class TeleOp000 extends OpMode {
 
         public static double minBias = 0.1;
 
-        public static double a = 0.025;
-        public static double b = Math.tan(30);
+        public static double a = 0.0175;
+        public static double b = Math.tan(Math.toRadians(30));
 
         public static double gateXRed = 128;
     }

@@ -6,6 +6,8 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
+import org.firstinspires.ftc.teamcode.ZSupport.Utilities000;
+
 @Autonomous(name = "Long Beach Close Auto (Gate)", group = "A")
 public class LongBeachCloseAuto extends Auto000 {
 
@@ -14,9 +16,11 @@ public class LongBeachCloseAuto extends Auto000 {
 
     // Cycle 1: Far spike
     public PathChain farSpike;
+    public PathChain gate0Nudge;
 
     // Cycle 2: Close spike
     public PathChain closeSpike;
+
 
     // Cycle 3: Gate 1
     public PathChain gate1Approach;
@@ -48,16 +52,16 @@ public class LongBeachCloseAuto extends Auto000 {
                 .addPath(
                         new BezierLine(
                                 new Pose(115.579, 129.107),
-                                new Pose(85.000, 85.000)
+                                new Pose(88.000, 85.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(-143), Math.toRadians(-30))
+                .setLinearHeadingInterpolation(Math.toRadians(-143), Math.toRadians(-45))
                 .build();
 
         farSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(85.000, 85.000),
+                                new Pose(88.000, 85.000),
                                 new Pose(116.255, 84.999)
                         )
                 )
@@ -65,34 +69,51 @@ public class LongBeachCloseAuto extends Auto000 {
                 .addPath(
                         new BezierLine(
                                 new Pose(116.255, 84.999),
-                                new Pose(85.000, 85.000)
+                                new Pose(88.000, 85.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-30))
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-45))
                 .build();
 
         closeSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(85.000, 85.000),
-                                new Pose(79.885, 46.822),
-                                new Pose(114.760, 49.421)
+                                new Pose(88.000, 85.000),
+                                new Pose(79.885, 50),
+                                new Pose(110, 50)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(-30), Math.toRadians(0))
                 .addPath(
-                        new BezierLine(
-                                new Pose(114.760, 49.421),
-                                new Pose(85.000, 85.000)
+                        new BezierCurve(
+                                new Pose(110, 50),
+                                new Pose(112, 65),
+                                new Pose(116, 70),
+                                new Pose(120, 70)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-30))
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                .addPath(
+                        new BezierLine(
+                                new Pose(120, 70),
+                                new Pose(110, 70)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                .addPath(
+                        new BezierCurve(
+                                new Pose(110, 65),
+                                new Pose(90, 50),
+                                new Pose(88.000, 85.000)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(-45))
                 .build();
 
         gate1Approach = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(85.000, 85.000),
+                                new Pose(88.000, 85.000),
                                 new Pose(105.014, 51.992),
                                 new Pose(123.253, 53.229)
                         )
@@ -105,7 +126,7 @@ public class LongBeachCloseAuto extends Auto000 {
                         new BezierCurve(
                                 new Pose(123.253, 53.229),
                                 new Pose(120.267, 45.145),
-                                new Pose(124.157, 47.671)
+                                new Pose(129, 47.671)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
@@ -114,178 +135,144 @@ public class LongBeachCloseAuto extends Auto000 {
         gate1Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(124.157, 47.671),
+                                new Pose(130.157, 47.671),
                                 new Pose(107.821, 65.249),
-                                new Pose(85.000, 85.000)
+                                new Pose(88.000, 85.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(-30))
-                .build();
-
-        gate2Approach = bot.follower.pathBuilder()
-                .addPath(
-                        new BezierCurve(
-                                new Pose(85.000, 85.000),
-                                new Pose(104.879, 52.398),
-                                new Pose(123.412, 53.118)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(-30), Math.toRadians(45))
-                .build();
-
-        gate2Nudge = bot.follower.pathBuilder()
-                .addPath(
-                        new BezierCurve(
-                                new Pose(123.412, 53.118),
-                                new Pose(120.456, 45.832),
-                                new Pose(124.157, 47.266)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
-                .build();
-
-        gate2Return = bot.follower.pathBuilder()
-                .addPath(
-                        new BezierCurve(
-                                new Pose(124.157, 47.266),
-                                new Pose(107.113, 65.987),
-                                new Pose(85.000, 85.000)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(-30))
+                .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(-45))
                 .build();
 
         park = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(85.000, 85.000),
-                                new Pose(86.130, 67.718)
+                                new Pose(88.000, 85.000),
+                                new Pose(115, 55)
                         )
                 )
+                .setReversed()
+                .setTangentHeadingInterpolation()
                 .build();
     }
 
     private void buildBluePaths() {
-        startPose = new Pose(25.921, 129.107, Math.toRadians(323));
+        startPose = new Pose(144-(115.579), 129.107, Math.toRadians(180-(-143)));
 
         preload = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(25.921, 129.107),
-                                new Pose(56.500, 85.000)
+                                new Pose(144-(115.579), 129.107),
+                                new Pose(144-(88.000), 85.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(323), Math.toRadians(210))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(-143)), Math.toRadians(180-(-45)))
                 .build();
 
         farSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(56.500, 85.000),
-                                new Pose(25.245, 84.999)
+                                new Pose(144-(88.000), 85.000),
+                                new Pose(144-(116.255), 84.999)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(210), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(-30)), Math.toRadians(180-(0)))
                 .addPath(
                         new BezierLine(
-                                new Pose(25.245, 84.999),
-                                new Pose(56.500, 85.000)
+                                new Pose(144-(116.255), 84.999),
+                                new Pose(144-(88.000), 85.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(210))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(0)), Math.toRadians(180-(-45)))
                 .build();
 
         closeSpike = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(56.500, 85.000),
-                                new Pose(61.615, 46.822),
-                                new Pose(26.740, 49.421)
+                                new Pose(144-(88.000), 85.000),
+                                new Pose(144-(79.885), 50),
+                                new Pose(144-(110), 50)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(210), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(-30)), Math.toRadians(180-(0)))
+                .addPath(
+                        new BezierCurve(
+                                new Pose(144-(110), 50),
+                                new Pose(144-(112), 65),
+                                new Pose(144-(116), 70),
+                                new Pose(144-(120), 70)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(180-(0)), Math.toRadians(180-(0)))
                 .addPath(
                         new BezierLine(
-                                new Pose(26.740, 49.421),
-                                new Pose(56.500, 85.000)
+                                new Pose(144-(120), 70),
+                                new Pose(144-(110), 70)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(210))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(0)), Math.toRadians(180-(0)))
+                .addPath(
+                        new BezierCurve(
+                                new Pose(144-(110), 65),
+                                new Pose(144-(90), 50),
+                                new Pose(144-(88.000), 85.000)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(180-(0)), Math.toRadians(180-(-45)))
                 .build();
 
         gate1Approach = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(56.500, 85.000),
-                                new Pose(36.486, 51.992),
-                                new Pose(18.247, 53.229)
+                                new Pose(144-(88.000), 85.000),
+                                new Pose(144-(105.014), 51.992),
+                                new Pose(144-(123.253), 53.229)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(210), Math.toRadians(135))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(-30)), Math.toRadians(180-(45)))
                 .build();
 
         gate1Nudge = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(18.247, 53.229),
-                                new Pose(21.233, 45.145),
-                                new Pose(18.543, 46.171)
+                                new Pose(144-(123.253), 53.229),
+                                new Pose(144-(120.267), 45.145),
+                                new Pose(144-(129), 47.671)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(135))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(45)), Math.toRadians(180-(45)))
                 .build();
 
         gate1Return = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(18.543, 46.171),
-                                new Pose(33.679, 65.249),
-                                new Pose(56.500, 85.000)
+                                new Pose(144-(130.157), 47.671),
+                                new Pose(144-(107.821), 65.249),
+                                new Pose(144-(88.000), 85.000)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(210))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(45)), Math.toRadians(180-(-45)))
                 .build();
 
         gate2Approach = bot.follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(56.500, 85.000),
-                                new Pose(36.621, 52.398),
-                                new Pose(18.088, 53.118)
+                                new Pose(88.000, 85.000),
+                                new Pose(104.879, 52.398),
+                                new Pose(130.412, 53.118)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(210), Math.toRadians(135))
-                .build();
-
-        gate2Nudge = bot.follower.pathBuilder()
-                .addPath(
-                        new BezierCurve(
-                                new Pose(18.088, 53.118),
-                                new Pose(21.044, 45.832),
-                                new Pose(18.393, 46.516)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(135))
-                .build();
-
-        gate2Return = bot.follower.pathBuilder()
-                .addPath(
-                        new BezierCurve(
-                                new Pose(18.393, 46.516),
-                                new Pose(34.387, 65.987),
-                                new Pose(56.500, 85.000)
-                        )
-                )
-                .setLinearHeadingInterpolation(Math.toRadians(135), Math.toRadians(210))
+                .setLinearHeadingInterpolation(Math.toRadians(180-(-30)), Math.toRadians(180-(45)))
                 .build();
 
         park = bot.follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(56.500, 85.000),
-                                new Pose(55.370, 67.718)
+                                new Pose(144-(88.000), 85.000),
+                                new Pose(144-(115), 55)
                         )
                 )
+                .setReversed()
+                .setTangentHeadingInterpolation()
                 .build();
     }
 
@@ -296,122 +283,122 @@ public class LongBeachCloseAuto extends Auto000 {
             case 0:
                 bot.follower.followPath(preload);
                 setPathState(1);
+                clock.reset();
                 break;
 
             case 1:
                 if (!bot.follower.isBusy()) {
-                    deliver(2);
+                    if(clock.milliseconds() > 200) {
+                        deliver(2);
+                    }
                 }
                 break;
 
-            // ==================== CYCLE 1: FAR SPIKE ====================
+            // ==================== CYCLE 1: CLOSE SPIKE ====================
             case 2:
                 if (!bot.follower.isBusy()) {
                     bot.intakePower(1);
-                    bot.follower.followPath(farSpike);
+                    bot.follower.followPath(closeSpike);
                     setPathState(3);
                 }
                 break;
-
             case 3:
                 if (!bot.follower.isBusy()) {
-                    bot.intakePower(0);
                     if (wasBusy) {
                         clock.reset();
                     }
-                    if (clock.milliseconds() > 150) {
+                    if (clock.milliseconds() > 200) {
                         deliver(4);
                     }
                 }
                 break;
 
-            // ==================== CYCLE 2: CLOSE SPIKE ====================
+
+            // ==================== CYCLE 2: GATE 1 ====================
             case 4:
                 if (!bot.follower.isBusy()) {
-                    bot.intakePower(1);
-                    bot.follower.followPath(closeSpike);
+                    bot.follower.followPath(gate1Approach, 0.85, false);
                     setPathState(5);
                 }
                 break;
 
             case 5:
                 if (!bot.follower.isBusy()) {
-                    bot.intakePower(0);
-                    if (wasBusy) {
-                        clock.reset();
-                    }
-                    if (clock.milliseconds() > 150) {
-                        deliver(6);
-                    }
+                    bot.intakePower(1);
+                    bot.follower.followPath(gate1Nudge, 1, false);
+
+                    setPathState(6);
                 }
                 break;
 
-            // ==================== CYCLE 3: GATE 1 ====================
             case 6:
                 if (!bot.follower.isBusy()) {
-                    bot.follower.followPath(gate1Approach, 0.85, false);
-                    setPathState(7);
+                    if (wasBusy) {
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 1000) {
+                        bot.follower.followPath(gate1Return);
+                        setPathState(7);
+                    }
                 }
                 break;
 
             case 7:
                 if (!bot.follower.isBusy()) {
-                    bot.intakePower(1);
-                    bot.follower.followPath(gate1Nudge, 0.5, false);
-                    setPathState(8);
-                }
-                break;
-
-            case 8:
-                if (!bot.follower.isBusy()) {
                     if (wasBusy) {
                         clock.reset();
                     }
-                    if (clock.milliseconds() > 700) {
-                        bot.intakePower(0);
-                        bot.follower.followPath(gate1Return);
-                        setPathState(9);
+                    if (clock.milliseconds() > 200) {
+                        deliver(8);
                     }
+                }
+                break;
+
+            // ==================== CYCLE 3: GATE 2 ====================
+            case 8:
+                if (!bot.follower.isBusy()) {
+                    bot.follower.followPath(gate1Approach, 0.85, false);
+                    setPathState(9);
                 }
                 break;
 
             case 9:
                 if (!bot.follower.isBusy()) {
-                    if (wasBusy) {
-                        clock.reset();
-                    }
-                    if (clock.milliseconds() > 250) {
-                        deliver(10);
-                    }
+                    bot.intakePower(1);
+                    bot.follower.followPath(gate1Nudge, 1, false);
+                    setPathState(10);
                 }
                 break;
 
-            // ==================== CYCLE 4: GATE 2 ====================
             case 10:
                 if (!bot.follower.isBusy()) {
-                    bot.follower.followPath(gate2Approach, 0.85, false);
-                    setPathState(11);
+                    if (wasBusy) {
+                        clock.reset();
+                    }
+                    if (clock.milliseconds() > 1000) {
+                        bot.follower.followPath(gate1Return);
+                        setPathState(11);
+                    }
                 }
                 break;
 
             case 11:
                 if (!bot.follower.isBusy()) {
-                    bot.intakePower(1);
-                    bot.follower.followPath(gate2Nudge, 0.5, false);
-                    setPathState(12);
-                }
-                break;
-
-            case 12:
-                if (!bot.follower.isBusy()) {
                     if (wasBusy) {
                         clock.reset();
                     }
-                    if (clock.milliseconds() > 600) {
-                        bot.intakePower(0);
-                        bot.follower.followPath(gate2Return);
-                        setPathState(13);
+                    if (clock.milliseconds() > 200) {
+                        deliver(12);
                     }
+                }
+                break;
+
+            // ==================== CYCLE 4: FAR SPIKE ====================
+            case 12:
+                if (!bot.follower.isBusy()) {
+                    bot.intakePower(1);
+                    bot.follower.followPath(farSpike);
+                    setPathState(13);
                 }
                 break;
 
@@ -420,7 +407,7 @@ public class LongBeachCloseAuto extends Auto000 {
                     if (wasBusy) {
                         clock.reset();
                     }
-                    if (clock.milliseconds() > 250) {
+                    if(clock.milliseconds() > 200) {
                         deliver(14);
                     }
                 }
@@ -428,6 +415,9 @@ public class LongBeachCloseAuto extends Auto000 {
 
             // ==================== PARK ====================
             case 14:
+                if (wasBusy) {
+                    clock.reset();
+                }
                 if (!bot.follower.isBusy()) {
                     bot.follower.followPath(park);
                     setPathState(15);
@@ -444,10 +434,15 @@ public class LongBeachCloseAuto extends Auto000 {
 
     @Override
     public void loop() {
+        if(bot.getAllianceColor() == Utilities000.AllianceColor.RED){
+            bot.setManualAimOffsets(3,-0.5);
+        }else{
+            bot.setManualAimOffsets(3,-1);
+        }
         bot.follower.update();
 
         if (pathState != -1) {
-            bot.turrentUpdate();
+            bot.turrentUpdateAuto();
         }
 
         autonomousPathUpdate();
