@@ -639,11 +639,41 @@ public class Utilities000 {
 //        double speed = LOOKUP_TABLE.getInterpolatedState(distance).getRPM();
         return speed + manualFlywheelPowerConstant; //HUY ADJUSTMENT REMOVE LATER
     }
+
+    public double flywheelSpeedFit(int index) {
+        double distance = getGoal().distanceFrom(follower.getPose());
+        double speed = distance * regression.speedSlope + regression.speedYInt;
+
+        if(index == 1){
+            speed = distance * regression.frontAutoSpeedSlope + regression.frontAutoSpeedYInt;
+        } else if(index == 2){
+            speed = distance * regression.backAutoSpeedSlope + regression.backAutoSpeedYInt;
+        }
+//        double speed = distance * 6.75 + 400;
+
+//        double speed = LOOKUP_TABLE.getInterpolatedState(distance).getRPM();
+        return speed + manualFlywheelPowerConstant; //HUY ADJUSTMENT REMOVE LATER
+    }
     private double flywheelPitchFit() {
         double distance = getGoal().distanceFrom(follower.getPose());
 //        double pitch = distance * 0.0034 + 0.331;
 //        double pitch = distance * 0.00554285714286 + 0.25; // Khai-tuned line
         double pitch = distance * regression.pitchSlope + regression.pitchYInt; // Huy-tuned line
+
+//        double pitch = LOOKUP_TABLE.getInterpolatedState(distance).getPitch();
+        return pitch;
+    }
+
+    private double flywheelPitchFit(int index) {
+        double distance = getGoal().distanceFrom(follower.getPose());
+//        double pitch = distance * 0.0034 + 0.331;
+//        double pitch = distance * 0.00554285714286 + 0.25; // Khai-tuned line
+        double pitch = distance * regression.pitchSlope + regression.pitchYInt; // Huy-tuned line
+        if(index == 1){
+            pitch = distance * regression.frontAutoPitchSlope + regression.frontAutoPitchYInt;
+        } else if(index == 2){
+            pitch = distance * regression.backAutoPitchSlope + regression.backAutoPitchYInt;
+        }
 
 //        double pitch = LOOKUP_TABLE.getInterpolatedState(distance).getPitch();
         return pitch;
@@ -662,15 +692,15 @@ public class Utilities000 {
 
     private double[] findShotAuto() {
         double[] values = new double[3];
-        values[0] = flywheelSpeedFit() - 75;
-        values[1] = flywheelPitchFit() - 0.002;
+        values[0] = flywheelSpeedFit(1);
+        values[1] = flywheelPitchFit(1);
         values[2] = aimAtPoint(getGoal());
         return values;
     }
     private double[] findShotAutoBack() {
         double[] values = new double[3];
-        values[0] = flywheelSpeedFit() + 0;
-        values[1] = flywheelPitchFit() - 0.00;
+        values[0] = flywheelSpeedFit(2);
+        values[1] = flywheelPitchFit(2);
         values[2] = aimAtPoint(getGoal());
         return values;
     }
@@ -808,9 +838,21 @@ public class Utilities000 {
     public static class RegressionParams{
         public static double speedSlope = 7.7;
         public static double speedYInt = 1050;
+        public static double frontAutoSpeedSlope = 7.7;
+        public static double frontAutoSpeedYInt = 975;
+        public static double backAutoSpeedSlope = 7.7;
+        public static double backAutoSpeedYInt = 1050;
+
+
+
+
 
         public static double pitchSlope = 0.00704285714286;
         public static double pitchYInt = 0.00;
+        public static double frontAutoPitchSlope = 0.00504285714286;
+        public static double frontAutoPitchYInt = 0.00;
+        public static double backAutoPitchSlope = 0.00704285714286;
+        public static double backAutoPitchYInt = 0.00;
 
     }
 
