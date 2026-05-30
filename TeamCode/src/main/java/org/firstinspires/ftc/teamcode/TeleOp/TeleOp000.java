@@ -110,7 +110,11 @@ public class TeleOp000 extends OpMode {
             bot.move(-gamepad.left_stick_y, -gamepad.left_stick_x, rotate, speedFactor);
         }
         bot.updateOdo();
+
+        bot.vibrateController(gamepad, 0);
         if(aiming){
+
+            bot.vibrateController(gamepad, 0.5);
             if (limeLightStaller.seconds()>0.1) {
                 if (bot.limelightUpdate()) {
                     limeLightStaller.reset();
@@ -120,6 +124,10 @@ public class TeleOp000 extends OpMode {
             if (bot.limelightUpdate()) {
                 limeLightStaller.reset();
             }
+        }
+
+        if(!aiming){
+            bot.vibrateController(gamepad, 0);
         }
     }
 

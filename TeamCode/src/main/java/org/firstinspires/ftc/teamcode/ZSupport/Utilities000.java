@@ -20,6 +20,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
@@ -265,7 +266,7 @@ public class Utilities000 {
     }
     public void setHoodYawAngleTicks(double ticks) {hoodYawMotor.setTargetPosition((int)ticks);}
     public void setHoodYawAngleDegrees(double degrees) {
-        degrees = Math.min(Math.max(degrees, -120), 119);
+        degrees = Math.min(Math.max(degrees, -110), 110);
 
         setHoodYawAngleTicks((int)((degrees+yawShift) * YAW_PULSES_PER_DEGREE));
         opMode.telemetry.addData("yawShift: ", yawShift);
@@ -370,6 +371,14 @@ public class Utilities000 {
 
     public void turrentUpdateAuto() {
         double[] shotVector = findShotAuto();//subtractMovement();
+        flywheelController(shotVector[0]);
+        setHoodPitchAngleTicks(shotVector[1]);
+        setHoodYawAngleDegrees(shotVector[2]);
+//        opMode.telemetry.addData("Turrent: ", shotVector[2]);
+    }
+
+    public void turrentUpdateAutoBack() {
+        double[] shotVector = findShotAutoBack();//subtractMovement();
         flywheelController(shotVector[0]);
         setHoodPitchAngleTicks(shotVector[1]);
         setHoodYawAngleDegrees(shotVector[2]);
@@ -653,10 +662,21 @@ public class Utilities000 {
 
     private double[] findShotAuto() {
         double[] values = new double[3];
-        values[0] = flywheelSpeedFit();
+        values[0] = flywheelSpeedFit() - 75;
         values[1] = flywheelPitchFit() - 0.002;
         values[2] = aimAtPoint(getGoal());
         return values;
+    }
+    private double[] findShotAutoBack() {
+        double[] values = new double[3];
+        values[0] = flywheelSpeedFit() + 0;
+        values[1] = flywheelPitchFit() - 0.00;
+        values[2] = aimAtPoint(getGoal());
+        return values;
+    }
+
+    public void vibrateController(Gamepad gamepad, double value){
+        gamepad.rumble(value/2, value, Gamepad.RUMBLE_DURATION_CONTINUOUS);
     }
 
     private double[] subtractMovement() {

@@ -195,15 +195,18 @@ public class LongBeachBackAuto extends Auto000 {
             clock.reset();
         }
 
-        if (clock.milliseconds() > 0 && clock.milliseconds() < 750) {
+        if (clock.milliseconds() > 0 && clock.milliseconds() < 1000) {
             bot.intakePower(1);
-        }else if(clock.milliseconds() > 750 && clock.milliseconds() < 1500) {
+            bot.setTransferDown();
+        }else if(clock.milliseconds() > 1000 && clock.milliseconds() < 1750) {
             bot.intakePower(intakePower);
             bot.setTransferUp();
-        }else if (clock.milliseconds() > 1500 && clock.milliseconds() < 2000) {
+        }else if (clock.milliseconds() > 1750 && clock.milliseconds() < 2250) {
             bot.intakePower(0);
-        } else if (clock.milliseconds() > 2000 && clock.milliseconds() < 4000) {
+        } else if (clock.milliseconds() > 2250 && clock.milliseconds() < 3000) {
             bot.intakePower(intakePower);
+        }else if (clock.milliseconds() > 3000 && clock.milliseconds() < 4000) {
+            bot.intakePower(1);
         } else if (clock.milliseconds() > 4000) {
             bot.setTransferDown();
             setPathState(nextState);
@@ -215,7 +218,7 @@ public class LongBeachBackAuto extends Auto000 {
             // ===== FIRST SHOT (preloaded) =====
             case 0:
                 if (clock.milliseconds() > 1400) {
-                    deliverBackZone(1, 0.8);
+                    deliverBackZone(1, 0.7);
                 }
                 break;
 
@@ -254,7 +257,9 @@ public class LongBeachBackAuto extends Auto000 {
             // ===== SECOND SHOT =====
             case 4:
                 if (!bot.follower.isBusy()) {
-                    deliverBackZone(5, 0.8);
+                    if (clock.milliseconds() > 400) {
+                        deliverBackZone(5, 0.7);
+                    }
                 }
                 break;
 
@@ -305,7 +310,7 @@ public class LongBeachBackAuto extends Auto000 {
             // ===== THIRD SHOT =====
             case 9:
                 if (!bot.follower.isBusy()) {
-                    deliverBackZone(10, 0.8);
+                    deliverBackZone(10, 0.7);
                 }
                 break;
 
@@ -352,7 +357,7 @@ public class LongBeachBackAuto extends Auto000 {
             // ===== FOURTH SHOT =====
             case 13:
                 if (!bot.follower.isBusy()) {
-                    deliverBackZone(14, 0.8);
+                    deliverBackZone(14, 0.7);
                 }
                 break;
 
@@ -386,7 +391,7 @@ public class LongBeachBackAuto extends Auto000 {
         }
         bot.follower.update();
         if (pathState != -1) {
-            bot.turrentUpdateAuto();
+            bot.turrentUpdateAutoBack();
         }
         autonomousPathUpdate();
         wasBusy = bot.follower.isBusy();
