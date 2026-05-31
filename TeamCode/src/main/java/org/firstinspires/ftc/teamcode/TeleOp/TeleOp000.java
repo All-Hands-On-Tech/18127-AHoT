@@ -229,9 +229,9 @@ public class TeleOp000 extends OpMode {
             }
         }
         if(gamepad.a){
-            shouldRelocalize = true;
-        }else{
             shouldRelocalize = false;
+        }else{
+            shouldRelocalize = true;
         }
         if(gamepad.left_trigger_pressed){
             maxManualAimOffsetMagnitude = 30;
@@ -240,7 +240,7 @@ public class TeleOp000 extends OpMode {
 
     public void handleIntake(Gamepad gamepad){
         if(gamepad.right_trigger > 0.01){
-            bot.intakePower(Math.pow(gamepad.right_trigger,2));
+            bot.intakePower(Math.pow(gamepad.right_trigger,3));
         } else if(gamepad.left_trigger > 0.01){
             bot.intakePower(-gamepad.left_trigger * 0.5);
         } else{
