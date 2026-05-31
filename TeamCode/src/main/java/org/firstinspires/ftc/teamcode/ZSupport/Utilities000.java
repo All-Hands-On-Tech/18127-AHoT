@@ -675,6 +675,7 @@ public class Utilities000 {
             pitch = distance * regression.backAutoPitchSlope + regression.backAutoPitchYInt;
         }
 
+
 //        double pitch = LOOKUP_TABLE.getInterpolatedState(distance).getPitch();
         return pitch;
     }
@@ -847,11 +848,11 @@ public class Utilities000 {
 
 
 
-        public static double pitchSlope = 0.00704285714286;
+        public static double pitchSlope = 0.01204285714286;
         public static double pitchYInt = 0.00;
         public static double frontAutoPitchSlope = 0.00504285714286;
         public static double frontAutoPitchYInt = 0.00;
-        public static double backAutoPitchSlope = 0.00704285714286;
+        public static double backAutoPitchSlope = 0.01204285714286;
         public static double backAutoPitchYInt = 0.0;
 
     }

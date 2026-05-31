@@ -32,6 +32,7 @@ public class TeleOp000 extends OpMode {
     private boolean transfered = false;
     private boolean aiming = false;
     private boolean shootNMove = true;
+    private boolean shouldRelocalize = true;
 
     public boolean flyWheelPowerIsAllowed = true;
 
@@ -115,7 +116,7 @@ public class TeleOp000 extends OpMode {
         if(aiming){
 
             bot.vibrateController(gamepad, 0.5);
-            if (limeLightStaller.seconds()>0.1) {
+            if (limeLightStaller.seconds()>0.1 && shouldRelocalize) {
                 if (bot.limelightUpdate()) {
                     limeLightStaller.reset();
                 }
@@ -173,9 +174,9 @@ public class TeleOp000 extends OpMode {
 
     public void handleAimAssist(Gamepad gamepad){
         if(gamepad.dpadRightWasPressed()) {
-            bot.yawShift += 2;
+            bot.yawShift -= 1;
         } else if (gamepad.dpadLeftWasPressed()) {
-            bot.yawShift -= 2;
+            bot.yawShift += 1;
         }
 
         if(gamepad.xWasPressed()){
@@ -183,10 +184,10 @@ public class TeleOp000 extends OpMode {
         }
 
         if(gamepad.dpadUpWasPressed()){
-            bot.manualFlywheelPowerConstant += 100;
+            bot.manualFlywheelPowerConstant += 50;
         }
         if(gamepad.dpadDownWasPressed()){
-            bot.manualFlywheelPowerConstant -= 100;
+            bot.manualFlywheelPowerConstant -= 50;
         }
         if(gamepad.y){
             if(Math.abs(gamepad.left_stick_x) > 0.05 || Math.abs(gamepad.left_stick_y) > 0.05){
@@ -227,8 +228,10 @@ public class TeleOp000 extends OpMode {
                 bot.setManualAimOffsets(-DefaultManualAimOffset.x, DefaultManualAimOffset.y);
             }
         }
-        if(gamepad.aWasPressed()){
-            bot.limelightUpdate();
+        if(gamepad.a){
+            shouldRelocalize = true;
+        }else{
+            shouldRelocalize = false;
         }
         if(gamepad.left_trigger_pressed){
             maxManualAimOffsetMagnitude = 30;
@@ -237,7 +240,7 @@ public class TeleOp000 extends OpMode {
 
     public void handleIntake(Gamepad gamepad){
         if(gamepad.right_trigger > 0.01){
-            bot.intakePower(gamepad.right_trigger);
+            bot.intakePower(Math.pow(gamepad.right_trigger,2));
         } else if(gamepad.left_trigger > 0.01){
             bot.intakePower(-gamepad.left_trigger * 0.5);
         } else{
