@@ -841,7 +841,7 @@ public class Utilities000 {
         public static double frontAutoSpeedSlope = 7.7;
         public static double frontAutoSpeedYInt = 975;
         public static double backAutoSpeedSlope = 7.7;
-        public static double backAutoSpeedYInt = 1050;
+        public static double backAutoSpeedYInt = 950;
 
 
 
@@ -852,7 +852,7 @@ public class Utilities000 {
         public static double frontAutoPitchSlope = 0.00504285714286;
         public static double frontAutoPitchYInt = 0.00;
         public static double backAutoPitchSlope = 0.00704285714286;
-        public static double backAutoPitchYInt = 0.00;
+        public static double backAutoPitchYInt = 0.0;
 
     }
 
