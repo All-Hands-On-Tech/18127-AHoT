@@ -61,11 +61,13 @@ public class TemperMecanumDriveStudent extends LinearOpMode {
                 iMotor.setPower(1);
                 intakeLeft.setPower(-1);
                 intakeRight.setPower(1);
-            } else if (gamepad1.left_bumper) {
+            }
+            else if (gamepad1.left_bumper) {
                 iMotor.setPower(-1);
                 intakeLeft.setPower(1);
                 intakeRight.setPower(-1);
-            } else {
+            }
+            else {
                     iMotor.setPower(0);
                     intakeLeft.setPower(0);
                     intakeRight.setPower(0);
