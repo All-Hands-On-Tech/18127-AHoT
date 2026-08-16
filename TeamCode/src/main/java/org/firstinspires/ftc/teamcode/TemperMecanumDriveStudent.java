@@ -51,9 +51,11 @@ public class TemperMecanumDriveStudent extends LinearOpMode {
             double rx = -gamepad1.right_stick_x;
             double x = -gamepad1.left_stick_x;
 
+            double leftFrontPower = (223.0/312.0)*(y+x+rx);
+            double rightFrontPower = (223.0/312.0)*(y-x-rx);
 
-            leftFrontDrive.setPower(y+x+rx);
-            rightFrontDrive.setPower(y-x-rx);
+            leftFrontDrive.setPower(leftFrontPower);
+            rightFrontDrive.setPower(rightFrontPower);
             leftBackDrive.setPower(y-x+rx);
             rightBackDrive.setPower(y+x-rx);
 
