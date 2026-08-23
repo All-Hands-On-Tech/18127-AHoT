@@ -222,7 +222,7 @@ public class TemperMecanumTeacher extends LinearOpMode {
 
 		// using average heading for the loop gives a little better tracking
 		double avgHeading = prevHeading + deltaHeading / 2.0;
-
+		//skjdfhksjdfhksdf
 		double deltaFieldX;
 		double deltaFieldY;
 
@@ -238,8 +238,7 @@ public class TemperMecanumTeacher extends LinearOpMode {
 
 			deltaFieldX =
 				(forwardRadius * Math.sin(deltaHeading) + strafeRadius * (Math.cos(deltaHeading) - 1.0)) *
-				Math.cos(prevHeading) -
-				(forwardRadius * (1.0 - Math.cos(deltaHeading)) + strafeRadius * Math.sin(deltaHeading)) *
+				Math.cos(prevHeading) - (forwardRadius * (1.0 - Math.cos(deltaHeading)) + strafeRadius * Math.sin(deltaHeading)) *
 				Math.sin(prevHeading);
 
 			deltaFieldY =

@@ -24,6 +24,12 @@ android {
     }
 }
 
+tasks.register('unitTestClasses') {
+    group = 'build'
+    description = 'Compatibility alias for tooling that expects the legacy unitTestClasses task.'
+    dependsOn 'assembleUnitTest'
+}
+
 dependencies {
     implementation project(':FtcRobotController')
 }
