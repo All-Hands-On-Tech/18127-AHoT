@@ -53,11 +53,28 @@ public class TemperMecanumDriveStudent extends LinearOpMode {
 
             double leftFrontPower = (223.0/312.0)*(y+x+rx);
             double rightFrontPower = (223.0/312.0)*(y-x-rx);
-
+            double leftBackPower = y-x+rx;
+            double rightBackPower = y+x-rx;
+            if ((leftFrontPower < 0.05) && (leftFrontPower > -0.05))
+            {
+                leftFrontPower = 0;
+            }
+            if ((rightFrontPower < 0.05) && (rightFrontPower > -0.05))
+            {
+                rightFrontPower = 0;
+            }
+            if ((leftBackPower < 0.05) && (leftBackPower > -0.05))
+            {
+                leftBackPower = 0;
+            }
+            if ((rightBackPower < 0.05) && (rightBackPower > -0.05))
+            {
+                rightBackPower = 0;
+            }
             leftFrontDrive.setPower(leftFrontPower);
             rightFrontDrive.setPower(rightFrontPower);
-            leftBackDrive.setPower(y-x+rx);
-            rightBackDrive.setPower(y+x-rx);
+            leftBackDrive.setPower(leftBackPower);
+            rightBackDrive.setPower(rightBackPower);
 
             if(gamepad1.right_bumper) {
                 iMotor.setPower(1);
