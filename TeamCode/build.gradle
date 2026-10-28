@@ -24,12 +24,7 @@ android {
     }
 }
 
-tasks.register('unitTestClasses') {
-    group = 'build'
-    description = 'Compatibility alias for tooling that expects the legacy unitTestClasses task.'
-    dependsOn 'assembleUnitTest'
-}
-
 dependencies {
     implementation project(':FtcRobotController')
+    implementation "com.acmerobotics.slothboard:dashboard:0.3.2+0.6.0"
 }
