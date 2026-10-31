@@ -10,22 +10,16 @@ import org.firstinspires.ftc.teamcode.hardware.RobotHardware;
 public class Drivetrain {
     private final RobotHardware hardware;
     private final Auxiliary auxiliary;
-    private final OdometryAimAssist aimAssist;
 
     private Alliance alliance = Alliance.BLUE;
 
     public Drivetrain(HardwareMap hardwareMap) {
         this.hardware = new RobotHardware(hardwareMap);
         this.auxiliary = new Auxiliary(hardware);
-        this.aimAssist = new OdometryAimAssist(hardwareMap);
     }
 
     public boolean hasDrive() {
         return hardware.hasDrive;
-    }
-
-    public boolean hasAimAssist() {
-        return aimAssist != null && aimAssist.isEnabled();
     }
 
     public void setAlliance(Alliance alliance) {
@@ -36,36 +30,31 @@ public class Drivetrain {
         return alliance;
     }
 
-    public OdometryAimAssist getAimAssist() {
-        return aimAssist;
-    }
-
-
-    public void update(Gamepad gamepad, Gamepad gamepad2, boolean aimHeld) {
-        if (aimAssist != null) {
-            aimAssist.updatePose();
-        }
+    public void update(Gamepad gamepad, Gamepad gamepad2, boolean turnOverrideActive, double turnOverride) {
         if (hasDrive()) {
-            updateDrive(gamepad, aimHeld);
+            updateDrive(gamepad, turnOverrideActive, turnOverride);
         }
         updateAuxiliaries(gamepad, gamepad2);
     }
 
-    public void updateDrive(Gamepad gamepad, boolean aimHeld) {
+    public void updateDrive(Gamepad gamepad, boolean turnOverrideActive, double turnOverride) {
         if (!hasDrive()) {
             return;
         }
 
         double forward = -gamepad.left_stick_y * RobotConstants.DRIVE_SPEED_SCALE;
         double strafe = -gamepad.left_stick_x * RobotConstants.STRAFE_SPEED_SCALE;
-        double turn = -gamepad.right_stick_x * RobotConstants.TURN_SPEED_SCALE;
-
-        if (aimHeld && aimAssist != null) {
+        double turn;
+        if (turnOverrideActive) {
             /*
-             * Chassis-only aiming: the robot turns its whole base toward the target point using
-             * odometry heading error, rather than rotating a separate turret mechanism.
+             * Auto-aim: the external turn passed in (e.g. the output of the
+             * AutoAimController) replaces the driver's turn stick. Positive
+             * turn rotates the chassis CCW, matching the Pinpoint CCW-positive
+             * heading, so the controller output can be passed straight through.
              */
-            turn = aimAssist.getTurnCorrection(alliance);
+            turn = turnOverride;
+        } else {
+            turn = -gamepad.right_stick_x * RobotConstants.TURN_SPEED_SCALE;
         }
 
         if (Math.abs(forward) < 0.01 && Math.abs(strafe) < 0.01 && Math.abs(turn) < 0.01) {
@@ -77,7 +66,7 @@ public class Drivetrain {
          * Standard mecanum mix. Drive motor directions are set in RobotHardware so that
          * positive power means "push the robot forward" on every wheel:
          * positive forward = drive forward, positive strafe = strafe right,
-         * positive turn = rotate clockwise.
+         * positive turn = rotate CCW (left wheels get +turn, right wheels -turn).
          */
         double frontLeft = forward + strafe + turn;
         double backLeft = forward - strafe + turn;

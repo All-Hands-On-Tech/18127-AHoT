@@ -19,8 +19,6 @@ public class RobotHardware {
     public final DcMotorEx rightFlywheel;
     public final CRServo continuousServoLeft;
     public final CRServo continuousServoRight;
-    public final Servo flowerLeftServo;
-    public final Servo flowerRightServo;
     public final Servo blockerServo;
     public final Servo axonBlockerServo;
 
@@ -40,8 +38,6 @@ public class RobotHardware {
         rightFlywheel = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.RIGHT_FLYWHEEL_MOTOR) : null;
         continuousServoLeft = hardwareMap != null ? hardwareMap.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_LEFT) : null;
         continuousServoRight = hardwareMap != null ? hardwareMap.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_RIGHT) : null;
-        flowerLeftServo = hardwareMap != null ? hardwareMap.tryGet(Servo.class, RobotConstants.FLOWER_LEFT_SERVO) : null;
-        flowerRightServo = hardwareMap != null ? hardwareMap.tryGet(Servo.class, RobotConstants.FLOWER_RIGHT_SERVO) : null;
         blockerServo = hardwareMap != null ? hardwareMap.tryGet(Servo.class, RobotConstants.BLOCKER_SERVO) : null;
         axonBlockerServo = hardwareMap != null ? hardwareMap.tryGet(Servo.class, RobotConstants.AXON_BLOCKER_SERVO) : null;
 
@@ -74,16 +70,12 @@ public class RobotHardware {
         }
 
         if (continuousServoLeft != null) {
+            continuousServoLeft.setDirection(DcMotorSimple.Direction.FORWARD);
             continuousServoLeft.setPower(0.0);
         }
         if (continuousServoRight != null) {
+            continuousServoRight.setDirection(DcMotorSimple.Direction.REVERSE);
             continuousServoRight.setPower(0.0);
-        }
-        if (flowerLeftServo != null) {
-            flowerLeftServo.setPosition(RobotConstants.FLOWER_DEFAULT_POSITION);
-        }
-        if (flowerRightServo != null) {
-            flowerRightServo.setPosition(RobotConstants.FLOWER_DEFAULT_POSITION);
         }
         if (blockerServo != null) {
             blockerServo.setDirection(Servo.Direction.FORWARD);
@@ -150,20 +142,6 @@ public class RobotHardware {
         }
     }
 
-    public void setFlowerPositions(double leftPosition, double rightPosition) {
-        double clampedLeft = Math.max(RobotConstants.FLOWER_MIN_POSITION,
-                Math.min(RobotConstants.FLOWER_MAX_POSITION, leftPosition));
-        double clampedRight = Math.max(RobotConstants.FLOWER_MIN_POSITION,
-                Math.min(RobotConstants.FLOWER_MAX_POSITION, rightPosition));
-
-        if (flowerLeftServo != null) {
-            flowerLeftServo.setPosition(clampedLeft);
-        }
-        if (flowerRightServo != null) {
-            flowerRightServo.setPosition(clampedRight);
-        }
-    }
-
     public void stopMechanisms() {
         if (intakeMotor != null) {
             intakeMotor.setPower(0.0);
@@ -179,12 +157,6 @@ public class RobotHardware {
         }
         if (continuousServoRight != null) {
             continuousServoRight.setPower(0.0);
-        }
-        if (flowerLeftServo != null) {
-            flowerLeftServo.setPosition(RobotConstants.FLOWER_DEFAULT_POSITION);
-        }
-        if (flowerRightServo != null) {
-            flowerRightServo.setPosition(RobotConstants.FLOWER_DEFAULT_POSITION);
         }
     }
 }
