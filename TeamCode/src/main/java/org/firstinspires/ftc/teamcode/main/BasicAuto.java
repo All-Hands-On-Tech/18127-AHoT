@@ -55,6 +55,9 @@ public class BasicAuto extends LinearOpMode {
         ElapsedTime stageTimer = new ElapsedTime();
         boolean flywheelEnabled = false;
         boolean gateOpen = false;
+        double autoStartHeadingRadians = Math.toRadians(RobotConstants.AUTO_START_HEADING_DEG);
+        double startXInches = 0.0;
+        double startYInches = 0.0;
 
         while (!isStarted() && !isStopRequested()) {
             telemetry.addData("Basic auto", "ready - place robot facing the goal");
@@ -65,6 +68,8 @@ public class BasicAuto extends LinearOpMode {
         }
 
         stageTimer.reset();
+        startXInches = localizer.getXInches();
+        startYInches = localizer.getYInches();
 
         while (opModeIsActive()) {
             // One Pinpoint update per loop, always, before anything reads it.
@@ -77,7 +82,7 @@ public class BasicAuto extends LinearOpMode {
                     // Straight line holding AUTO_START_HEADING_DEG so the drive
                     // does not curve off; Pinpoint is the distance source.
                     double headingError = FieldGeometry.angleWrap(
-                            Math.toRadians(RobotConstants.AUTO_START_HEADING_DEG) - localizer.getHeadingRadians());
+                            autoStartHeadingRadians - localizer.getHeadingRadians());
                     double turn = Range.clip(
                             RobotConstants.AUTO_HEADING_HOLD_GAIN * headingError,
                             -RobotConstants.AUTO_HEADING_MAX_TURN,
@@ -85,7 +90,12 @@ public class BasicAuto extends LinearOpMode {
                     double power = RobotConstants.AUTO_DRIVE_POWER;
                     hardware.setDrivePowers(power + turn, power + turn, power - turn, power - turn);
 
-                    if (localizer.getXInches() >= RobotConstants.AUTO_DRIVE_DISTANCE_IN
+                    double deltaX = localizer.getXInches() - startXInches;
+                    double deltaY = localizer.getYInches() - startYInches;
+                    double forwardDistanceInches = (deltaX * Math.cos(autoStartHeadingRadians))
+                            + (deltaY * Math.sin(autoStartHeadingRadians));
+
+                    if (forwardDistanceInches >= RobotConstants.AUTO_DRIVE_DISTANCE_IN
                             || stageTimer.seconds() > RobotConstants.AUTO_DRIVE_TIMEOUT_S) {
                         hardware.setDrivePowers(0.0, 0.0, 0.0, 0.0);
                         // Arrived at the corner: snap the heading estimate to
