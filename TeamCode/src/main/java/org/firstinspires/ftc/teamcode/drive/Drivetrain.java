@@ -3,30 +3,28 @@ package org.firstinspires.ftc.teamcode.drive;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.teamcode.auxiliary.Auxiliary;
+import org.firstinspires.ftc.teamcode.auxiliary.Navigation;
 import org.firstinspires.ftc.teamcode.config.RobotConstants;
 import org.firstinspires.ftc.teamcode.hardware.RobotHardware;
 
 public class Drivetrain {
     private final RobotHardware hardware;
-    private final Auxiliary auxiliary;
 
-    private Alliance alliance = Alliance.BLUE;
+    private Navigation.Alliance alliance = Navigation.Alliance.BLUE;
 
     public Drivetrain(HardwareMap hardwareMap) {
         this.hardware = new RobotHardware(hardwareMap);
-        this.auxiliary = new Auxiliary(hardware);
     }
 
     public boolean hasDrive() {
         return hardware.hasDrive;
     }
 
-    public void setAlliance(Alliance alliance) {
+    public void setAlliance(Navigation.Alliance alliance) {
         this.alliance = alliance;
     }
 
-    public Alliance getAlliance() {
+    public Navigation.Alliance getAlliance() {
         return alliance;
     }
 
@@ -47,8 +45,8 @@ public class Drivetrain {
         double turn;
         if (turnOverrideActive) {
             /*
-             * Auto-aim: the external turn passed in (e.g. the output of the
-             * AutoAimController) replaces the driver's turn stick. Positive
+             * Auto-aim: the external turn passed in (e.g. the output of
+             * Navigation.AutoAim) replaces the driver's turn stick. Positive
              * turn rotates the chassis CCW, matching the Pinpoint CCW-positive
              * heading, so the controller output can be passed straight through.
              */
@@ -88,11 +86,11 @@ public class Drivetrain {
     public void updateAuxiliaries(Gamepad gamepad, Gamepad gamepad2) {
         if (hardware.intakeMotor != null) {
             if (gamepad.right_trigger > 0.05) {
-                auxiliary.setIntakePower(gamepad.right_trigger * RobotConstants.INTAKE_POWER);
+                hardware.intakeMotor.setPower(gamepad.right_trigger * RobotConstants.INTAKE_POWER);
             } else if (gamepad.left_trigger > 0.05) {
-                auxiliary.setIntakePower(-gamepad.left_trigger * RobotConstants.INTAKE_POWER);
+                hardware.intakeMotor.setPower(-gamepad.left_trigger * RobotConstants.INTAKE_POWER);
             } else {
-                auxiliary.stopIntake();
+                hardware.intakeMotor.setPower(0.0);
             }
         }
     }
@@ -101,6 +99,5 @@ public class Drivetrain {
         if (hardware.hasDrive) {
             hardware.stopDrive();
         }
-        auxiliary.stopAll();
     }
 }

@@ -15,7 +15,10 @@ public class RobotHardware {
     public final DcMotorEx frontRightDrive;
     public final DcMotorEx backRightDrive;
     public final DcMotorEx intakeMotor;
+    public final DcMotorEx shooterMotor;
+    @Deprecated
     public final DcMotorEx leftFlywheel;
+    @Deprecated
     public final DcMotorEx rightFlywheel;
     public final CRServo continuousServoLeft;
     public final CRServo continuousServoRight;
@@ -34,8 +37,9 @@ public class RobotHardware {
         backRightDrive = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.BACK_RIGHT_DRIVE) : null;
 
         intakeMotor = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.INTAKE_MOTOR) : null;
-        leftFlywheel = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.LEFT_FLYWHEEL_MOTOR) : null;
-        rightFlywheel = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.RIGHT_FLYWHEEL_MOTOR) : null;
+        shooterMotor = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.SHOOTER_MOTOR) : null;
+        leftFlywheel = shooterMotor;
+        rightFlywheel = shooterMotor;
         continuousServoLeft = hardwareMap != null ? hardwareMap.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_LEFT) : null;
         continuousServoRight = hardwareMap != null ? hardwareMap.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_RIGHT) : null;
         blockerServo = hardwareMap != null ? hardwareMap.tryGet(Servo.class, RobotConstants.BLOCKER_SERVO) : null;
@@ -43,8 +47,8 @@ public class RobotHardware {
 
         hasDrive = frontLeftDrive != null && backLeftDrive != null && frontRightDrive != null && backRightDrive != null;
         hasIntake = intakeMotor != null;
-        hasFlywheels = leftFlywheel != null && rightFlywheel != null;
-        hasContinuousServos = continuousServoLeft != null && continuousServoRight != null;
+        hasFlywheels = shooterMotor != null;
+        hasContinuousServos = continuousServoLeft != null || continuousServoRight != null;
 
         configureMechanisms();
     }
@@ -57,24 +61,18 @@ public class RobotHardware {
             intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         }
 
-        if (leftFlywheel != null) {
-            leftFlywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-            leftFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            leftFlywheel.setDirection(DcMotor.Direction.FORWARD);
-        }
-
-        if (rightFlywheel != null) {
-            rightFlywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-            rightFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            rightFlywheel.setDirection(DcMotor.Direction.REVERSE);
+        if (shooterMotor != null) {
+            shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            shooterMotor.setDirection(DcMotor.Direction.FORWARD);
         }
 
         if (continuousServoLeft != null) {
-            continuousServoLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+            continuousServoLeft.setDirection(DcMotorSimple.Direction.REVERSE);
             continuousServoLeft.setPower(0.0);
         }
         if (continuousServoRight != null) {
-            continuousServoRight.setDirection(DcMotorSimple.Direction.REVERSE);
+            continuousServoRight.setDirection(DcMotorSimple.Direction.FORWARD);
             continuousServoRight.setPower(0.0);
         }
         if (blockerServo != null) {
@@ -146,11 +144,8 @@ public class RobotHardware {
         if (intakeMotor != null) {
             intakeMotor.setPower(0.0);
         }
-        if (leftFlywheel != null) {
-            leftFlywheel.setPower(0.0);
-        }
-        if (rightFlywheel != null) {
-            rightFlywheel.setPower(0.0);
+        if (shooterMotor != null) {
+            shooterMotor.setPower(0.0);
         }
         if (continuousServoLeft != null) {
             continuousServoLeft.setPower(0.0);

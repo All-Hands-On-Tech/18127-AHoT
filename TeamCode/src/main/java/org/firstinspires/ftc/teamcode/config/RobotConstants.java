@@ -17,8 +17,7 @@ public final class RobotConstants {
     public static String FRONT_RIGHT_DRIVE = "front_right_drive";
     public static String BACK_RIGHT_DRIVE = "back_right_drive";
     public static String INTAKE_MOTOR = "intake";
-    public static String LEFT_FLYWHEEL_MOTOR = "left_flywheel";
-    public static String RIGHT_FLYWHEEL_MOTOR = "right_flywheel";
+    public static String SHOOTER_MOTOR = "shooter";
     public static String CONTINUOUS_SERVO_LEFT = "flower_right_servo";
     public static String CONTINUOUS_SERVO_RIGHT = "flower_left_servo";
     public static String BLOCKER_SERVO = "blocker_servo";
@@ -44,28 +43,29 @@ public final class RobotConstants {
     public static double STRAFE_SPEED_SCALE = 0.8;
     public static double TURN_SPEED_SCALE = 0.8;
     public static double INTAKE_POWER = 1.0;
-    public static double FLYWHEEL_TICKS_PER_SECOND = 1490.0;
+    public static double FLYWHEEL_TICKS_PER_SECOND = 1257.0;
 
+    // Built-in motor PIDF coefficients. Tune these live from FTC Dashboard.
+    public static double FLYWHEEL_P = 67.0;
+    public static double FLYWHEEL_I = 0.0;
+    public static double FLYWHEEL_D = 0.0;
+    public static double FLYWHEEL_F = 7.0;
 
+    // Legacy aliases kept for older tuning code while the live controller uses the
+    // dashboard-configurable P/I/D/F values above.
+    public static double FLYWHEEL_KP = FLYWHEEL_P;
+    public static double FLYWHEEL_KI = FLYWHEEL_I;
+    public static double FLYWHEEL_KD = FLYWHEEL_D;
+    public static double FLYWHEEL_KV = FLYWHEEL_F;
 
-    public static double FLYWHEEL_KS = -0.010166;
-    public static double FLYWHEEL_KV = 0.000400540;
-    public static double FLYWHEEL_KP = 0.001256446;
-    public static double FLYWHEEL_KI = 0.003378923;
-    public static double FLYWHEEL_KD = 0.0;       // tuner leaves this at 0 (velocity is too noisy)
-
-    // Control-law parameters the tuner used while producing the constants above.
-    public static double FLYWHEEL_NOMINAL_VOLTAGE = 12.0;  // voltage the constants were tuned at
-    public static double FLYWHEEL_BOOST_FRACTION = 0.15;   // full power when error > this fraction of target (coast when below -this)
-    public static double FLYWHEEL_INTEGRAL_LIMIT = 0.25;   // max power contribution of the integral term (anti-windup)
-    public static double FLYWHEEL_READY_BAND = 0.025;      // within +-2.5% of target counts as "at speed"
+    public static double FLYWHEEL_READY_BAND = 0.05;      // 5% window while tuning the built-in loop
 
     // Aiming positions in field coordinates, inches. The robot should aim at the
     // nearest target for its alliance.
     public static double[] RED_AIM_XS = {56.77, 57.41};
     public static double[] RED_AIM_YS = {58.15, 84.83};
     public static double[] BLUE_AIM_XS = {83.93, 84.25};
-    public static double[] BLUE_AIM_YS = {56.88, 81.02};t
+    public static double[] BLUE_AIM_YS = {56.88, 81.02};
     public static double AIM_TURN_GAIN = 1.0;
     public static double AIM_MAX_TURN = 0.40;
     public static double AIM_DEADBAND_RADIANS = Math.toRadians(1.0);
