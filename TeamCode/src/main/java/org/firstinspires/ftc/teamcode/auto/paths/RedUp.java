@@ -85,16 +85,20 @@ public final class RedUp implements PedroAuto.AutoPath {
     @Override
     public Command plan(Follower follower) {
         return sequential(
-                Auxiliaries.shooterOn(0.0, 0.5, 1.0),
+                Auxiliaries.shooterOn(0.0, 0.5, 0.0, true),
                 PedroCommands.follow(follower, path1()),
-                Auxiliaries.shoot(0.0, 1.0),
+                Auxiliaries.shoot(0.0, 3.0),
+                Auxiliaries.flowerRampDown(0.0, 1.0, 0.0, true),
                 PedroCommands.follow(follower, path2()),
-                Auxiliaries.flowerRampDown(0.0, 1.0),
                 PedroCommands.follow(follower, path3()),
-                Auxiliaries.intakeOn(0.0, 1.5),
+                Auxiliaries.intakeOn(0.0, 3.5, 0.0, true),
+                Auxiliaries.intakeOff(0.0, 1.0, 0.0, true),
+                Auxiliaries.flowerRampUp(0.4, 1.0, 0.0, true),
                 PedroCommands.follow(follower, path4()),
                 Auxiliaries.shoot(0.0, 1.0),
+                Auxiliaries.flowerRampDown(0.0, 1.0, 0.0, true),
                 PedroCommands.follow(follower, path5()),
+                Auxiliaries.intakeOn(0.0, 3.0, 0.0, false),
                 PedroCommands.follow(follower, path6()),
                 Auxiliaries.shoot(0.0, 1.0),
                 PedroCommands.follow(follower, path7())
