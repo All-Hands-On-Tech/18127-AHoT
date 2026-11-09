@@ -169,9 +169,9 @@ public final class Navigation {
                     RobotConstants.PINPOINT_X_POD_DIRECTION,
                     RobotConstants.PINPOINT_Y_POD_DIRECTION);
 
-            // Zero the pose and recalibrate the built-in IMU. Robot must be stationary here.
-            device.resetPosAndIMU();
-            sleep(IMU_CALIBRATION_WAIT_MS);
+            // Do not reset the pose or IMU in the constructor. Resetting here can move
+            // the robot or disturb the drivetrain during initialization, and the drive
+            // code should not self-localize unless it is explicitly commanded to.
             update();
         }
 

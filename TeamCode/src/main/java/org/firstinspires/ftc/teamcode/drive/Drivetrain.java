@@ -40,7 +40,7 @@ public class Drivetrain {
             return;
         }
 
-        double forward = -gamepad.left_stick_y * RobotConstants.DRIVE_SPEED_SCALE;
+        double forward = gamepad.left_stick_y * RobotConstants.DRIVE_SPEED_SCALE;
         double strafe = -gamepad.left_stick_x * RobotConstants.STRAFE_SPEED_SCALE;
         double turn;
         if (turnOverrideActive) {
