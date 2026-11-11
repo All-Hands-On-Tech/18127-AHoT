@@ -84,13 +84,9 @@ public class PedroAuto extends LinearOpMode {
             telemetry.update();
         }
 
-        // Stop mechanisms, hand the Pedro pose to TeleOp.
         Scheduler.reset();
         Auxiliaries.shutdown();
-        follower.localizer.update();
-        Pose pose = follower.pose();
         follower.stop();
-        Navigation.PoseStorage.save(pose.x(), pose.y(), pose.heading());
     }
 
     private AutoPath pickPlan(Navigation.Alliance alliance, Side side) {

@@ -8,7 +8,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.auxiliary.FlywheelController;
 import org.firstinspires.ftc.teamcode.auxiliary.Navigation;
 import org.firstinspires.ftc.teamcode.config.RobotConstants;
-import org.firstinspires.ftc.teamcode.drive.Drivetrain;
 import org.firstinspires.ftc.teamcode.hardware.RobotHardware;
 
 @TeleOp(name = "Main: BBB Driver (old)", group = "Old")

@@ -9,149 +9,54 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.config.RobotConstants;
 
+/** Mechanisms only. The drivetrain belongs to Pedro (see Constants.java). */
 public class RobotHardware {
-    public final DcMotorEx frontLeftDrive;
-    public final DcMotorEx backLeftDrive;
-    public final DcMotorEx frontRightDrive;
-    public final DcMotorEx backRightDrive;
     public final DcMotorEx intakeMotor;
     public final DcMotorEx shooterMotor;
-    @Deprecated
-    public final DcMotorEx leftFlywheel;
-    @Deprecated
-    public final DcMotorEx rightFlywheel;
-    public final CRServo continuousServoLeft;
-    public final CRServo continuousServoRight;
-    public final Servo blockerServo;
-    public final Servo axonBlockerServo;
+    private final CRServo flowerLeft;
+    private final CRServo flowerRight;
+    private final Servo blockerServo;
+    private final Servo axonBlockerServo;
 
-    public final boolean hasDrive;
-    public final boolean hasIntake;
-    public final boolean hasFlywheels;
-    public final boolean hasContinuousServos;
-
-    public RobotHardware(HardwareMap hardwareMap) {
-        frontLeftDrive = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.FRONT_LEFT_DRIVE) : null;
-        backLeftDrive = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.BACK_LEFT_DRIVE) : null;
-        frontRightDrive = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.FRONT_RIGHT_DRIVE) : null;
-        backRightDrive = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.BACK_RIGHT_DRIVE) : null;
-
-        intakeMotor = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.INTAKE_MOTOR) : null;
-        shooterMotor = hardwareMap != null ? hardwareMap.tryGet(DcMotorEx.class, RobotConstants.SHOOTER_MOTOR) : null;
-        leftFlywheel = shooterMotor;
-        rightFlywheel = shooterMotor;
-        continuousServoLeft = hardwareMap != null ? hardwareMap.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_LEFT) : null;
-        continuousServoRight = hardwareMap != null ? hardwareMap.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_RIGHT) : null;
-        blockerServo = hardwareMap != null ? hardwareMap.tryGet(Servo.class, RobotConstants.BLOCKER_SERVO) : null;
-        axonBlockerServo = hardwareMap != null ? hardwareMap.tryGet(Servo.class, RobotConstants.AXON_BLOCKER_SERVO) : null;
-
-        hasDrive = frontLeftDrive != null && backLeftDrive != null && frontRightDrive != null && backRightDrive != null;
-        hasIntake = intakeMotor != null;
-        hasFlywheels = shooterMotor != null;
-        hasContinuousServos = continuousServoLeft != null || continuousServoRight != null;
-
-        configureMechanisms();
-    }
-
-    private void configureMechanisms() {
-        configureDriveMotors();
+    public RobotHardware(HardwareMap map) {
+        intakeMotor = map.tryGet(DcMotorEx.class, RobotConstants.INTAKE_MOTOR);
+        shooterMotor = map.tryGet(DcMotorEx.class, RobotConstants.SHOOTER_MOTOR);
+        flowerLeft = map.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_LEFT);
+        flowerRight = map.tryGet(CRServo.class, RobotConstants.CONTINUOUS_SERVO_RIGHT);
+        blockerServo = map.tryGet(Servo.class, RobotConstants.BLOCKER_SERVO);
+        axonBlockerServo = map.tryGet(Servo.class, RobotConstants.AXON_BLOCKER_SERVO);
 
         if (intakeMotor != null) {
             intakeMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         }
-
         if (shooterMotor != null) {
-            shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-            shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             shooterMotor.setDirection(DcMotor.Direction.FORWARD);
         }
-
-        if (continuousServoLeft != null) {
-            continuousServoLeft.setDirection(DcMotorSimple.Direction.REVERSE);
-            continuousServoLeft.setPower(0.0);
-        }
-        if (continuousServoRight != null) {
-            continuousServoRight.setDirection(DcMotorSimple.Direction.FORWARD);
-            continuousServoRight.setPower(0.0);
-        }
-        if (blockerServo != null) {
-            blockerServo.setDirection(Servo.Direction.FORWARD);
-            blockerServo.setPosition(0.5);
-        }
-        if (axonBlockerServo != null) {
-            axonBlockerServo.setDirection(Servo.Direction.FORWARD);
-            axonBlockerServo.setPosition(0.5);
-        }
+        if (flowerLeft != null) flowerLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        if (flowerRight != null) flowerRight.setDirection(DcMotorSimple.Direction.FORWARD);
+        setFlowerPower(0.0);
+        setBlockerClosed(false);
     }
 
-    /**
-     * Directions are set so that positive power means "push the robot forward" on
-     * every wheel, which the standard mecanum mix in Drivetrain relies on.
-     */
-    private void configureDriveMotors() {
-        if (frontLeftDrive != null) {
-            frontLeftDrive.setDirection(DcMotorSimple.Direction.FORWARD);
-            frontLeftDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            frontLeftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        }
-        if (backLeftDrive != null) {
-            backLeftDrive.setDirection(DcMotorSimple.Direction.FORWARD);
-            backLeftDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            backLeftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        }
-        if (frontRightDrive != null) {
-            frontRightDrive.setDirection(DcMotorSimple.Direction.REVERSE);
-            frontRightDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            frontRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        }
-        if (backRightDrive != null) {
-            backRightDrive.setDirection(DcMotorSimple.Direction.REVERSE);
-            backRightDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            backRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        }
+    public void setIntakePower(double power) {
+        if (intakeMotor != null) intakeMotor.setPower(power);
     }
 
-    public void setDrivePowers(double frontLeft, double backLeft, double frontRight, double backRight) {
-        if (frontLeftDrive != null) {
-            frontLeftDrive.setPower(frontLeft);
-        }
-        if (backLeftDrive != null) {
-            backLeftDrive.setPower(backLeft);
-        }
-        if (frontRightDrive != null) {
-            frontRightDrive.setPower(frontRight);
-        }
-        if (backRightDrive != null) {
-            backRightDrive.setPower(backRight);
-        }
-    }
-
-    public void stopDrive() {
-        setDrivePowers(0.0, 0.0, 0.0, 0.0);
+    public void setFlowerPower(double power) {
+        if (flowerLeft != null) flowerLeft.setPower(power);
+        if (flowerRight != null) flowerRight.setPower(power);
     }
 
     public void setBlockerClosed(boolean closed) {
-        if (blockerServo != null) {
-            blockerServo.setPosition(closed ? 0.9 : 0.5);
-        }
-        if (axonBlockerServo != null) {
-            axonBlockerServo.setPosition(closed ? 0.9 : 0.5);
-        }
+        double position = closed ? 0.9 : 0.5;
+        if (blockerServo != null) blockerServo.setPosition(position);
+        if (axonBlockerServo != null) axonBlockerServo.setPosition(position);
     }
 
     public void stopMechanisms() {
-        if (intakeMotor != null) {
-            intakeMotor.setPower(0.0);
-        }
-        if (shooterMotor != null) {
-            shooterMotor.setPower(0.0);
-        }
-        if (continuousServoLeft != null) {
-            continuousServoLeft.setPower(0.0);
-        }
-        if (continuousServoRight != null) {
-            continuousServoRight.setPower(0.0);
-        }
+        setIntakePower(0.0);
+        setFlowerPower(0.0);
+        if (shooterMotor != null) shooterMotor.setPower(0.0);
     }
 }
