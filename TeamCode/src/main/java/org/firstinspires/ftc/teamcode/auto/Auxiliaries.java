@@ -6,6 +6,7 @@ import com.pedropathing.ivy.CommandBuilder;
 import com.pedropathing.ivy.commands.Commands;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -60,6 +61,12 @@ public final class Auxiliaries {
             axonBlockerServo = hardwareMap.tryGet(Servo.class, RobotConstants.AXON_BLOCKER_SERVO);
             flywheel = new FlywheelController(
                     hardwareMap.tryGet(DcMotorEx.class, RobotConstants.SHOOTER_MOTOR), null);
+        }
+        if (flowerLeft != null) {
+            flowerLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        }
+        if (flowerRight != null) {
+            flowerRight.setDirection(DcMotorSimple.Direction.FORWARD);
         }
         gateIsClosed = false;
         flowerPower = 0.0;
@@ -124,8 +131,13 @@ public final class Auxiliaries {
                                           double afterSeconds, boolean moveAtSameTime) {
         return sequential(
                 gateClosed(beforeSeconds, 0.0, 0.0, moveAtSameTime),
-                spinUp(actionSeconds),
-                Commands.waitMs(toMillis(afterSeconds)));
+                Commands.instant(() -> {
+                    if (flywheel != null) {
+                        flywheel.setTarget(FLYWHEEL_TARGET_TICKS_PER_SECOND);
+                        flywheel.update();
+                    }
+                }),
+                Commands.waitMs(toMillis(actionSeconds + afterSeconds)));
     }
 
     public static CommandBuilder shooterOn(double beforeSeconds, double actionSeconds,
@@ -160,10 +172,23 @@ public final class Auxiliaries {
 
     public static CommandBuilder intakeOn(double beforeSeconds, double actionSeconds,
                                          double afterSeconds, boolean moveAtSameTime) {
+        return intakeOn(beforeSeconds, actionSeconds, afterSeconds, moveAtSameTime, true);
+    }
+
+    public static CommandBuilder intakeOn(double beforeSeconds, double actionSeconds,
+                                         double afterSeconds, boolean moveAtSameTime,
+                                         boolean openGateForIntake) {
         return sequential(
                 gateClosed(beforeSeconds, 0.0, 0.0, moveAtSameTime),
-                Commands.waitUntil(Auxiliaries::shooterReady),
-                gateOpen(0.0, 0.0, 0.0, false),
+                Commands.instant(() -> {
+                    if (flywheel != null) {
+                        flywheel.setTarget(FLYWHEEL_TARGET_TICKS_PER_SECOND);
+                        flywheel.update();
+                    }
+                }),
+                openGateForIntake
+                        ? gateOpen(0.0, 0.0, 0.0, false)
+                        : Commands.instant(() -> setGate(true)),
                 feed(actionSeconds),
                 Commands.waitMs(toMillis(afterSeconds)));
     }
@@ -226,7 +251,12 @@ public final class Auxiliaries {
                                       double afterSeconds, boolean moveAtSameTime) {
         return sequential(
                 Commands.waitMs(toMillis(beforeSeconds)),
-                shooterOn(0.0, 0.0, 0.0, moveAtSameTime),
+                Commands.instant(() -> {
+                    if (flywheel != null) {
+                        flywheel.setTarget(FLYWHEEL_TARGET_TICKS_PER_SECOND);
+                        flywheel.update();
+                    }
+                }),
                 gateOpen(0.0, 0.0, 0.0, false),
                 feed(actionSeconds),
                 Commands.waitMs(toMillis(afterSeconds)));

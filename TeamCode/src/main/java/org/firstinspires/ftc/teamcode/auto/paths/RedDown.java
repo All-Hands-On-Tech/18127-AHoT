@@ -58,14 +58,14 @@ public final class RedDown implements PedroAuto.AutoPath {
     public Command plan(Follower follower) {
         return sequential(  
                 //move and then shoot first time
-                Auxiliaries.shooterOn(0.0, 0.5, 0.0, true),
+                Auxiliaries.shooterOn(0.0, 0.0),
                 PedroCommands.follow(follower, path1()),
                 Auxiliaries.shoot(0.0, 3.0),
 
                 //prepare to and then grab pollen from flower
                 Auxiliaries.flowerRampDown(0.0, 1.0, 0.0, true),
                 PedroCommands.follow(follower, path2()),
-                Auxiliaries.intakeOn(0.0, 3.5, 0.0, true),
+                Auxiliaries.intakeOn(0.0, 3.5, 0.0, true, false),
                 Auxiliaries.intakeOff(0.0, 1.0, 0.0, true),
 
                 //prepare to, move and then shoot again
