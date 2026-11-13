@@ -25,10 +25,15 @@ public class FlywheelController {
 
     /** Re-applies the Dashboard PIDF every call so live edits take effect. */
     public void update() {
+        update(RobotConstants.FLYWHEEL_P, RobotConstants.FLYWHEEL_I,
+                RobotConstants.FLYWHEEL_D, RobotConstants.FLYWHEEL_F);
+    }
+
+    /** Same as update(), but with explicit gains (used by auto). */
+    public void update(double p, double i, double d, double f) {
         if (motor == null) return;
         motor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER,
-                new PIDFCoefficients(RobotConstants.FLYWHEEL_P, RobotConstants.FLYWHEEL_I,
-                        RobotConstants.FLYWHEEL_D, RobotConstants.FLYWHEEL_F));
+                new PIDFCoefficients(p, i, d, f));
         motor.setVelocity(target);
     }
 

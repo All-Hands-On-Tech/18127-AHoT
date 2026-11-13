@@ -15,32 +15,40 @@ import static com.pedropathing.ivy.groups.Groups.sequential;
 
 /**
  * Mechanism actions for the auto plans. "before" = seconds to wait first;
- * "instant" = true means the gate move doesn't wait for the servo to settle
- * (use it for actions that run while the robot is driving).
+ * "instant" = true means the gate move doesn't wait for the servo to settle.
+ * To run an action while the robot is driving, attach it to the drive command:
+ * PedroCommands.follow(follower, path).with(Auxiliaries.shoot(1.5, 3.0, 0.0))
  */
 @Config("AutoAuxiliaries")
 public final class Auxiliaries {
     private Auxiliaries() {
     }
 
-    public static double FLYWHEEL_TARGET_TICKS_PER_SECOND = RobotConstants.FLYWHEEL_TICKS_PER_SECOND;
+    public static double FLYWHEEL_TARGET_TICKS_PER_SECOND = 1225.0;
+
+    // Auto-only flywheel PIDF (TeleOp uses RobotConstants.FLYWHEEL_P/I/D/F)
+    public static double AUTO_FLYWHEEL_P = RobotConstants.FLYWHEEL_P + 2.0;
+    public static double AUTO_FLYWHEEL_I = RobotConstants.FLYWHEEL_I;
+    public static double AUTO_FLYWHEEL_D = RobotConstants.FLYWHEEL_D;
+    public static double AUTO_FLYWHEEL_F = RobotConstants.FLYWHEEL_F + 0.7;
+
     public static double GATE_SETTLE_SECONDS = 0.30;
     public static double INTAKE_POWER = RobotConstants.INTAKE_POWER;
-    public static double FLOWER_POWER = 1.0;
+    public static double FLOWER_DOWN_POWER = -1.0;    // flowerRampDown only
+    public static double FLOWER_UP_POWER = 1.0;       // flowerRampUp only
 
     private static RobotHardware hardware;
     private static FlywheelController flywheel;
-    private static double flowerPower = 0.0;
 
     public static void init(HardwareMap map) {
         hardware = new RobotHardware(map);
         flywheel = new FlywheelController(hardware.shooterMotor);
-        flowerPower = 0.0;
     }
 
     public static void shutdown() {
         if (flywheel != null) flywheel.stop();
         secure();
+        hardware.setFlowerPower(0.0);
     }
 
     // ------------------------------------------------------------- actions
@@ -59,12 +67,12 @@ public final class Auxiliaries {
     }
 
     public static CommandBuilder intakeOn(double before, double runSeconds, boolean instant,
-                                          boolean openGate) {
+                                          boolean openGate, double power) {
         return sequential(
                 gate(true, before, instant),
                 startFlywheel(),
                 openGate ? gate(false, 0.0, false) : Commands.instant(() -> hardware.setBlockerClosed(true)),
-                feed(runSeconds));
+                feed(runSeconds, power));
     }
 
     public static CommandBuilder intakeOff(double before, boolean instant) {
@@ -73,20 +81,24 @@ public final class Auxiliaries {
                 Commands.instant(() -> secure()));
     }
 
-    public static CommandBuilder flowerRampUp(double before, double rampSeconds, boolean instant) {
-        return rampFlower(before, rampSeconds, FLOWER_POWER, instant);
+    public static CommandBuilder flowerRampUp(double before, double runSeconds, boolean instant) {
+        return pulseFlower(before, runSeconds, FLOWER_UP_POWER, instant);
     }
 
-    public static CommandBuilder flowerRampDown(double before, double rampSeconds, boolean instant) {
-        return rampFlower(before, rampSeconds, 0.0, instant);
+    public static CommandBuilder flowerRampDown(double before, double runSeconds, boolean instant) {
+        return pulseFlower(before, runSeconds, FLOWER_DOWN_POWER, instant);
     }
 
-    public static CommandBuilder shoot(double before, double feedSeconds) {
+    public static CommandBuilder shoot(double before, double feedSeconds, double power) {
         return sequential(
                 Commands.waitMs(ms(before)),
                 startFlywheel(),
                 gate(false, 0.0, false),
-                feed(feedSeconds));
+                feed(feedSeconds, power));
+    }
+
+    public static Command wait(double seconds) {
+        return Commands.waitMs(ms(seconds));
     }
 
     // ------------------------------------------------------------- helpers
@@ -110,53 +122,48 @@ public final class Auxiliaries {
                         .setDone(() -> settle.seconds() >= GATE_SETTLE_SECONDS));
     }
 
+    /** Applies the auto PIDF and target. Re-read from Dashboard every time this runs. */
     private static CommandBuilder startFlywheel() {
         return Commands.instant(() -> {
             flywheel.setTarget(FLYWHEEL_TARGET_TICKS_PER_SECOND);
-            flywheel.update();
+            flywheel.update(AUTO_FLYWHEEL_P, AUTO_FLYWHEEL_I, AUTO_FLYWHEEL_D, AUTO_FLYWHEEL_F);
         });
     }
 
-    private static CommandBuilder feed(double runSeconds) {
+    private static CommandBuilder feed(double runSeconds, double power) {
         final ElapsedTime run = new ElapsedTime();
         return Command.build()
                 .setStart(run::reset)
-                .setExecute(() -> {
-                    hardware.setIntakePower(INTAKE_POWER);
-                    setFlower(FLOWER_POWER);
-                })
+                .setExecute(() -> hardware.setIntakePower(INTAKE_POWER - power))
                 .setDone(() -> runSeconds > 0.0 && run.seconds() >= runSeconds)
                 .setEnd(endCondition -> secure());
     }
 
-    private static CommandBuilder rampFlower(double before, double rampSeconds, double targetPower,
-                                             boolean instant) {
-        final ElapsedTime timer = new ElapsedTime();
-        final double[] from = {0.0};
+    /** Leaves the intake running with the gate closed so balls ride along while driving. */
+    public static CommandBuilder intakeCarry() {
         return sequential(
-                gate(true, before, instant),
-                Command.build()
-                        .setStart(() -> {
-                            timer.reset();
-                            from[0] = flowerPower;
-                        })
-                        .setExecute(() -> {
-                            double f = rampSeconds <= 0.0 ? 1.0 : Math.min(1.0, timer.seconds() / rampSeconds);
-                            setFlower(from[0] + (targetPower - from[0]) * f);
-                        })
-                        .setDone(() -> timer.seconds() >= Math.max(rampSeconds, 0.0))
-                        .setEnd(endCondition -> setFlower(targetPower)));
-    }
-
-    private static void setFlower(double power) {
-        hardware.setFlowerPower(power);
-        flowerPower = power;
+                Commands.instant(() -> {
+                    hardware.setBlockerClosed(true);
+                    hardware.setIntakePower(INTAKE_POWER);
+                }));
     }
 
     private static void secure() {
         hardware.setIntakePower(0.0);
-        setFlower(0.0);
         hardware.setBlockerClosed(true);
+    }
+
+    /** Runs the flower one direction for runSeconds, then stops. Never holds power. */
+    private static CommandBuilder pulseFlower(double before, double runSeconds, double power,
+                                              boolean instant) {
+        final ElapsedTime timer = new ElapsedTime();
+        return sequential(
+                gate(true, before, instant),
+                Command.build()
+                        .setStart(timer::reset)
+                        .setExecute(() -> hardware.setFlowerPower(power))
+                        .setDone(() -> timer.seconds() >= Math.max(runSeconds, 0.0))
+                        .setEnd(endCondition -> hardware.setFlowerPower(0.0)));
     }
 
     private static long ms(double seconds) {

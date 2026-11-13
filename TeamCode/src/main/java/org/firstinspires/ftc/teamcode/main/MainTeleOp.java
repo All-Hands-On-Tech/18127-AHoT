@@ -4,7 +4,6 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.math.Pose;
 import com.pedropathing.utils.Angle;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -36,10 +35,9 @@ public class MainTeleOp extends OpMode {
 
     private boolean shooterEnabled = false;
     private boolean blockerClosed = false;
-    private boolean fieldCentric = true;
     private double flywheelTarget = RobotConstants.FLYWHEEL_TICKS_PER_SECOND;
 
-    private boolean shooterPrev, blockerPrev, lb2Prev, rsPrev, togglePrev;
+    private boolean shooterPrev, blockerPrev, lb2Prev, rsPrev, rb1Prev;
     private final DpadPress dpad1 = new DpadPress();
     private final DpadPress dpad2 = new DpadPress();
 
@@ -60,12 +58,11 @@ public class MainTeleOp extends OpMode {
 
     @Override
     public void init_loop() {
-        updateDriveModeToggle();
         Navigation.AllianceSelector.update(gamepad1, gamepad2);
         alliance = Navigation.AllianceSelector.get();
         Navigation.AllianceSelector.addTelemetry(telemetry);
-        telemetry.addData("Drive mode", fieldCentric ? "FIELD CENTRIC" : "ROBOT CENTRIC");
-        telemetry.addData("Driver 1", "LS drive / RS turn / triggers intake / Start = drive mode / dpad = flywheel");
+        telemetry.addData("Drive mode", "ROBOT CENTRIC");
+        telemetry.addData("Driver 1", "LS drive / RS turn / triggers intake / RB hold = gate open / dpad = flywheel");
         telemetry.addData("Driver 2", "Y shooter / A blocker / triggers flower / RB hold = aim / LB = nearest corner / RS click = reset pose");
         telemetry.update();
     }
@@ -75,7 +72,6 @@ public class MainTeleOp extends OpMode {
         follower.update();
         alliance = Navigation.AllianceSelector.get();
 
-        updateDriveModeToggle();
         updateRelocalize();
         updateDrive();
 
@@ -88,18 +84,29 @@ public class MainTeleOp extends OpMode {
             flywheel.stop();
         }
 
+        // Driver 2: A toggles the blocker
         if (gamepad2.a && !blockerPrev) blockerClosed = !blockerClosed;
         blockerPrev = gamepad2.a;
+
+        // Driver 1: hold RB to keep the blocker open, release to close it
+        boolean rb1Held = gamepad1.left_bumper;
+        if (rb1Held) {
+            blockerClosed = false;       // held = open
+        } else if (rb1Prev) {
+            blockerClosed = true;        // just released = close
+        }
+        rb1Prev = rb1Held;
+
         hardware.setBlockerClosed(blockerClosed);
 
         if (gamepad2.right_trigger > 0.05) hardware.setFlowerPower(1.0);
         else if (gamepad2.left_trigger > 0.05) hardware.setFlowerPower(-1.0);
         else hardware.setFlowerPower(0.0);
 
-        if (gamepad1.right_trigger > 0.05) {
-            hardware.setIntakePower(gamepad1.right_trigger * RobotConstants.INTAKE_POWER);
-        } else if (gamepad1.left_trigger > 0.05) {
-            hardware.setIntakePower(-gamepad1.left_trigger * RobotConstants.INTAKE_POWER);
+        if (gamepad1.right_bumper) {
+            hardware.setIntakePower(RobotConstants.INTAKE_POWER);
+        } else if (gamepad1.x) {
+            hardware.setIntakePower(-1 * RobotConstants.INTAKE_POWER);
         } else {
             hardware.setIntakePower(0.0);
         }
@@ -136,17 +143,8 @@ public class MainTeleOp extends OpMode {
             return;
         }
 
-        if (fieldCentric) {
-            ManualDrive.driveOrHold(follower,
-                    ManualDrive.fieldCentric(forward, strafe, turn, follower.pose().heading()));
-        } else {
-            follower.manual(new DrivePowers(forward, strafe, turn));
-        }
-    }
-
-    private void updateDriveModeToggle() {
-        if (gamepad1.start && !togglePrev) fieldCentric = !fieldCentric;
-        togglePrev = gamepad1.start;
+        // Robot centric drive.
+        follower.manual(new DrivePowers(forward, strafe, turn));
     }
 
     // ------------------------------------------------------------------ aim

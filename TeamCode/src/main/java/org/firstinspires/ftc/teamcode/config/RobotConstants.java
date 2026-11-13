@@ -22,11 +22,11 @@ public final class RobotConstants {
     public static double INTAKE_POWER = 1.0;
 
     // Flywheel (built-in motor velocity PIDF, tune live from Dashboard)
-    public static double FLYWHEEL_TICKS_PER_SECOND = 1257.0;
-    public static double FLYWHEEL_P = 67.0;
+    public static double FLYWHEEL_TICKS_PER_SECOND = 1180.0;
+    public static double FLYWHEEL_P = 120.0;
     public static double FLYWHEEL_I = 0.0;
     public static double FLYWHEEL_D = 0.0;
-    public static double FLYWHEEL_F = 7.0;
+    public static double FLYWHEEL_F = 7.5;
 
     // Heading aim
     public static double AIM_TURN_GAIN = 1.0;
